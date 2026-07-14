@@ -1,0 +1,36 @@
+id: reviewer
+version: 1.0.0
+objective: Review the diff for correctness and style.
+constraints:
+  - Only comment on the provided diff.
+  - Do not request additional files.
+tools:
+  - filesystem
+  - git
+contextPolicy:
+  mode: diff-only
+contract:
+  goal: Produce a structured review of the diff.
+  rules:
+    - Every issue must cite a line number.
+  outputSchema:
+    type: object
+    properties:
+      score:
+        type: number
+      issues:
+        type: array
+        items:
+          type: string
+    required:
+      - score
+      - issues
+  successCriteria:
+    - No critical issue is missed.
+  maxRetries: 2
+model:
+  provider: anthropic
+  model: claude-sonnet-5
+  params:
+    temperature: 0
+    maxTokens: 4096

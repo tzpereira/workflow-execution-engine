@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/event.schema.json",
+  "title": "Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "timestamp", "executionId"],
+  "properties": {
+    "type": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "executionId": { "type": "string" },
+    "nodeId": { "type": "string" },
+    "payload": { "type": "object" }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/context-policy.schema.json",
+  "title": "ContextPolicy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode"],
+  "properties": {
+    "mode": {
+      "enum": ["full", "parent-only", "artifacts", "diff-only", "summary", "none"]
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

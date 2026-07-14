@@ -1,0 +1,43 @@
+id: pr-review
+version: 1.0.0
+nodes:
+  - id: diff
+    worker: pr-diff@1.0.0
+  - id: reviewerA
+    worker: reviewer@1.0.0
+    contextPolicy:
+      mode: diff-only
+  - id: reviewerB
+    worker: reviewer@1.0.0
+    contextPolicy:
+      mode: diff-only
+  - id: fixer
+    worker: fixer@1.0.0
+    contextPolicy:
+      mode: artifacts
+      params:
+        artifacts:
+          - reviewerA
+          - reviewerB
+edges:
+  - from: diff
+    to: reviewerA
+  - from: diff
+    to: reviewerB
+  - from: reviewerA
+    to: fixer
+  - from: reviewerB
+    to: fixer
+defaults:
+  model:
+    provider: anthropic
+    model: claude-sonnet-5
+    params:
+      temperature: 0
+  contextPolicy:
+    mode: parent-only
+budget:
+  maxCostUsd: 1.5
+  maxTokens: 200000
+  maxDurationMs: 600000
+  maxRetriesPerNode: 2

@@ -1,0 +1,32 @@
+id: exec-1
+workflowRef: pr-review@1.0.0
+state: succeeded
+graph:
+  id: pr-review
+  version: 1.0.0
+  nodes:
+    - id: diff
+      worker: pr-diff@1.0.0
+    - id: reviewerA
+      worker: reviewer@1.0.0
+      contextPolicy:
+        mode: diff-only
+  edges:
+    - from: diff
+      to: reviewerA
+  budget:
+    maxCostUsd: 1.5
+    maxTokens: 200000
+    maxDurationMs: 600000
+    maxRetriesPerNode: 2
+budget:
+  limit:
+    maxCostUsd: 1.5
+    maxTokens: 200000
+    maxDurationMs: 600000
+    maxRetriesPerNode: 2
+  spentCostUsd: 0.42
+  spentTokens: 51234
+  elapsedMs: 8300
+startedAt: 2026-07-14T12:00:00Z
+finishedAt: 2026-07-14T12:00:09Z

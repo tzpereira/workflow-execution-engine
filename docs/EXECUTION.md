@@ -30,11 +30,13 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.0 — implementation complete, locally verified. One acceptance criterion is
-  intentionally left open: "Both GitHub Actions workflows are green on the PR/commit that introduces them"
-  can only be confirmed after the introducing commit is pushed to GitHub. Every command those workflows run
-  passes locally and both YAML files parse. Once the push shows both workflows green, check that box and set
-  the current milestone to M1.1.
+- **Current milestone:** M1.1 — complete, locally verified. Next up: M1.2.
+- **M1.0:** complete and locally verified. One acceptance criterion stays open until the branch is pushed:
+  "Both GitHub Actions workflows are green on the PR/commit that introduces them" needs GitHub to run
+  Actions. Every command those workflows run passes locally. The M1.0 and M1.1 commits are unpushed; once
+  pushed and both workflows show green, check that box.
+- **M1.1:** all tasks and acceptance criteria verified locally (`go test ./core/... -race` green, including
+  schema-drift and round-trip; unresolved-edge and cycle errors carry the offending id and source line).
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -329,45 +331,45 @@ round-trip serialization and canonical hashing.
 
 ### Tasks
 
-- [ ] Write `schemas/workflow.schema.json` — fields: `id`, `version`, `nodes[]`, `edges[]`, `defaults`, `budget`.
-- [ ] Write `schemas/worker.schema.json` — fields: `id`, `version`, `objective`, `constraints[]`, `tools[]`,
+- [x] Write `schemas/workflow.schema.json` — fields: `id`, `version`, `nodes[]`, `edges[]`, `defaults`, `budget`.
+- [x] Write `schemas/worker.schema.json` — fields: `id`, `version`, `objective`, `constraints[]`, `tools[]`,
       `contextPolicy`, `contract`, model config (`provider`, `model`, `params`).
-- [ ] Write `schemas/contract.schema.json` — fields: `goal`, `rules[]`, `outputSchema` (a nested JSON Schema),
+- [x] Write `schemas/contract.schema.json` — fields: `goal`, `rules[]`, `outputSchema` (a nested JSON Schema),
       `successCriteria[]`, `maxRetries`.
-- [ ] Write `schemas/context-policy.schema.json` — enum `full | parent-only | artifacts | diff-only | summary | none`,
+- [x] Write `schemas/context-policy.schema.json` — enum `full | parent-only | artifacts | diff-only | summary | none`,
       plus a `params` object for the `artifacts` variant (list of artifact refs).
-- [ ] Write `schemas/artifact.schema.json` — fields: `id`, `type` (enum: `code|markdown|json|diff|image|file|report|test-result|metrics`),
+- [x] Write `schemas/artifact.schema.json` — fields: `id`, `type` (enum: `code|markdown|json|diff|image|file|report|test-result|metrics`),
       `contentHash`, `mimeType`, `metadata`, `producedBy`.
-- [ ] Write `schemas/event.schema.json` — fields: `type`, `timestamp`, `executionId`, `nodeId` (optional), `payload`.
-- [ ] Write `schemas/execution.schema.json` — fields: `id`, `workflowRef` (name@version), `state`, graph
+- [x] Write `schemas/event.schema.json` — fields: `type`, `timestamp`, `executionId`, `nodeId` (optional), `payload`.
+- [x] Write `schemas/execution.schema.json` — fields: `id`, `workflowRef` (name@version), `state`, graph
       snapshot, budget status, timestamps.
-- [ ] Write `schemas/budget.schema.json` — fields: `maxCostUsd`, `maxTokens`, `maxDurationMs`, `maxRetriesPerNode`.
-- [ ] Write Go structs in `core/domain/`: `workflow.go`, `worker.go`, `contract.go`, `context_policy.go`,
+- [x] Write `schemas/budget.schema.json` — fields: `maxCostUsd`, `maxTokens`, `maxDurationMs`, `maxRetriesPerNode`.
+- [x] Write Go structs in `core/domain/`: `workflow.go`, `worker.go`, `contract.go`, `context_policy.go`,
       `artifact.go`, `event.go`, `execution.go`, `budget.go` — one file per schema, field names/tags matching
       the schema's JSON property names exactly.
-- [ ] Write `core/domain/schema_drift_test.go`: for each struct, marshal a populated instance to JSON and
+- [x] Write `core/domain/schema_drift_test.go`: for each struct, marshal a populated instance to JSON and
       validate it against the corresponding `schemas/*.schema.json` file; fails the build if a Go field has no
       schema counterpart or vice versa.
-- [ ] Write `core/serialize/yaml.go` and `core/serialize/json.go`: `Load(path) (*domain.Workflow, error)` and
+- [x] Write `core/serialize/yaml.go` and `core/serialize/json.go`: `Load(path) (*domain.Workflow, error)` and
       `Save(*domain.Workflow, path) error` for both formats, sharing the same in-memory struct.
-- [ ] Write `core/canonical/marshal.go`: a canonical JSON marshaler with deterministic (sorted) key order —
+- [x] Write `core/canonical/marshal.go`: a canonical JSON marshaler with deterministic (sorted) key order —
       Go's built-in map ordering is not stable enough for hashing. This is the single function every hash in
       the project (artifact IDs, cache keys) must route through.
-- [ ] Write `core/validate/schema.go`: wraps `santhosh-tekuri/jsonschema/v6`, validates a domain object
+- [x] Write `core/validate/schema.go`: wraps `santhosh-tekuri/jsonschema/v6`, validates a domain object
       against its schema, returns human-readable, positional errors (file:line where the source was YAML).
-- [ ] Write `core/validate/graph.go`: validates a `Workflow`'s node/edge graph — no cycles, no orphan nodes,
+- [x] Write `core/validate/graph.go`: validates a `Workflow`'s node/edge graph — no cycles, no orphan nodes,
       every edge resolves to an existing node, every artifact referenced by a `ContextPolicy` is producible by
       some upstream node.
-- [ ] Write round-trip property tests in `core/serialize/roundtrip_test.go`: parse → serialize → parse must
+- [x] Write round-trip property tests in `core/serialize/roundtrip_test.go`: parse → serialize → parse must
       yield an identical struct, for at least one fixture per domain object (put fixtures in
       `core/serialize/testdata/`).
 
 ### Acceptance criteria
 
-- [ ] `go test ./core/... -race` passes, including the schema-drift and round-trip tests.
-- [ ] Feeding a workflow YAML with an unresolved edge reference to `validate/graph.go` produces an error
+- [x] `go test ./core/... -race` passes, including the schema-drift and round-trip tests.
+- [x] Feeding a workflow YAML with an unresolved edge reference to `validate/graph.go` produces an error
       message containing the offending node/edge id and, where derivable, the source line.
-- [ ] Feeding a workflow YAML with a cycle is rejected with a message naming the cycle.
+- [x] Feeding a workflow YAML with a cycle is rejected with a message naming the cycle.
 
 ---
 

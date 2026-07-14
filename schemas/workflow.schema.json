@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/workflow.schema.json",
+  "title": "Workflow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "nodes", "edges", "budget"],
+  "properties": {
+    "id": { "type": "string" },
+    "version": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "worker"],
+        "properties": {
+          "id": { "type": "string" },
+          "worker": { "type": "string" },
+          "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" }
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "model"],
+          "properties": {
+            "provider": { "type": "string" },
+            "model": { "type": "string" },
+            "params": { "type": "object" }
+          }
+        },
+        "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" }
+      }
+    },
+    "budget": { "$ref": "https://wee.dev/schemas/budget.schema.json" }
+  }
+}

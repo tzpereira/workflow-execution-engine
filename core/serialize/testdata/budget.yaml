@@ -1,0 +1,4 @@
+maxCostUsd: 1.5
+maxTokens: 200000
+maxDurationMs: 600000
+maxRetriesPerNode: 2

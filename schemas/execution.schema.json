@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/execution.schema.json",
+  "title": "Execution",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "workflowRef", "state", "graph", "budget", "startedAt"],
+  "properties": {
+    "id": { "type": "string" },
+    "workflowRef": { "type": "string" },
+    "state": { "enum": ["pending", "running", "succeeded", "failed", "cancelled"] },
+    "graph": { "$ref": "https://wee.dev/schemas/workflow.schema.json" },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "spentCostUsd", "spentTokens", "elapsedMs"],
+      "properties": {
+        "limit": { "$ref": "https://wee.dev/schemas/budget.schema.json" },
+        "spentCostUsd": { "type": "number" },
+        "spentTokens": { "type": "integer" },
+        "elapsedMs": { "type": "integer" }
+      }
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" }
+  }
+}

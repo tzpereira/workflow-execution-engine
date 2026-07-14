@@ -1,0 +1,5 @@
+mode: artifacts
+params:
+  artifacts:
+    - reviewerA
+    - reviewerB

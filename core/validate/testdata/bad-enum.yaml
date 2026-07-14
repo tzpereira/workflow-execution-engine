@@ -1,0 +1,13 @@
+id: bad
+version: 1.0.0
+nodes:
+  - id: a
+    worker: w@1.0.0
+    contextPolicy:
+      mode: telepathy
+edges: []
+budget:
+  maxCostUsd: 1
+  maxTokens: 1000
+  maxDurationMs: 1000
+  maxRetriesPerNode: 1

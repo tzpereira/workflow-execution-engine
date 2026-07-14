@@ -1,0 +1,7 @@
+type: WorkerFinished
+timestamp: 2026-07-14T12:00:00Z
+executionId: exec-1
+nodeId: reviewerA
+payload:
+  durationMs: 1200
+  cached: false

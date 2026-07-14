@@ -1,0 +1,19 @@
+goal: Produce a structured review of the diff.
+rules:
+  - Every issue must cite a line number.
+  - Do not invent files that are not in the diff.
+outputSchema:
+  type: object
+  properties:
+    score:
+      type: number
+    issues:
+      type: array
+      items:
+        type: string
+  required:
+    - score
+    - issues
+successCriteria:
+  - No critical issue is missed.
+maxRetries: 3

@@ -1,0 +1,15 @@
+id: broken
+version: 1.0.0
+nodes:
+  - id: a
+    worker: w@1.0.0
+  - id: b
+    worker: w@1.0.0
+edges:
+  - from: a
+    to: ghost
+budget:
+  maxCostUsd: 1
+  maxTokens: 1000
+  maxDurationMs: 1000
+  maxRetriesPerNode: 1

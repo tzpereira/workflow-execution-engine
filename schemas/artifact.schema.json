@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/artifact.schema.json",
+  "title": "Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "contentHash", "mimeType", "producedBy"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": {
+      "enum": ["code", "markdown", "json", "diff", "image", "file", "report", "test-result", "metrics"]
+    },
+    "contentHash": { "type": "string" },
+    "mimeType": { "type": "string" },
+    "metadata": { "type": "object" },
+    "producedBy": { "type": "string" }
+  }
+}

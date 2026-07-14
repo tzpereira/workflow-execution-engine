@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/worker.schema.json",
+  "title": "Worker",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "objective", "constraints", "tools", "contextPolicy", "contract", "model"],
+  "properties": {
+    "id": { "type": "string" },
+    "version": { "type": "string" },
+    "objective": { "type": "string" },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "tools": { "type": "array", "items": { "type": "string" } },
+    "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" },
+    "contract": { "$ref": "https://wee.dev/schemas/contract.schema.json" },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "params": { "type": "object" }
+      }
+    }
+  }
+}

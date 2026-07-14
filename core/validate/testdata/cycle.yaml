@@ -1,0 +1,21 @@
+id: looped
+version: 1.0.0
+nodes:
+  - id: a
+    worker: w@1.0.0
+  - id: b
+    worker: w@1.0.0
+  - id: c
+    worker: w@1.0.0
+edges:
+  - from: a
+    to: b
+  - from: b
+    to: c
+  - from: c
+    to: a
+budget:
+  maxCostUsd: 1
+  maxTokens: 1000
+  maxDurationMs: 1000
+  maxRetriesPerNode: 1

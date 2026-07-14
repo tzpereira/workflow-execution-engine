@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/budget.schema.json",
+  "title": "Budget",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["maxCostUsd", "maxTokens", "maxDurationMs", "maxRetriesPerNode"],
+  "properties": {
+    "maxCostUsd": { "type": "number", "minimum": 0 },
+    "maxTokens": { "type": "integer", "minimum": 0 },
+    "maxDurationMs": { "type": "integer", "minimum": 0 },
+    "maxRetriesPerNode": { "type": "integer", "minimum": 0 }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wee.dev/schemas/contract.schema.json",
+  "title": "Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["goal", "rules", "outputSchema", "successCriteria", "maxRetries"],
+  "properties": {
+    "goal": { "type": "string" },
+    "rules": { "type": "array", "items": { "type": "string" } },
+    "outputSchema": { "type": "object" },
+    "successCriteria": { "type": "array", "items": { "type": "string" } },
+    "maxRetries": { "type": "integer", "minimum": 0 }
+  }
+}
