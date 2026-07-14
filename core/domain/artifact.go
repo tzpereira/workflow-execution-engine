@@ -1,8 +1,19 @@
 package domain
 
-// ArtifactType is the enum of artifact kinds. The typed constants for these
-// values are defined in M1.2 alongside the artifact store.
+// ArtifactType is the enum of artifact kinds.
 type ArtifactType string
+
+const (
+	ArtifactCode       ArtifactType = "code"
+	ArtifactMarkdown   ArtifactType = "markdown"
+	ArtifactJSON       ArtifactType = "json"
+	ArtifactDiff       ArtifactType = "diff"
+	ArtifactImage      ArtifactType = "image"
+	ArtifactFile       ArtifactType = "file"
+	ArtifactReport     ArtifactType = "report"
+	ArtifactTestResult ArtifactType = "test-result"
+	ArtifactMetrics    ArtifactType = "metrics"
+)
 
 // Artifact is an immutable, content-addressed output produced by a Worker. It
 // becomes an input to downstream Workers and is the basis of the Node Cache.

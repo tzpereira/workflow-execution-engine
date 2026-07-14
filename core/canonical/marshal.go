@@ -41,12 +41,20 @@ func Marshal(v any) ([]byte, error) {
 }
 
 // Hash returns the hex-encoded SHA-256 of Marshal(v) — the content identity
-// used for artifact ids and cache keys.
+// used for structured values (cache keys, definition hashes).
 func Hash(v any) (string, error) {
 	b, err := Marshal(v)
 	if err != nil {
 		return "", err
 	}
+	return HashBytes(b), nil
+}
+
+// HashBytes returns the hex-encoded SHA-256 of raw bytes. Use it for opaque
+// artifact content (code, diffs, images, …) that has no canonical JSON form;
+// Hash is for structured values. Both live here so every hash in the project
+// shares one implementation (see ADR 0003).
+func HashBytes(b []byte) string {
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }

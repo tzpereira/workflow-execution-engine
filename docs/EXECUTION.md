@@ -30,13 +30,15 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.1 — complete, locally verified. Next up: M1.2.
+- **Current milestone:** M1.2 — complete, locally verified. Next up: M1.3.
 - **M1.0:** complete and locally verified. One acceptance criterion stays open until the branch is pushed:
   "Both GitHub Actions workflows are green on the PR/commit that introduces them" needs GitHub to run
-  Actions. Every command those workflows run passes locally. The M1.0 and M1.1 commits are unpushed; once
+  Actions. Every command those workflows run passes locally. The M1.0–M1.2 commits are all unpushed; once
   pushed and both workflows show green, check that box.
 - **M1.1:** all tasks and acceptance criteria verified locally (`go test ./core/... -race` green, including
   schema-drift and round-trip; unresolved-edge and cycle errors carry the offending id and source line).
+- **M1.2:** all tasks and acceptance criteria verified locally (identical content dedupes to one file;
+  an execution directory alone reconstructs the ordered timeline, incl. a concurrent-Put race test).
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -381,28 +383,28 @@ an execution's full timeline from disk alone.
 
 ### Tasks
 
-- [ ] Write `core/store/artifact_store.go`: `Put(content []byte) (hash string, error)` writes to
+- [x] Write `core/store/artifact_store.go`: `Put(content []byte) (hash string, error)` writes to
       `.workflow/artifacts/<sha256>` (via `core/canonical` + SHA-256), `Get(hash string) ([]byte, error)` reads
       it back, dedupes automatically (same content → same path, second write is a no-op).
-- [ ] Define artifact type constants in `core/domain/artifact.go` (already scaffolded in M1.1): `Code`,
+- [x] Define artifact type constants in `core/domain/artifact.go` (already scaffolded in M1.1): `Code`,
       `Markdown`, `JSON`, `Diff`, `File`, `Report`, `TestResult`, `Metrics`.
-- [ ] Write `core/eventlog/writer.go`: `Append(executionID string, ev domain.Event) error`, appends one JSON
+- [x] Write `core/eventlog/writer.go`: `Append(executionID string, ev domain.Event) error`, appends one JSON
       line to `.workflow/executions/<id>/events.jsonl`.
-- [ ] Write `core/eventlog/reader.go`: `ReadAll(executionID string) ([]domain.Event, error)`, streams the
+- [x] Write `core/eventlog/reader.go`: `ReadAll(executionID string) ([]domain.Event, error)`, streams the
       JSONL file back into a slice, in order.
-- [ ] Define the v1 event catalog as typed constants in `core/domain/event.go`: `ExecutionStarted`,
+- [x] Define the v1 event catalog as typed constants in `core/domain/event.go`: `ExecutionStarted`,
       `ExecutionFinished`, `WorkerStarted`, `WorkerFinished`, `ToolCalled`, `ToolResult`, `ArtifactCreated`,
       `ContractValidated`, `ContractViolation`, `Retry`, `Failure`, `CacheHit`, `CacheMiss`, `BudgetWarning`,
       `BudgetExceeded`, `Cancelled`.
-- [ ] Write `core/eventlog/snapshot.go`: on `ExecutionStarted`, persist the fully-resolved graph + config as a
+- [x] Write `core/eventlog/snapshot.go`: on `ExecutionStarted`, persist the fully-resolved graph + config as a
       frozen JSON blob under `.workflow/executions/<id>/snapshot.json` — this is what audit replay (M1.7) reads
       instead of re-resolving anything live.
 
 ### Acceptance criteria
 
-- [ ] Writing the same artifact content twice results in exactly one file under `.workflow/artifacts/`
+- [x] Writing the same artifact content twice results in exactly one file under `.workflow/artifacts/`
       (assert via a test that checks directory entry count).
-- [ ] A test that: starts a fake execution, appends a handful of events, writes a snapshot, then — using
+- [x] A test that: starts a fake execution, appends a handful of events, writes a snapshot, then — using
       *only* the contents of `.workflow/executions/<id>/` and nothing else in memory — reconstructs an ordered
       timeline. No hidden in-process state required.
 
