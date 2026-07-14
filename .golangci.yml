@@ -1,0 +1,22 @@
+# golangci-lint configuration for the Workflow Execution Engine.
+#
+# The enabled set is pinned explicitly (disable-all: true) rather than relying
+# on golangci-lint's rotating defaults, so a lint run stays deterministic as the
+# codebase grows across milestones. This is the minimum set required by
+# docs/EXECUTION.md M1.0; add linters deliberately, never by accident.
+run:
+  timeout: 5m
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+
+issues:
+  # Report everything; do not silently cap findings.
+  max-issues-per-linter: 0
+  max-same-issues: 0

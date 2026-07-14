@@ -1,0 +1,23 @@
+# Engine working directory: executions, artifacts, event logs, local cache.
+.workflow/
+
+# Go build artifacts (the `wee` binary, test/coverage output).
+/wee
+/cli/wee
+*.exe
+*.test
+*.out
+*.coverprofile
+coverage.out
+
+# Node / UI.
+node_modules/
+ui/dist/
+ui/dist-ssr/
+*.local
+
+# OS / editor cruft.
+.DS_Store
+
+# Local Claude Code agent config (machine-local, not part of the project).
+.claude/
