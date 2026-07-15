@@ -30,15 +30,19 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.2 — complete, locally verified. Next up: M1.3.
+- **Current milestone:** M1.3 — complete, locally verified. Next up: M1.4.
 - **M1.0:** complete and locally verified. One acceptance criterion stays open until the branch is pushed:
   "Both GitHub Actions workflows are green on the PR/commit that introduces them" needs GitHub to run
-  Actions. Every command those workflows run passes locally. The M1.0–M1.2 commits are all unpushed; once
+  Actions. Every command those workflows run passes locally. The M1.0–M1.3 commits are all unpushed; once
   pushed and both workflows show green, check that box.
 - **M1.1:** all tasks and acceptance criteria verified locally (`go test ./core/... -race` green, including
   schema-drift and round-trip; unresolved-edge and cycle errors carry the offending id and source line).
 - **M1.2:** all tasks and acceptance criteria verified locally (identical content dedupes to one file;
   an execution directory alone reconstructs the ordered timeline, incl. a concurrent-Put race test).
+- **M1.3:** all tasks and acceptance criteria verified locally — diamond runs B/C concurrently, cancel→resume
+  skips finished nodes, a $0.01 budget halts with a distinct error. Conditional edges use a hand-rolled
+  dotted-path evaluator (gjson dropped, see §1a); retry/failure-policy/cancellation covered by tests, incl. a
+  goroutine-leak check.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -59,7 +63,7 @@ These resolve every "TBD" left in ROADMAP.md. Use them as-is.
 | CLI framework | `github.com/spf13/cobra` |
 | Terminal styling | `github.com/charmbracelet/lipgloss` (no full TUI framework — MVP doesn't need it) |
 | Anthropic Go SDK | `github.com/anthropics/anthropic-sdk-go` |
-| JSON-path predicate evaluation (conditional edges) | `github.com/tidwall/gjson` |
+| JSON-path predicate evaluation (conditional edges) | hand-rolled dotted-path evaluator on `encoding/json` (resolved 2026-07-14, dropped `tidwall/gjson`; see §1a) |
 | Cross-compile / release | `goreleaser` (`.goreleaser.yaml` at repo root) |
 | UI scaffold | Vite + React + TypeScript |
 | UI package manager | `pnpm` |
@@ -179,7 +183,12 @@ license, and viable alternatives. Where hand-rolling is a realistic option, that
   14+ months either. v5 is frozen but stable and zero-CVE, so staying on it is defensible too. Not urgent to
   decide today.
 
-### `tidwall/gjson` — Verdict: **Hand-roll recommended**
+### `tidwall/gjson` — Verdict: **Hand-roll recommended** → **RESOLVED 2026-07-14: dropped, hand-rolled**
+
+> **Resolved 2026-07-14 (during M1.3):** the project owner chose to hand-roll. `tidwall/gjson` was never
+> added to `go.mod`; `core/engine/conditional.go` evaluates conditional-edge predicates with a small
+> dotted-path walker over `encoding/json` (a structured `{path, op, value}` predicate on the domain `Edge`).
+> §1's pin and the M1.3 task text were updated to match. The diagnostic below is kept for provenance.
 
 - Maintainer: Josh Baker (tidwall), solo — 282 of 321 commits on master (~88%) are his; the next-most-active
   contributor has 3 commits. gjson's own runtime deps (`tidwall/match`, `tidwall/pretty`) are maintained by the
@@ -418,36 +427,38 @@ enforcement.
 
 ### Tasks
 
-- [ ] Write `core/engine/scheduler.go`: topological sort of the workflow graph; a bounded goroutine pool
+- [x] Write `core/engine/scheduler.go`: topological sort of the workflow graph; a bounded goroutine pool
       (size = `--concurrency`, default e.g. 4) dispatches nodes whose dependencies are all satisfied.
-- [ ] Write `core/engine/node.go`: node execution wrapper — takes a node, resolves its input artifacts, calls
+- [x] Write `core/engine/node.go`: node execution wrapper — takes a node, resolves its input artifacts, calls
       into the (not-yet-built) Worker/Contract layer as a pluggable `NodeExecutor` interface so M1.4 can slot
       in without touching the scheduler.
-- [ ] Write `core/engine/conditional.go`: conditional edge evaluation — predicate is a `gjson` path expression
-      evaluated against the upstream artifact's JSON; edge is only traversed if the predicate is truthy.
-- [ ] Write `core/engine/retry.go`: retry with exponential backoff; three distinct classifications —
+- [x] Write `core/engine/conditional.go`: conditional edge evaluation — predicate is a structured
+      `{path, op, value}` on the domain `Edge`, evaluated against the upstream artifact's JSON with a
+      hand-rolled dotted-path walker over `encoding/json` (gjson dropped 2026-07-14, see §1a); edge is only
+      traversed if the predicate holds.
+- [x] Write `core/engine/retry.go`: retry with exponential backoff; three distinct classifications —
       transient error (retry as-is), contract violation (retry with validation feedback appended — hook point
       for M1.4), fatal error (fail node immediately, no retry).
-- [ ] Write `core/engine/failure_policy.go`: per-node failure policy — `fail-execution` (default),
+- [x] Write `core/engine/failure_policy.go`: per-node failure policy — `fail-execution` (default),
       `continue` (mark node failed, continue independent branches), `fallback-node` (redirect to a designated
       fallback node id).
-- [ ] Wire `context.Context` cancellation through every goroutine the scheduler spawns; on cancellation, emit
+- [x] Wire `context.Context` cancellation through every goroutine the scheduler spawns; on cancellation, emit
       `Cancelled`, persist whatever partial state exists, and return cleanly (no goroutine leaks — verify with
       `-race` and a leak-detector test).
-- [ ] Write `core/engine/resume.go`: `Resume(executionID string) error` — reads the snapshot + event log,
+- [x] Write `core/engine/resume.go`: `Resume(executionID string) error` — reads the snapshot + event log,
       determines which nodes already have `WorkerFinished` (or a cache hit) recorded, and restarts the
       scheduler skipping those, reusing their persisted artifacts as inputs downstream.
-- [ ] Write `core/engine/budget.go`: budget checks before each node dispatch and (hook point) before each
+- [x] Write `core/engine/budget.go`: budget checks before each node dispatch and (hook point) before each
       model call — emits `BudgetWarning` at 80% of any limit, halts and emits `BudgetExceeded` at 100%.
 
 ### Acceptance criteria
 
-- [ ] Test: diamond graph `A → B, C → D` — `B` and `C` execute concurrently (assert via timing or instrumented
+- [x] Test: diamond graph `A → B, C → D` — `B` and `C` execute concurrently (assert via timing or instrumented
       start/end overlap), `D` receives both artifacts.
-- [ ] Test: kill the process mid-execution (or simulate via context cancellation) on a multi-node workflow,
+- [x] Test: kill the process mid-execution (or simulate via context cancellation) on a multi-node workflow,
       then call `Resume` — the finished nodes are not re-executed (assert no duplicate `WorkerStarted` events
       for them), and the execution completes.
-- [ ] Test: a budget of e.g. `$0.01` on a workflow whose nodes report cost via a stub `NodeExecutor` halts
+- [x] Test: a budget of e.g. `$0.01` on a workflow whose nodes report cost via a stub `NodeExecutor` halts
       deterministically, emits `BudgetExceeded`, and the process/test returns a distinct non-zero result for
       that case.
 

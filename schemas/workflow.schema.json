@@ -17,7 +17,16 @@
         "properties": {
           "id": { "type": "string" },
           "worker": { "type": "string" },
-          "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" }
+          "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" },
+          "onFailure": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode"],
+            "properties": {
+              "mode": { "enum": ["fail-execution", "continue", "fallback-node"] },
+              "fallbackNode": { "type": "string" }
+            }
+          }
         }
       }
     },
@@ -29,7 +38,17 @@
         "required": ["from", "to"],
         "properties": {
           "from": { "type": "string" },
-          "to": { "type": "string" }
+          "to": { "type": "string" },
+          "condition": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "op"],
+            "properties": {
+              "path": { "type": "string" },
+              "op": { "enum": ["eq", "ne", "gt", "gte", "lt", "lte", "exists", "truthy"] },
+              "value": {}
+            }
+          }
         }
       }
     },
