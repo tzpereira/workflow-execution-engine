@@ -75,6 +75,9 @@ are law, not aspiration: [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01…10).
 
 ## Architecture at a glance
 
+> Diagrams (component map, execution lifecycle) live in [ARCHITECTURE.md](ARCHITECTURE.md); this section
+> stays prose-only.
+
 The **Core is the product**; the interface is one possible client. CLI-first, API-first, SDK-first — the
 entire platform is usable without any UI.
 
