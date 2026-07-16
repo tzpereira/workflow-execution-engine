@@ -1,109 +1,109 @@
 ---
 name: agent-harness-design
-description: Princípios de design de harness para agentes de código em tarefas longas e autônomas (multi-hora, multi-sessão, codebases geradas por agente). Use ao projetar, simplificar ou depurar harnesses de agentes (planner/generator/evaluator, loops de QA, context resets, AGENTS.md, docs-as-system-of-record, linters de arquitetura, garbage collection de código IA). Baseado exclusivamente em dois artigos: "Harness design for long-running application development" (Anthropic, mar/2026) e "Alavancando o Codex em um mundo centrado no agente" (OpenAI, fev/2026).
+description: Harness design principles for coding agents on long, autonomous tasks (multi-hour, multi-session, agent-generated codebases). Use when designing, simplifying, or debugging agent harnesses (planner/generator/evaluator, QA loops, context resets, AGENTS.md, docs-as-system-of-record, architecture linters, AI-code garbage collection). Based exclusively on two articles: "Harness design for long-running application development" (Anthropic, Mar 2026) and "Leveraging Codex in an agent-centric world" (OpenAI, Feb 2026).
 ---
 
-# Design de Harness para Agentes de Código
+# Harness Design for Coding Agents
 
-Fonte: 2 artigos. Anthropic (harness planner/generator/evaluator) e OpenAI (repositório 100% gerado por agente, 1M LOC, 0 código manual).
+Source: 2 articles. Anthropic (planner/generator/evaluator harness) and OpenAI (100%-agent-generated repository, 1M LOC, 0 hand-written code).
 
-## Princípio central
+## Core principle
 
-- Humanos dirigem; agentes executam. O papel do engenheiro vira: projetar ambientes, especificar intenção, construir loops de feedback (OpenAI).
-- Cada componente do harness codifica uma suposição sobre o que o modelo NÃO faz sozinho. Suposições envelhecem. A cada novo modelo, remova peças não mais load-bearing, uma por vez (Anthropic).
-- Regra base: "solução mais simples possível; aumente complexidade só quando necessário."
+- Humans direct; agents execute. The engineer's role becomes: designing environments, specifying intent, building feedback loops (OpenAI).
+- Every harness component encodes an assumption about what the model does NOT do on its own. Assumptions age. With every new model, remove pieces that are no longer load-bearing, one at a time (Anthropic).
+- Base rule: "simplest possible solution; add complexity only when needed."
 
-## Arquitetura de 3 agentes (Anthropic)
+## 3-agent architecture (Anthropic)
 
-Inspirada em GAN: separar quem faz de quem julga.
+Inspired by GANs: separate the doer from the judge.
 
-1. **Planner**: expande prompt de 1-4 frases em spec completa. Ambicioso em escopo, alto nível (produto + design técnico geral). NÃO detalhar implementação: erros na spec cascateiam. Sem planner, o generator sub-escopa.
-2. **Generator**: implementa 1 feature por vez (sprints). Auto-avalia antes de entregar ao QA. Git para versionamento.
-3. **Evaluator (QA)**: usa Playwright para clicar no app rodando como usuário real. Grada por critérios com threshold rígido; falha = feedback detalhado.
+1. **Planner**: expands a 1-4 sentence prompt into a full spec. Ambitious in scope, high-level (product + overall technical design). Do NOT detail implementation: errors in the spec cascade. Without a planner, the generator under-scopes.
+2. **Generator**: implements 1 feature at a time (sprints). Self-evaluates before handing off to QA. Git for versioning.
+3. **Evaluator (QA)**: uses Playwright to click through the running app like a real user. Grades against criteria with a hard threshold; failure = detailed feedback.
 
-Comunicação entre agentes via arquivos.
+Agents communicate via files.
 
 ### Sprint contract
-Antes de cada sprint, generator e evaluator negociam o que é "done" e como será verificado. Ponte entre spec de alto nível e implementação testável.
+Before each sprint, generator and evaluator negotiate what "done" means and how it will be verified. Bridges the high-level spec and testable implementation.
 
-### Por que separar generator/evaluator
-- Modelos elogiam o próprio trabalho, mesmo medíocre (pior em tarefas subjetivas).
-- Tunar um evaluator externo cético é tratável; tornar o generator autocrítico não é.
-- Out of the box, Claude é QA fraco: identifica bugs e "decide que não importa". Loop de tuning: ler logs do evaluator → achar divergências com julgamento humano → ajustar prompt. Várias rodadas.
+### Why separate generator/evaluator
+- Models praise their own work, even when mediocre (worse on subjective tasks).
+- Tuning an external, skeptical evaluator is tractable; making the generator self-critical is not.
+- Out of the box, Claude is a weak QA: it identifies bugs and then "decides it doesn't matter." Tuning loop: read evaluator logs → find divergences from human judgment → adjust the prompt. Several rounds.
 
-### Tornar qualidade subjetiva gradável
-"É bonito?" não funciona. "Segue nossos princípios de design?" funciona. Critérios da Anthropic (frontend):
-1. Design quality (coerência, identidade)
-2. Originality (penalizar "AI slop": gradientes roxos sobre cards brancos, templates)
-3. Craft (tipografia, spacing, contraste)
-4. Functionality (usabilidade)
+### Making subjective quality gradable
+"Is it pretty?" doesn't work. "Does it follow our design principles?" does. Anthropic's criteria (frontend):
+1. Design quality (coherence, identity)
+2. Originality (penalize "AI slop": purple gradients over white cards, templates)
+3. Craft (typography, spacing, contrast)
+4. Functionality (usability)
 
-Pesar mais 1 e 2 (modelo já é bom em 3 e 4). Calibrar evaluator com few-shot + score breakdowns. Cuidado: a linguagem dos critérios molda o output ("museum quality" causou convergência visual).
+Weight 1 and 2 more heavily (the model is already good at 3 and 4). Calibrate the evaluator with few-shot examples + score breakdowns. Caution: the language of the criteria shapes the output ("museum quality" caused visual convergence).
 
-Loop: 5-15 iterações; generator decide após cada avaliação: refinar direção ou pivotar estética.
+Loop: 5-15 iterations; the generator decides after each evaluation: refine direction or pivot aesthetics.
 
-## Gestão de contexto
+## Context management
 
-- **Context anxiety**: modelo encerra trabalho cedo ao achar que o contexto vai acabar. Compaction não resolve (não dá "clean slate").
-- **Context reset**: limpar contexto + handoff estruturado com estado e próximos passos. Resolve anxiety, custa orquestração/tokens/latência.
-- Modelos melhores dispensam resets (Opus 4.6 rodou 2h+ coerente numa sessão só, com compaction automática). Reavalie a necessidade a cada modelo.
+- **Context anxiety**: the model wraps up work early when it thinks context is about to run out. Compaction doesn't fix this (it doesn't give a "clean slate").
+- **Context reset**: clear context + a structured handoff with state and next steps. Resolves anxiety, costs orchestration/tokens/latency.
+- Better models need fewer resets (Opus 4.6 ran 2h+ coherently in a single session, with automatic compaction). Re-evaluate the need with every new model.
 
-## Repositório como sistema de registro (OpenAI)
+## Repository as system of record (OpenAI)
 
-- **AGENTS.md gigante falha**: consome contexto, "tudo importante = nada importante", apodrece, inverificável.
-- Solução: AGENTS.md ~100 linhas como **índice/mapa**, apontando para `docs/` estruturado (design-docs, exec-plans ativos/completos, product-specs, references llms.txt, ARCHITECTURE.md, tech-debt-tracker).
-- **Progressive disclosure**: ponto de entrada pequeno e estável; agente sabe onde buscar mais.
-- O que o agente não acessa no contexto **não existe**. Discussão no Slack, doc no Google Drive = ilegível. Tudo vai para artefatos versionados no repo.
-- Aplicar mecanicamente: linters e CI validam frescor/interligação da doc; agente recorrente de "manutenção de docs" abre PRs de correção.
-- Planos são artefatos de primeira classe, versionados no repo.
+- **A giant AGENTS.md fails**: eats context, "everything important = nothing important," rots, unverifiable.
+- Solution: AGENTS.md ~100 lines as an **index/map**, pointing into a structured `docs/` (design docs, active/completed exec plans, product specs, llms.txt references, ARCHITECTURE.md, tech-debt tracker).
+- **Progressive disclosure**: small, stable entry point; the agent knows where to look for more.
+- What the agent can't access in context **does not exist**. A Slack discussion, a Google Drive doc — both unreadable. Everything goes into versioned artifacts in the repo.
+- Apply mechanically: linters and CI validate doc freshness/interlinking; a recurring "doc maintenance" agent opens fix-up PRs.
+- Plans are first-class artifacts, versioned in the repo.
 
-## Legibilidade do agente > preferência humana
+## Agent legibility > human preference
 
-- Otimize o repo para o agente ler, inspecionar, validar e modificar.
-- Prefira tecnologias "chatas": estáveis, componíveis, bem representadas no treino.
-- Às vezes é mais barato o agente reimplementar um subconjunto (ex.: helper de concorrência próprio, 100% coberto, integrado ao OpenTelemetry) do que depender de lib opaca.
-- Torne app/logs/métricas legíveis ao agente: app bootável por git worktree (1 instância por mudança), Chrome DevTools Protocol (DOM, screenshots, navegação), observabilidade efêmera por worktree (LogQL/PromQL). Isso viabiliza instruções como "startup < 800ms".
-- Código não precisa agradar estilo humano; precisa ser correto, mantível e legível para execuções futuras do agente.
+- Optimize the repo for an agent to read, inspect, validate, and modify.
+- Prefer "boring" technologies: stable, composable, well represented in training data.
+- Sometimes it's cheaper for the agent to reimplement a subset (e.g., a custom concurrency helper, 100% covered, wired into OpenTelemetry) than to depend on an opaque library.
+- Make the app/logs/metrics legible to the agent: app bootable via a git worktree (one instance per change), Chrome DevTools Protocol (DOM, screenshots, navigation), ephemeral per-worktree observability (LogQL/PromQL). This is what makes instructions like "startup < 800ms" actionable.
+- Code doesn't need to please human taste; it needs to be correct, maintainable, and legible to future agent runs.
 
-## Impor invariantes, não microgerenciar
+## Enforce invariants, don't micromanage
 
-- Limites rígidos + estrutura previsível = agentes eficazes.
-- Camadas fixas por domínio (Types → Config → Repo → Service → Runtime → UI); cross-cutting só via interface única (Providers). Aplicado por linters customizados (gerados pelo agente) e testes estruturais.
-- "Invariantes de gosto": logging estruturado, convenções de nome, limite de tamanho de arquivo. Mensagens de erro dos lints escritas como instruções de correção — entram no contexto do agente.
-- Especifique o QUÊ (validar dados na borda), não o COMO (não impor Zod).
-- Regras que pareceriam pedantes com humanos viram multiplicadores com agentes: codificadas uma vez, aplicadas em todo lugar.
-- Arquitetura rígida vira pré-requisito inicial (não algo adiado até ter centenas de engenheiros).
+- Hard limits + predictable structure = effective agents.
+- Fixed layers per domain (Types → Config → Repo → Service → Runtime → UI); cross-cutting concerns only through a single interface (Providers). Enforced by custom linters (agent-generated) and structural tests.
+- "Taste invariants": structured logging, naming conventions, file-size limits. Lint error messages written as correction instructions — they enter the agent's context.
+- Specify the WHAT (validate data at the boundary), not the HOW (don't mandate Zod).
+- Rules that would seem pedantic with humans become multipliers with agents: encoded once, enforced everywhere.
+- Rigid architecture becomes an initial prerequisite (not something deferred until there are hundreds of engineers).
 
-## Throughput muda a filosofia de merge (OpenAI)
+## Throughput changes the merge philosophy (OpenAI)
 
-- Merge com mínimo de bloqueio; PRs curtas; testes flaky = follow-up, não bloqueio.
-- Quando throughput do agente >> atenção humana: correção é barata, espera é cara.
-- Revisão migra para agente-revisa-agente; humano revisa opcionalmente.
-- Loop de PR (estilo "Ralph Wiggum"): agente revisa as próprias mudanças, pede revisões de outros agentes, responde feedback, itera até todos os revisores aprovarem.
+- Merge with minimal blocking; short PRs; flaky tests are a follow-up, not a blocker.
+- When agent throughput >> human attention: fixing is cheap, waiting is expensive.
+- Review shifts to agent-reviews-agent; human review becomes optional.
+- PR loop ("Ralph Wiggum" style): agent reviews its own changes, requests reviews from other agents, responds to feedback, iterates until every reviewer approves.
 
-## Entropia e garbage collection (OpenAI)
+## Entropy and garbage collection (OpenAI)
 
-- Agente replica padrões existentes, inclusive ruins → drift inevitável.
-- Limpeza manual (sextas de "resíduo de IA", 20% da semana) não escala.
-- Solução: "princípios de ouro" mecânicos no repo (ex.: utilitários compartilhados > helpers ad hoc; validar bordas, nunca "YOLO parsing") + tarefas recorrentes de agente que detectam drift, atualizam scores de qualidade e abrem PRs de refactor (revisáveis em <1 min, auto-merge).
-- Dívida técnica = empréstimo a juros altos: pague continuamente em parcelas pequenas.
-- Gosto humano é capturado uma vez (comentário de review, bug) e codificado em doc ou ferramenta. Se doc não basta, vira código/lint.
+- Agents replicate existing patterns, including bad ones → drift is inevitable.
+- Manual cleanup ("AI-residue Fridays," 20% of the week) doesn't scale.
+- Solution: mechanical "golden principles" in the repo (e.g., shared utilities > ad hoc helpers; validate at boundaries, never "YOLO parsing") + recurring agent tasks that detect drift, update quality scores, and open refactor PRs (reviewable in <1 minute, auto-merge).
+- Technical debt = a high-interest loan: pay it down continuously, in small installments.
+- Human taste is captured once (a review comment, a bug) and encoded into a doc or a tool. If a doc isn't enough, it becomes code/lint.
 
-## Quando o evaluator vale o custo (Anthropic)
+## When the evaluator is worth the cost (Anthropic)
 
-- Não é sim/não fixo. Vale quando a tarefa está ALÉM do que o modelo faz confiável sozinho.
-- Fronteira move com cada modelo: em Opus 4.5, evaluator ajudava em todo o build; em 4.6, só na borda da capacidade. Mesmo em 4.6, QA pegou gaps reais (features stub, interações display-only).
-- Custo de referência: harness completo ~20x mais caro que solo ($200/6h vs $9/20min), mas solo produziu app com feature central quebrada.
+- Not a fixed yes/no. It's worth it when the task is BEYOND what the model reliably does alone.
+- The frontier moves with each model: on Opus 4.5, the evaluator helped across the whole build; on 4.6, only at the edge of capability. Even on 4.6, QA caught real gaps (stub features, display-only interactions).
+- Reference cost: a full harness is ~20x more expensive than solo ($200/6h vs $9/20min), but solo produced an app with a broken core feature.
 
-## Checklist prático
+## Practical checklist
 
-1. Comece simples; adicione componente só contra falha observada.
-2. Separe generator de evaluator; tune o evaluator para ceticismo com few-shot.
-3. Converta qualidade subjetiva em critérios gradáveis; pese os fracos do modelo.
-4. Sprint contracts: acordar "done" antes de codar.
-5. Dê ao evaluator acesso real ao app (browser, logs, métricas), não screenshots estáticos.
-6. AGENTS.md = índice curto; conhecimento em docs/ versionado e lintado.
-7. Imponha invariantes por linters com mensagens-instrução; liberdade dentro dos limites.
-8. GC contínuo: agentes recorrentes anti-drift.
-9. A cada novo modelo: releia traces, remova scaffolding obsoleto peça por peça, teste novas capacidades.
-10. Quando o agente trava, pergunte "que capacidade/ferramenta/doc falta?" — nunca "tente com mais força". Faça o próprio agente escrever a correção.
+1. Start simple; add a component only against an observed failure.
+2. Separate generator from evaluator; tune the evaluator toward skepticism with few-shot examples.
+3. Convert subjective quality into gradable criteria; weight the model's weak spots.
+4. Sprint contracts: agree on "done" before coding.
+5. Give the evaluator real access to the app (browser, logs, metrics), not static screenshots.
+6. AGENTS.md = short index; knowledge lives in versioned, linted `docs/`.
+7. Enforce invariants via linters with instruction-style messages; freedom within the limits.
+8. Continuous GC: recurring anti-drift agents.
+9. With every new model: re-read traces, remove obsolete scaffolding piece by piece, test new capabilities.
+10. When the agent gets stuck, ask "what capability/tool/doc is missing?" — never "try harder." Have the agent itself write the fix.
