@@ -1,4 +1,4 @@
-# ADR 0002: Serialization — YAML is canonical authoring, JSON is the wire/storage form, round-trip is loss-free
+# ADR 0003: Serialization — YAML is canonical authoring, JSON is the wire/storage form, round-trip is loss-free
 
 - **Status:** Accepted
 - **Date:** 2026-07-14
@@ -7,7 +7,7 @@
 
 Workflows and every other domain object must be serializable, human-authorable,
 and machine-processable, with a single in-process representation shared by the
-engine, the CLI, and the UI. Hashing (ADR 0003) needs one unambiguous byte
+engine, the CLI, and the UI. Hashing (ADR 0004) needs one unambiguous byte
 representation. See `docs/VISION.md` → "Workflow Definition".
 
 ## Decision
@@ -18,7 +18,7 @@ in `core/domain/`, so they are two encodings of one model, not two models.
 **Round-trip must be loss-free**: parse → serialize → parse yields a struct
 identical to the original (enforced by round-trip property tests in M1.1). For
 hashing and cache keys, the JSON form is further reduced to *canonical* JSON
-(deterministic sorted key order) — see ADR 0003.
+(deterministic sorted key order) — see ADR 0004.
 
 ## Consequences
 

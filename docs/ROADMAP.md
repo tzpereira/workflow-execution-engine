@@ -5,7 +5,9 @@ Two phases only.
 * **Phase 1 — MVP**: everything needed for the flagship demo and portfolio credibility. Core open source + minimal commercial interface.
 * **Phase 2 — Final Product**: everything needed for teams to pay. Hosted execution, collaboration, hardening.
 
-Each milestone lists: deliverables, acceptance criteria, and dependencies.
+Each milestone lists: deliverables, acceptance criteria, dependencies, and a `Delivers:` line naming the
+requirement IDs (from [spec/](spec/README.md)) it fulfills — the roadmap sequences requirements, it does not
+restate them. Laws in [CONSTITUTION.md](CONSTITUTION.md) bind every milestone.
 
 Sequencing rule: **nothing in the Interface starts before the Core event/artifact model is stable** (M1.6). The UI consumes contracts, it never defines them.
 
@@ -21,6 +23,8 @@ Exit criterion for the whole phase: **the 3-minute flagship demo (PR Review & Au
 
 ## M1.0 — Foundations & Repo Skeleton
 
+Delivers: no spec REQs — infrastructure; installs the PRIN-04 vocabulary gate and the CI that later REQs verify against.
+
 Deliverables:
 
 * Bilingual monorepo: Go (`core/`, `cli/`, `sdk/` — single Go module) + TypeScript (`ui/`), plus `docs/`, `examples/`, `schemas/` (JSON Schemas as the language-neutral source of truth)
@@ -28,10 +32,10 @@ Deliverables:
 * CI (GitHub Actions): two independent pipelines (Go: lint + vet + test -race; UI: lint + typecheck + test); neither blocks the other
 * License decision (Apache-2.0 or MIT for Core)
 * ADR (Architecture Decision Records) folder — every irreversible decision gets one, starting with:
-  * ADR-001: language/runtime (Go for Core/CLI/SDK — single static binary, goroutine-native scheduler, git/terraform-grade CLI distribution; TypeScript only in the UI)
-  * ADR-002: serialization format (YAML canonical, JSON equivalent)
-  * ADR-003: content-addressing scheme (SHA-256 over canonical JSON)
-  * ADR-004: contract validation via JSON Schema (draft 2020-12) — language-neutral, replaces any runtime-specific validator
+  * ADR 0002: language/runtime (Go for Core/CLI/SDK — single static binary, goroutine-native scheduler, git/terraform-grade CLI distribution; TypeScript only in the UI)
+  * ADR 0003: serialization format (YAML canonical, JSON equivalent)
+  * ADR 0004: content-addressing scheme (SHA-256 over canonical JSON)
+  * ADR 0005: contract validation via JSON Schema (draft 2020-12) — language-neutral, replaces any runtime-specific validator
 * Naming freeze: Worker, Contract, Artifact, Execution, Event, Workflow. Documented in `docs/glossary.md`.
 
 Acceptance:
@@ -42,6 +46,8 @@ Acceptance:
 ---
 
 ## M1.1 — Domain Model & Serialization
+
+Delivers: REQ-DEF-01..05 · REQ-WORKER-01 (struct+schema) · REQ-ARTIFACT-03 (types) · REQ-EVENT-01 (catalog).
 
 Deliverables:
 
@@ -67,6 +73,8 @@ Acceptance:
 
 ## M1.2 — Artifact Store & Event Log
 
+Delivers: REQ-ARTIFACT-01..04 · REQ-EVENT-02, REQ-EVENT-04 (snapshot).
+
 Deliverables:
 
 * Local artifact store: content-addressed (`.workflow/artifacts/<sha256>`), immutable, deduplicated
@@ -83,6 +91,8 @@ Acceptance:
 ---
 
 ## M1.3 — Workflow Runtime (Engine)
+
+Delivers: REQ-RUNTIME-01..06 · REQ-WORKER-02 (executor seam) · REQ-BUDGET-01 (halt mechanics), REQ-BUDGET-02.
 
 Deliverables:
 
@@ -105,9 +115,13 @@ Acceptance:
 
 ## M1.4 — Workers, Contracts & Model Layer
 
+Delivers: REQ-MODEL-01..05 · REQ-CONTRACT-01..03, REQ-CONTRACT-04 (examples) · REQ-CTXPOL-01..03 (recording) · REQ-WORKER-01..03 (execution) · REQ-BUDGET-03, REQ-BUDGET-01 (real cost) · REQ-EVENT-03 (hash-chain retrofit) · NFR-SEC-01 (provider hygiene), NFR-SEC-02.
+
 Deliverables:
 
-* Model provider abstraction: Anthropic first (official Go SDK); interface designed for OpenAI/local later (but NOT implemented — non-goal creep)
+* Model provider abstraction: **Anthropic + OpenAI, both shipped here** (OpenAI is the default — cheaper), each a **hand-rolled `net/http` client** (no vendor SDK — ADR 0006; the official SDKs force a Go 1.24 bump and drag in AWS/GCP/gRPC/OTel/Azure transitively). Vendor types stay isolated behind the `Provider` interface.
+* Self-hosted models via the OpenAI client's configurable base URL (REQ-MODEL-04): any OpenAI-compatible endpoint (Ollama, vLLM, llama.cpp server) works with zero engine changes; API key optional for keyless endpoints
+* Event log hash-chain retrofit (REQ-EVENT-03, ADR 0007): every event carries the hash of its predecessor; verification routine detects edit/deletion/truncation — done now, before real executions exist to migrate
 * Contract compiler: Contract → system/user message construction (this is the ONLY place prompts exist; internal, never exposed)
 * Output enforcement pipeline:
   1. parse model output → 2. validate against `outputSchema` (JSON Schema) → 3. on violation, retry with structured validation errors appended → 4. after `maxRetries`, emit ContractViolation + fail node
@@ -123,6 +137,8 @@ Acceptance:
 ---
 
 ## M1.5 — Tool Interface & Built-in Tools
+
+Delivers: REQ-TOOL-01..04 · NFR-SEC-03 (threat model v1).
 
 Deliverables:
 
@@ -144,6 +160,8 @@ Acceptance:
 
 ## M1.6 — Node Cache (local)
 
+Delivers: REQ-CACHE-01..03, REQ-CACHE-04 (core modes).
+
 Deliverables:
 
 * Cache key = SHA-256 over canonical JSON of: {workerId@version, contractHash, resolved input artifact hashes, model+params, tool versions, contextPolicy}
@@ -164,6 +182,8 @@ Milestone gate: **domain model, events and artifacts frozen here. UI work may be
 
 ## M1.7 — Replay
 
+Delivers: REQ-REPLAY-01..03 (core; CLI surface in M1.9, docs page in M1.15).
+
 Deliverables:
 
 * Audit replay: `workflow replay <id>` — renders recorded execution (timeline, events, artifacts) with zero model calls, zero cost
@@ -179,6 +199,8 @@ Acceptance:
 ---
 
 ## M1.8 — Versioning
+
+Delivers: REQ-VERSION-01..03 (core; CLI surface in M1.9).
 
 Deliverables:
 
@@ -196,6 +218,8 @@ Acceptance:
 
 ## M1.9 — CLI
 
+Delivers: REQ-CLI-01..04 · NFR-CLI-01 · REQ-CACHE-04 (CLI), REQ-VERSION-03 (CLI), REQ-REPLAY-03 (CLI).
+
 Deliverables:
 
 * Single static binary (cobra for commands): cross-compiled darwin/linux/windows via goreleaser; distribution: GitHub Releases + Homebrew tap + `go install`
@@ -204,7 +228,7 @@ Deliverables:
 * Live terminal rendering: per-node status, spinner→check, running cost, cache badges
 * `inspect <executionId>`: tree view of graph, per-node cost/tokens/duration, artifact listing, `--node <id>` drill-down
 * Exit codes: 0 success, 1 node failure, 2 budget exceeded, 3 validation error, 130 cancelled
-* Zero-config start: `workflow init && workflow run examples/hello.yaml` works with only `ANTHROPIC_API_KEY` set
+* Zero-config start: `workflow init && workflow run examples/hello.yaml` works with only the default provider's key set (`OPENAI_API_KEY`; or `ANTHROPIC_API_KEY` if the workflow selects Anthropic)
 
 Acceptance:
 
@@ -214,6 +238,8 @@ Acceptance:
 ---
 
 ## M1.10 — SDK (Go)
+
+Delivers: REQ-SDK-01..03.
 
 Deliverables:
 
@@ -233,6 +259,8 @@ Acceptance:
 
 ## M1.11 — Interface: Shell & Canvas (React Flow)
 
+Delivers: REQ-UI-01 · `serve` command of REQ-CLI-01.
+
 Deliverables:
 
 * Single-workspace layout: Canvas (center), Inspector (right), Timeline (bottom), Artifacts/Logs (tabbed in Timeline area). No page navigation.
@@ -250,6 +278,8 @@ Acceptance:
 
 ## M1.12 — Interface: Live Execution & Timeline
 
+Delivers: REQ-UI-02.
+
 Deliverables:
 
 * Execution transport: `workflow serve` — the Go binary exposes a local HTTP + WebSocket server streaming the same event schema as `--json`; the UI is a pure client (this same server interface becomes the hosted control plane in Phase 2)
@@ -264,6 +294,8 @@ Acceptance:
 ---
 
 ## M1.13 — Interface: Inspector & Artifact Viewer
+
+Delivers: REQ-UI-03, REQ-UI-04 · REQ-CTXPOL-03 (Inspector surface).
 
 Deliverables:
 
@@ -281,6 +313,8 @@ Acceptance:
 
 ## M1.14 — Interface: Metrics & Templates
 
+Delivers: REQ-UI-05 · REQ-METRIC-01..03 (local) · REQ-CONTRACT-04 (templates), REQ-CONTRACT-05 (verifier pattern).
+
 Deliverables:
 
 * Metrics panel per execution: total cost, per-node cost breakdown, tokens, duration, cache hit rate, retries, contract violations, failures
@@ -295,6 +329,8 @@ Acceptance:
 ---
 
 ## M1.15 — Flagship Demo, Docs & Launch
+
+Delivers: NFR-SEC-04 · REQ-REPLAY-03 (honesty page) · Phase 1 exit criterion.
 
 Deliverables:
 
@@ -329,7 +365,7 @@ Deliverables:
 * Artifact store: garbage collection with retention policies, size quotas, large-file streaming
 * Secrets handling: env/keychain references in definitions, never serialized, redacted in events/exports
 * Sandbox upgrade for Terminal tool: container-based execution option (required before running untrusted workflows in cloud)
-* Second model provider (OpenAI) via the M1.4 abstraction — proves the interface, unlocks customers
+* Native (non-OpenAI-compatible) local model providers if demand appears — OpenAI-compatible self-hosted endpoints (Ollama, vLLM) already work since M1.4 via REQ-MODEL-04; this covers anything that speaks neither vendor API
 
 Acceptance:
 
@@ -502,4 +538,4 @@ M2.0 → M2.1 → M2.2 ─┐
 2. **No feature ships without events.** If it doesn't emit events, it isn't observable, and it doesn't merge.
 3. **No definition ships without a version and a hash.**
 4. **Every milestone ends with a runnable example**, not a document.
-5. **Non-goals stay non-goals** unless a paying user forces the conversation: chat UI, RAG, vector DBs, marketplace, fine-tuning, autonomous long-running agents, model hosting.
+5. **Non-goals stay non-goals** unless a paying user forces the conversation: chat UI, RAG, vector DBs, marketplace, fine-tuning, autonomous long-running loops, model hosting (the binding list lives in [CONSTITUTION.md](CONSTITUTION.md)).

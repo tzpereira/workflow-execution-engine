@@ -1,13 +1,14 @@
 # Execution Plan — Workflow Execution Engine (Phase 1 / MVP)
 
-> This document is derived from [VISION.md](VISION.md) and [ROADMAP.md](ROADMAP.md). Where those two disagree on
-> a detail, this file wins — it exists to remove ambiguity, not add another source of truth to reconcile.
-> It covers **Phase 1 only** (M1.0 → M1.15). Phase 2 is intentionally out of scope until Phase 1's exit
-> criterion is met.
+> The **how** layer. Laws: [CONSTITUTION.md](CONSTITUTION.md). Requirements (the *what*, as `REQ-*`/`NFR-*`
+> IDs): [spec/](spec/README.md). Sequencing: [ROADMAP.md](ROADMAP.md). Tasks below cite the requirement IDs
+> they implement; on detail conflicts between prose documents, the **spec** wins, and this file wins on
+> operational detail (commands, file paths, order). It covers **Phase 1 only** (M1.0 → M1.15).
 
 ## 0. How to use this document (read first)
 
-This is an execution playbook for a coding agent working alone, sequentially, milestone by milestone.
+This is an execution playbook for a coding agent working alone, sequentially, milestone by milestone. It
+operationalizes the Process laws of [CONSTITUTION.md](CONSTITUTION.md).
 
 Rules:
 
@@ -25,12 +26,21 @@ Rules:
    default; split further only if a milestone is unusually large.
 6. **Never invent scope.** If ROADMAP.md/VISION.md don't ask for it, it doesn't belong in Phase 1. When in
    doubt, re-read the "Explicit Non-Goals" section of VISION.md before adding anything.
-7. Where a concrete technical choice was left open by ROADMAP.md, it is pinned in §1 below. Use that choice;
-   do not re-litigate it mid-implementation.
+7. Where a concrete technical choice was left open by ROADMAP.md, it is pinned in §1 below (with the
+   irreversible ones recorded as ADRs). Use that choice; do not re-litigate it mid-implementation.
+8. **Close the traceability loop.** Tasks cite the `REQ-*`/`NFR-*` IDs they implement (see
+   [spec/README.md](spec/README.md)). When a milestone's acceptance tests pass, fill in the corresponding
+   `Verified by:` lines in the spec files (replacing `_pending_` with the real test names) in the same
+   commit.
 
 ## Status
 
 - **Current milestone:** M1.3 — complete, locally verified. Next up: M1.4.
+- **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
+  [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
+  [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
+  self-hosted models via configurable base URL (REQ-MODEL-04) and the event-log hash-chain retrofit
+  (REQ-EVENT-03, ADR 0007).
 - **M1.0:** complete and locally verified. One acceptance criterion stays open until the branch is pushed:
   "Both GitHub Actions workflows are green on the PR/commit that introduces them" needs GitHub to run
   Actions. Every command those workflows run passes locally. The M1.0–M1.3 commits are all unpushed; once
@@ -62,7 +72,7 @@ These resolve every "TBD" left in ROADMAP.md. Use them as-is.
 | YAML library (Go) | `gopkg.in/yaml.v3` |
 | CLI framework | `github.com/spf13/cobra` |
 | Terminal styling | `github.com/charmbracelet/lipgloss` (no full TUI framework — MVP doesn't need it) |
-| Anthropic Go SDK | `github.com/anthropics/anthropic-sdk-go` |
+| Model provider integration | hand-rolled HTTP client on `net/http` — Anthropic + OpenAI, **OpenAI default** (cheaper); resolved 2026-07-14, official vendor SDKs rejected after audit; see §1a |
 | JSON-path predicate evaluation (conditional edges) | hand-rolled dotted-path evaluator on `encoding/json` (resolved 2026-07-14, dropped `tidwall/gjson`; see §1a) |
 | Cross-compile / release | `goreleaser` (`.goreleaser.yaml` at repo root) |
 | UI scaffold | Vite + React + TypeScript |
@@ -88,7 +98,7 @@ workflow-execution-engine/
 │   ├── store/                  # content-addressed artifact store
 │   ├── eventlog/                # append-only JSONL event log
 │   ├── engine/                  # scheduler, retries, cancellation, resume, budget
-│   ├── model/                   # provider interface + anthropic/ implementation
+│   ├── model/                   # provider interface + anthropic/ + openai/ (hand-rolled HTTP clients)
 │   ├── contract/                 # contract compiler + output enforcement
 │   ├── cost/                      # token/cost accounting
 │   ├── policy/                     # context policy resolver (NOT named "context" — collides with stdlib)
@@ -127,7 +137,7 @@ real-world adoption, maintenance activity, known CVEs (GitHub Advisory Database 
 license, and viable alternatives. Where hand-rolling is a realistic option, that's called out explicitly.
 
 > **Resolved 2026-07-14:** the project owner chose to pin **`/v6`** (was `/v5`). §1's pin and M1.1's
-> `core/validate/schema.go` task text were updated to match; ADR `0004-contract-validation.md` records the
+> `core/validate/schema.go` task text were updated to match; ADR `0005-contract-validation.md` records the
 > rationale. The diagnostic below is retained as-is for provenance — read "v5" references in it as the
 > pre-decision state.
 
@@ -282,9 +292,39 @@ edit. That said:
   both empty). A sibling Charm project (`soft-serve`) did have one past advisory — noted here only to show the
   org discloses/patches responsibly when issues do arise, not as a mark against lipgloss.
 
-**Net effect on §1:** no pins change. The one open item is `tidwall/gjson` — hand-rolling the conditional-edge
-predicate evaluator is a reasonable simplification, not a requirement. Revisit if/when M1.3 is being
-implemented.
+### Model provider SDKs (`anthropics/anthropic-sdk-go`, `openai/openai-go`) — Verdict: **Rejected → hand-rolled HTTP**
+
+> **Resolved 2026-07-14 (planning M1.4):** the project owner initially leaned toward the official vendor SDKs
+> for a "top-tier" feel, then asked for this audit before pinning. The audit surfaced a hard blocker plus heavy
+> transitive bloat; decision reversed to a **hand-rolled `net/http` client per provider**, with vendor types
+> isolated behind `core/model`'s `Provider` interface. §1's pin and the M1.4 task text were updated to match.
+
+- **Hard blocker — Go version wall.** `anthropics/anthropic-sdk-go` v1.57.0 (latest, 2026-07-10) declares
+  `go 1.24` + `toolchain go1.25.8` in its `go.mod`. This module is `go 1.22` and the local/CI toolchain is
+  `go1.22.12`. Adding the SDK forces bumping the module to 1.24+ and upgrading Go everywhere (local + both CI
+  workflows) — a real cost paid to make two JSON `POST`s.
+- **Transitive bloat — the opposite of "control."** A `POST /v1/messages` via the SDK drags in (all indirect):
+  the **entire AWS SDK v2** (config/credentials/sts/sso/ssooidc/smithy — for Bedrock), **Google Cloud API +
+  gRPC + protobuf + genproto + opencensus + s2a** (for Vertex), **OpenTelemetry** (5 modules), the **MCP
+  go-sdk**, `invopop/jsonschema`, `oauth2`, `creack/pty`, `go-vcr`, `standard-webhooks`, `segmentio/encoding`,
+  `buger/jsonparser`, and **yaml v2 + v3 + v4-rc** — ~50 modules, the vast majority for Bedrock/Vertex/MCP/
+  webhook features WEE does not use. `openai/openai-go` v1.12.0 is lighter (~16 modules) but still pulls the
+  **Azure identity SDK** (azcore/azidentity/MSAL) + jwt + uuid for Azure OpenAI, which WEE also doesn't use.
+- **The dropped `gjson` returns.** `tidwall/gjson` + `sjson` are transitive dependencies of **both** SDKs —
+  re-introducing, through the back door, the exact library dropped above (see the gjson entry).
+- **Maintenance note.** `anthropic-sdk-go` ships actively (v1.57.0, 4 days before this check); `openai-go`'s
+  latest is v1.12.0 from 2025-07-30 — ~1 year stale as of 2026-07-14.
+- **What WEE actually needs from a provider:** one `Complete(ctx, messages, params)` returning full output +
+  `usage` tokens. Both APIs are a single JSON `POST` with tokens in the response body; streaming is
+  unnecessary because each node's output is validated **whole** against its Contract schema before going
+  downstream; retry/backoff already lives in `core/engine/retry.go`; tools are executed engine-side, not via
+  provider-native function-calling. A hand-rolled client covers this with **zero new dependencies**, no Go
+  bump, and full control of headers and error→transient mapping — while the `Provider` interface preserves the
+  clean abstraction boundary the SDKs were wanted for. The one scenario that would flip this back to SDKs is a
+  future decision to adopt provider-native function-calling instead of engine-side tools.
+
+**Net effect on §1:** two pins move — model provider integration is now hand-rolled HTTP (this entry), and the
+earlier `tidwall/gjson` item was resolved by hand-rolling too. No official vendor SDK is added to `go.mod`.
 
 ---
 
@@ -292,6 +332,7 @@ implemented.
 
 **Goal:** a clean monorepo skeleton, CI green, licensing and naming settled.
 **Depends on:** nothing (first milestone).
+**Delivers:** no spec REQs — infrastructure + the PRIN-04 vocabulary gate.
 
 ### Tasks
 
@@ -300,14 +341,14 @@ implemented.
 - [x] Add `.golangci.yml` at repo root enabling at least: `govet`, `staticcheck`, `errcheck`, `ineffassign`, `unused`.
 - [x] Add `LICENSE` file — Apache-2.0 text, copyright holder = repo owner.
 - [x] Add `docs/adr/0000-template.md` — minimal ADR template (Title / Status / Context / Decision / Consequences).
-- [x] Add `docs/adr/0001-language-runtime.md` — record: Go for Core/CLI/SDK, single static binary, goroutine-native
+- [x] Add `docs/adr/0002-language-runtime.md` — record: Go for Core/CLI/SDK, single static binary, goroutine-native
       scheduler, TypeScript confined to UI. Summarize rationale from VISION.md "Stack" section — don't
       duplicate it verbatim, reference it.
-- [x] Add `docs/adr/0002-serialization-format.md` — record: YAML is canonical authoring format, JSON is the
+- [x] Add `docs/adr/0003-serialization-format.md` — record: YAML is canonical authoring format, JSON is the
       equivalent wire/storage format, round-trip must be loss-free.
-- [x] Add `docs/adr/0003-content-addressing.md` — record: SHA-256 over canonical JSON for artifact and cache
+- [x] Add `docs/adr/0004-content-addressing.md` — record: SHA-256 over canonical JSON for artifact and cache
       keys.
-- [x] Add `docs/adr/0004-contract-validation.md` — record: JSON Schema draft 2020-12 via
+- [x] Add `docs/adr/0005-contract-validation.md` — record: JSON Schema draft 2020-12 via
       `santhosh-tekuri/jsonschema/v6` (resolved 2026-07-14, see §1a), replacing any runtime-specific validator.
 - [x] Add `docs/glossary.md` listing and defining (1-2 sentences each): `Workflow`, `Worker`, `Contract`,
       `ContextPolicy`, `Artifact`, `Event`, `Execution`, `Budget`, `Tool`, `Cache`. Include the forbidden-vocabulary
@@ -339,6 +380,7 @@ implemented.
 **Goal:** every domain object exists as both a JSON Schema and a mirrored Go struct, with loss-free
 round-trip serialization and canonical hashing.
 **Depends on:** M1.0.
+**Delivers:** REQ-DEF-01..05 · REQ-WORKER-01 (struct+schema) · REQ-ARTIFACT-03 (types) · REQ-EVENT-01 (catalog).
 
 ### Tasks
 
@@ -389,6 +431,7 @@ round-trip serialization and canonical hashing.
 **Goal:** local content-addressed artifact storage and an append-only event log, sufficient to reconstruct
 an execution's full timeline from disk alone.
 **Depends on:** M1.1.
+**Delivers:** REQ-ARTIFACT-01..04 · REQ-EVENT-02, REQ-EVENT-04 (snapshot).
 
 ### Tasks
 
@@ -424,6 +467,7 @@ an execution's full timeline from disk alone.
 **Goal:** a working scheduler: parallel execution of independent nodes, retries, cancellation, resume, budget
 enforcement.
 **Depends on:** M1.2.
+**Delivers:** REQ-RUNTIME-01..06 · REQ-WORKER-02 (executor seam) · REQ-BUDGET-01 (halt mechanics), REQ-BUDGET-02.
 
 ### Tasks
 
@@ -469,38 +513,72 @@ enforcement.
 **Goal:** Workers call a real model provider; every output is validated against its Contract's schema before
 it's allowed downstream; Context Policies are enforced and auditable.
 **Depends on:** M1.3.
+**Delivers:** REQ-MODEL-01..05 · REQ-CONTRACT-01..04 · REQ-CTXPOL-01..03 · REQ-WORKER-01..03 · REQ-BUDGET-01 (real cost), REQ-BUDGET-03 · REQ-EVENT-03 (hash-chain retrofit) · NFR-SEC-01 (provider hygiene), NFR-SEC-02.
 
 ### Tasks
 
-- [ ] Write `core/model/provider.go`: a `Provider` interface — `Complete(ctx, messages, params) (Response, error)`
-      — abstracting the model call. Keep it provider-agnostic; do not leak Anthropic-specific types into this
-      interface.
-- [ ] Write `core/model/anthropic/client.go`: implements `Provider` using `github.com/anthropics/anthropic-sdk-go`,
-      reading `ANTHROPIC_API_KEY` from the environment.
-- [ ] Write `core/contract/compiler.go`: `Compile(worker domain.Worker, resolvedContext Context) (messages []Message)`
-      — the **only** place in the codebase prompt text is constructed. Never expose this as a public/user-facing
-      concept — it's plumbing, not a feature.
-- [ ] Write `core/contract/enforce.go`: the output pipeline —
+- [ ] **Event-log hash-chain retrofit** (REQ-EVENT-03, ADR 0007): add a `prevHash` field to `domain.Event`
+      (+ `event.schema.json`); `eventlog.Append` computes each event's canonical hash and chains it to its
+      predecessor (genesis chains from the snapshot's hash); add a `Verify(executionID)` routine that walks
+      the chain and reports the first break. Done first — before real executions exist to migrate.
+- [ ] Write `core/model/provider.go` (REQ-MODEL-01): a `Provider` interface — `Complete(ctx, messages, params)
+      (Response, error)` — abstracting the model call. Keep it strictly provider-agnostic; no vendor- or
+      transport-specific types (no request/response JSON structs, no HTTP concerns) leak across this interface.
+      Add a small registry so a workflow's `provider` field selects the implementation; **OpenAI is the
+      default** (cheaper).
+- [ ] Write `core/model/openai/client.go` (REQ-MODEL-02, REQ-MODEL-04, REQ-MODEL-05): implements `Provider`
+      with a **hand-rolled `net/http` client** against `POST /v1/chat/completions`, reading `OPENAI_API_KEY`.
+      **Base URL is configurable** — any OpenAI-compatible endpoint (Ollama, vLLM, llama.cpp server) works
+      as a provider; the API key becomes optional for keyless endpoints. Map `429`/`5xx`/timeouts →
+      `retry.Transient` (honor `Retry-After`) so `core/engine/retry.go` owns backoff. Read
+      `usage.prompt_tokens`/`completion_tokens` from the response body for cost accounting. No third-party
+      SDK. Never log request headers (NFR-SEC-01).
+- [ ] Write `core/model/anthropic/client.go` (REQ-MODEL-03, REQ-MODEL-05): implements `Provider` with a
+      **hand-rolled `net/http` client** against `POST /v1/messages` (headers `x-api-key` +
+      `anthropic-version`), reading `ANTHROPIC_API_KEY`. Same transient-error mapping; read
+      `usage.input_tokens`/`output_tokens`. No third-party SDK. Never log request headers (NFR-SEC-01).
+- [ ] Vendor-type isolation test (REQ-MODEL-01): a package-boundary check (e.g. a small `go/packages` or
+      grep-based test, or an architecture assertion) proving no `core/model/anthropic` or `core/model/openai`
+      type is referenced outside its own package — the rest of the engine sees only `Provider`/`Response`.
+- [ ] Write `core/contract/compiler.go` (REQ-CONTRACT-01 plumbing, REQ-CTXPOL-01): `Compile(worker
+      domain.Worker, resolvedContext Context) (messages []Message)` — the **only** place in the codebase
+      prompt text is constructed. Never expose this as a public/user-facing concept — it's plumbing, not a
+      feature.
+- [ ] Write `core/contract/enforce.go` (REQ-CONTRACT-01..03): the output pipeline —
       1. parse model output as JSON,
       2. validate against `contract.outputSchema` via `core/validate`,
       3. on violation, retry via `core/engine/retry.go`'s contract-violation path with the validation errors
-         appended to the next call's context,
+         appended as feedback — **only the errors, never a re-inflated copy of the full context** (delta
+         feedback, PRIN-05),
       4. after `contract.maxRetries`, emit `ContractViolation` and fail the node.
-- [ ] Write `core/cost/accounting.go`: per-call token/cost tracking (input/output tokens × provider's published
-      rates), aggregated per node and rolled up per execution; wire this into `core/engine/budget.go`'s checks.
-- [ ] Write `core/policy/resolver.go`: given a `ContextPolicy` and the current execution state, produce
-      exactly the context slice (subset of upstream artifacts/history) the Worker is allowed to see. Log the
-      resolved slice (what was actually included) so it's auditable later via the Inspector (M1.13).
+- [ ] Write `core/cost/accounting.go` (REQ-BUDGET-03): per-call token/cost tracking (input/output tokens ×
+      provider's published rates), aggregated per node and rolled up per execution; wire this into
+      `core/engine/budget.go`'s checks (REQ-BUDGET-01 with real cost).
+- [ ] Write `core/policy/resolver.go` (REQ-CTXPOL-01..03): given a `ContextPolicy` and the current execution
+      state, produce exactly the context slice (subset of upstream artifacts/history) the Worker is allowed
+      to see; **when no policy is declared, default to the smallest slice — parent output only — never full
+      history** (REQ-CTXPOL-02). Log the resolved slice (artifact hashes actually included) so it's auditable
+      later via the Inspector (M1.13).
+- [ ] Ship tight example contracts (REQ-CONTRACT-04): the M1.4 examples use bounded arrays (`maxItems`),
+      bounded strings (`maxLength`), and enums — the anti-slop shape templates will inherit.
 
 ### Acceptance criteria
 
-- [ ] Test: a Worker with `outputSchema = {score: number, issues: string[]}` — no malformed output ever
-      reaches downstream nodes (assert this at the `NodeExecutor` boundary from M1.3).
-- [ ] Test: a stubbed `Provider` that returns malformed JSON once then valid JSON — triggers exactly one
-      retry-with-feedback, visible as a `Retry` event containing the validation error text.
-- [ ] Test: a Worker configured with `diff-only` context policy — assert on the *compiled* context (from
-      `core/contract/compiler.go`) that it contains only the diff artifact and nothing from, e.g., a sibling
-      Planning node's output.
+- [ ] Test (REQ-WORKER-03, REQ-CONTRACT-01): a Worker with `outputSchema = {score: number, issues: string[]}`
+      — no malformed output ever reaches downstream nodes (assert this at the `NodeExecutor` boundary from
+      M1.3).
+- [ ] Test (REQ-CONTRACT-02): a stubbed `Provider` that returns malformed JSON once then valid JSON —
+      triggers exactly one retry-with-feedback, visible as a `Retry` event containing the validation error
+      text.
+- [ ] Test (REQ-CTXPOL-01): a Worker configured with `diff-only` context policy — assert on the *compiled*
+      context (from `core/contract/compiler.go`) that it contains only the diff artifact and nothing from,
+      e.g., a sibling Planning node's output.
+- [ ] Test (REQ-EVENT-03): corrupt one line of a finished execution's `events.jsonl` → `Verify` fails and
+      names the break point; an untouched log verifies clean.
+- [ ] Test (REQ-MODEL-04): the OpenAI client with an overridden base URL talks to a local stub server —
+      proving any OpenAI-compatible endpoint (Ollama/vLLM) works with zero engine changes.
+- [ ] Test (NFR-SEC-01): grep the events/snapshots produced by the whole M1.4 test suite — no API-key
+      material appears anywhere.
 
 ---
 
@@ -508,6 +586,7 @@ it's allowed downstream; Context Policies are enforced and auditable.
 
 **Goal:** Workers can invoke sandboxed tools; every tool call is schema-validated and auditable.
 **Depends on:** M1.4.
+**Delivers:** REQ-TOOL-01..04 · NFR-SEC-03 (threat model v1).
 
 ### Tasks
 
@@ -544,6 +623,7 @@ it's allowed downstream; Context Policies are enforced and auditable.
 **Goal:** re-running an unchanged workflow costs $0 and completes in under 2 seconds; changing one node only
 re-executes it and its downstream.
 **Depends on:** M1.5.
+**Delivers:** REQ-CACHE-01..03, REQ-CACHE-04 (core modes).
 
 ### Tasks
 
@@ -582,6 +662,7 @@ document still finishes M1.7–M1.10 first.
 **Goal:** any past execution can be replayed for free (audit) or re-executed with cache applied, with an
 honest divergence report.
 **Depends on:** M1.6.
+**Delivers:** REQ-REPLAY-01..03 (core).
 
 ### Tasks
 
@@ -612,6 +693,7 @@ honest divergence report.
 **Goal:** every definition is versioned and content-hash-pinned; executions remain replayable even after
 definitions evolve; tampering is rejected.
 **Depends on:** M1.7.
+**Delivers:** REQ-VERSION-01..03 (core).
 
 ### Tasks
 
@@ -639,6 +721,7 @@ definitions evolve; tampering is rejected.
 
 **Goal:** the full engine is usable from a single static binary, feeling like `git`/`terraform`.
 **Depends on:** M1.8.
+**Delivers:** REQ-CLI-01..04 · NFR-CLI-01 · CLI surfaces of REQ-CACHE-04, REQ-VERSION-03, REQ-REPLAY-03.
 
 ### Tasks
 
@@ -669,8 +752,9 @@ definitions evolve; tampering is rejected.
 ### Acceptance criteria
 
 - [ ] Binary starts and prints `--help` output in under 50ms (measure it).
-- [ ] `wee init && wee run examples/hello.yaml` works with only `ANTHROPIC_API_KEY` set in the environment —
-      zero other config required.
+- [ ] `wee init && wee run examples/hello.yaml` works with only the default provider's key set in the
+      environment (`OPENAI_API_KEY`, since OpenAI is the default; `ANTHROPIC_API_KEY` if the workflow selects
+      Anthropic) — zero other config required.
 - [ ] `wee run --json` output is valid, line-delimited JSON matching the event schema from `core/domain/event.go`
       — this is the contract M1.12's `wee serve` must also honor.
 - [ ] Each documented exit code is verified by an explicit test (force a budget-exceeded run, force a
@@ -682,6 +766,7 @@ definitions evolve; tampering is rejected.
 
 **Goal:** workflows can be authored in Go code, compiling to the exact same canonical format as YAML.
 **Depends on:** M1.9.
+**Delivers:** REQ-SDK-01..03.
 
 ### Tasks
 
@@ -711,6 +796,7 @@ definitions evolve; tampering is rejected.
 **Goal:** a single-workspace visual builder that round-trips the Core's YAML/JSON with zero drift.
 **Depends on:** M1.6 (schemas/events/artifacts frozen) at minimum; this document's default path also has
 M1.7–M1.10 done first.
+**Delivers:** REQ-UI-01 · `serve` command of REQ-CLI-01.
 
 ### Tasks
 
@@ -741,6 +827,7 @@ M1.7–M1.10 done first.
 
 **Goal:** watch an execution happen live, with parallel lanes and cache hits visually distinct.
 **Depends on:** M1.11.
+**Delivers:** REQ-UI-02.
 
 ### Tasks
 
@@ -765,6 +852,7 @@ M1.7–M1.10 done first.
 
 **Goal:** clicking any node answers "what did this Worker see, and what did it produce" in one click.
 **Depends on:** M1.12.
+**Delivers:** REQ-UI-03, REQ-UI-04 · REQ-CTXPOL-03 (Inspector surface).
 
 ### Tasks
 
@@ -792,6 +880,7 @@ M1.7–M1.10 done first.
 **Goal:** a new user can go from opening the UI to inspecting a completed execution in under 5 minutes with
 zero docs.
 **Depends on:** M1.13.
+**Delivers:** REQ-UI-05 · REQ-METRIC-01..03 (local) · REQ-CONTRACT-05 (verifier template).
 
 ### Tasks
 
@@ -815,6 +904,7 @@ zero docs.
 **Goal:** Phase 1's exit criterion — the 3-minute flagship demo runs end-to-end, cached re-runs included, on
 a real repository, recorded in one unedited take.
 **Depends on:** M1.14.
+**Delivers:** NFR-SEC-04 · REQ-REPLAY-03 (honesty page) · Phase 1 exit criterion.
 
 ### Tasks
 

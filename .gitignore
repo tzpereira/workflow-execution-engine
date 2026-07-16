@@ -21,6 +21,3 @@ ui/dist-ssr/
 
 # Local Claude Code agent config (machine-local, not part of the project).
 .claude/
-
-# Planning docs kept local (per request).
-docs/

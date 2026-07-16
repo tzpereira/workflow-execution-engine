@@ -1,4 +1,4 @@
-# ADR 0004: Contract validation — JSON Schema draft 2020-12 via santhosh-tekuri/jsonschema/v6
+# ADR 0005: Contract validation — JSON Schema draft 2020-12 via santhosh-tekuri/jsonschema/v6
 
 - **Status:** Accepted
 - **Date:** 2026-07-14

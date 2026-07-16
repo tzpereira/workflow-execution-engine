@@ -1,4 +1,4 @@
-# ADR 0003: Content addressing — SHA-256 over canonical JSON for artifact and cache keys
+# ADR 0004: Content addressing — SHA-256 over canonical JSON for artifact and cache keys
 
 - **Status:** Accepted
 - **Date:** 2026-07-14
@@ -15,7 +15,7 @@ Cache".
 
 We will derive every content identity — **artifact IDs and cache keys** — as the
 **SHA-256 hash of the canonical JSON** (deterministic, sorted-key marshaling per
-ADR 0002) of the content being addressed. Every hash in the project routes
+ADR 0003) of the content being addressed. Every hash in the project routes
 through a single function in `core/canonical/`; no component computes a hash any
 other way.
 
@@ -27,6 +27,6 @@ other way.
   the Node Cache (cache-key composition in M1.6 builds directly on this).
 - Cache invalidation is total, not fuzzy: any change to any input changes the
   canonical bytes and therefore the key.
-- This depends on the canonical marshaller (ADR 0002 / M1.1) existing and being
+- This depends on the canonical marshaller (ADR 0003 / M1.1) existing and being
   the sole hashing path; a second, divergent marshaller would silently break
   cache correctness.

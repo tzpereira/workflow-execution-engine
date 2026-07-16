@@ -1,4 +1,4 @@
-# ADR 0001: Language & runtime — Go for Core/CLI/SDK, TypeScript confined to the UI
+# ADR 0002: Language & runtime — Go for Core/CLI/SDK, TypeScript confined to the UI
 
 - **Status:** Accepted
 - **Date:** 2026-07-14
