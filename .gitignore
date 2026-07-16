@@ -19,5 +19,7 @@ ui/dist-ssr/
 # OS / editor cruft.
 .DS_Store
 
-# Local Claude Code agent config (machine-local, not part of the project).
-.claude/
+# Local Claude Code agent config (machine-local, not part of the project) —
+# except versioned, shareable skills.
+.claude/*
+!.claude/skills/
