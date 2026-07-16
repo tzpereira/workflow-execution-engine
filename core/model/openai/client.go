@@ -1,0 +1,178 @@
+// Package openai is a hand-rolled net/http client for the OpenAI
+// chat-completions API, implementing model.Provider (ADR 0006). No vendor SDK.
+// Its base URL is configurable, so any OpenAI-compatible endpoint — Ollama,
+// vLLM, llama.cpp server — works as a provider with zero engine changes
+// (REQ-MODEL-04); the API key is optional for keyless local endpoints.
+//
+// Nothing in this package's request/response types is visible to the engine: the
+// only exported surface is New (returning a model.Provider). Request headers are
+// never logged (NFR-SEC-01).
+package openai
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/tzpereira/workflow-execution-engine/core/model"
+)
+
+// defaultBaseURL is the public OpenAI API root. Override it with WithBaseURL to
+// target an OpenAI-compatible endpoint.
+const defaultBaseURL = "https://api.openai.com/v1"
+
+// Client is a model.Provider backed by the OpenAI chat-completions API.
+type Client struct {
+	baseURL string
+	apiKey  string
+	http    *http.Client
+}
+
+// Option configures a Client.
+type Option func(*Client)
+
+// WithBaseURL points the client at an OpenAI-compatible endpoint (trailing
+// slashes are trimmed). Use it for Ollama/vLLM/llama.cpp or a proxy.
+func WithBaseURL(u string) Option { return func(c *Client) { c.baseURL = strings.TrimRight(u, "/") } }
+
+// WithAPIKey sets the bearer key explicitly, overriding OPENAI_API_KEY. An empty
+// key means no Authorization header is sent (keyless local endpoints).
+func WithAPIKey(k string) Option { return func(c *Client) { c.apiKey = k } }
+
+// WithHTTPClient supplies a custom *http.Client (timeouts, transport).
+func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.http = h } }
+
+// New builds a Client. By default it reads OPENAI_API_KEY and targets the public
+// API with a 60s timeout. It returns a model.Provider so callers never depend on
+// this package's concrete type (REQ-MODEL-01).
+func New(opts ...Option) model.Provider {
+	c := &Client{
+		baseURL: defaultBaseURL,
+		apiKey:  os.Getenv("OPENAI_API_KEY"),
+		http:    &http.Client{Timeout: 60 * time.Second},
+	}
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
+// wire types — private; never cross the model.Provider boundary.
+type chatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type chatResponse struct {
+	Choices []struct {
+		Message chatMessage `json:"message"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int64 `json:"prompt_tokens"`
+		CompletionTokens int64 `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+// Complete implements model.Provider.
+func (c *Client) Complete(ctx context.Context, messages []model.Message, params model.Params) (model.Response, error) {
+	body := map[string]any{
+		"model":    params.Model,
+		"messages": toChatMessages(messages),
+	}
+	// Worker-declared knobs pass through opaquely; they never override the two
+	// keys we own.
+	for k, v := range params.Extra {
+		if k == "model" || k == "messages" {
+			continue
+		}
+		body[k] = v
+	}
+
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return model.Response{}, &model.FatalError{Err: fmt.Errorf("openai: encode request: %w", err)}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(raw))
+	if err != nil {
+		return model.Response{}, &model.FatalError{Err: fmt.Errorf("openai: build request: %w", err)}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		// Transport failures (timeouts, connection resets) are transient.
+		return model.Response{}, &model.TransientError{Err: fmt.Errorf("openai: request failed: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return model.Response{}, classifyStatus(resp, respBody)
+	}
+
+	var parsed chatResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return model.Response{}, &model.FatalError{Err: fmt.Errorf("openai: decode response: %w", err)}
+	}
+	if len(parsed.Choices) == 0 {
+		return model.Response{}, &model.FatalError{Err: fmt.Errorf("openai: response had no choices")}
+	}
+	return model.Response{
+		Content:      parsed.Choices[0].Message.Content,
+		InputTokens:  parsed.Usage.PromptTokens,
+		OutputTokens: parsed.Usage.CompletionTokens,
+	}, nil
+}
+
+func toChatMessages(messages []model.Message) []chatMessage {
+	out := make([]chatMessage, len(messages))
+	for i, m := range messages {
+		out[i] = chatMessage{Role: string(m.Role), Content: m.Content}
+	}
+	return out
+}
+
+// classifyStatus maps a non-200 response to a transient or fatal error
+// (REQ-MODEL-05). 429 and 5xx are transient (honoring Retry-After); other 4xx
+// are fatal. The error carries the status and a body snippet — never headers
+// (NFR-SEC-01).
+func classifyStatus(resp *http.Response, body []byte) error {
+	snippet := strings.TrimSpace(string(body))
+	if len(snippet) > 300 {
+		snippet = snippet[:300]
+	}
+	base := fmt.Errorf("openai: status %d: %s", resp.StatusCode, snippet)
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+		te := &model.TransientError{Err: base}
+		if d, ok := parseRetryAfter(resp.Header.Get("Retry-After")); ok {
+			te.RetryAfter, te.HasRetry = d, true
+		}
+		return te
+	}
+	return &model.FatalError{Err: base}
+}
+
+// parseRetryAfter reads the integer-seconds form of a Retry-After header. The
+// HTTP-date form is not honored (the engine has no injected clock here); backoff
+// falls back to its exponential schedule.
+func parseRetryAfter(v string) (time.Duration, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, false
+	}
+	if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second, true
+	}
+	return 0, false
+}
