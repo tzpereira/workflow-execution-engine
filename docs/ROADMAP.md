@@ -13,7 +13,7 @@ Sequencing rule: **nothing in the Interface starts before the Core event/artifac
 
 ---
 
-# PHASE 1 — MVP
+## PHASE 1 — MVP
 
 Goal: a stranger can `brew install workflow` (or download a single static binary), run the flagship demo on a real repo, watch it live in the UI, replay it for free, and read the code without embarrassment.
 
@@ -21,7 +21,7 @@ Exit criterion for the whole phase: **the 3-minute flagship demo (PR Review & Au
 
 ---
 
-## M1.0 — Foundations & Repo Skeleton
+### M1.0 — Foundations & Repo Skeleton
 
 Delivers: no spec REQs — infrastructure; installs the PRIN-04 vocabulary gate and the CI that later REQs verify against.
 
@@ -45,7 +45,7 @@ Acceptance:
 
 ---
 
-## M1.1 — Domain Model & Serialization
+### M1.1 — Domain Model & Serialization
 
 Delivers: REQ-DEF-01..05 · REQ-WORKER-01 (struct+schema) · REQ-ARTIFACT-03 (types) · REQ-EVENT-01 (catalog).
 
@@ -71,7 +71,7 @@ Acceptance:
 
 ---
 
-## M1.2 — Artifact Store & Event Log
+### M1.2 — Artifact Store & Event Log
 
 Delivers: REQ-ARTIFACT-01..04 · REQ-EVENT-02, REQ-EVENT-04 (snapshot).
 
@@ -90,7 +90,7 @@ Acceptance:
 
 ---
 
-## M1.3 — Workflow Runtime (Engine)
+### M1.3 — Workflow Runtime (Engine)
 
 Delivers: REQ-RUNTIME-01..06 · REQ-WORKER-02 (executor seam) · REQ-BUDGET-01 (halt mechanics), REQ-BUDGET-02.
 
@@ -113,7 +113,7 @@ Acceptance:
 
 ---
 
-## M1.4 — Workers, Contracts & Model Layer
+### M1.4 — Workers, Contracts & Model Layer
 
 Delivers: REQ-MODEL-01..05 · REQ-CONTRACT-01..03, REQ-CONTRACT-04 (examples) · REQ-CTXPOL-01..03 (recording) · REQ-WORKER-01..03 (execution) · REQ-BUDGET-03, REQ-BUDGET-01 (real cost) · REQ-EVENT-03 (hash-chain retrofit) · NFR-SEC-01 (provider hygiene), NFR-SEC-02.
 
@@ -136,7 +136,7 @@ Acceptance:
 
 ---
 
-## M1.5 — Tool Interface & Built-in Tools
+### M1.5 — Tool Interface & Built-in Tools
 
 Delivers: REQ-TOOL-01..04 · NFR-SEC-03 (threat model v1).
 
@@ -158,7 +158,7 @@ Acceptance:
 
 ---
 
-## M1.6 — Node Cache (local)
+### M1.6 — Node Cache (local)
 
 Delivers: REQ-CACHE-01..03, REQ-CACHE-04 (core modes).
 
@@ -180,7 +180,7 @@ Milestone gate: **domain model, events and artifacts frozen here. UI work may be
 
 ---
 
-## M1.7 — Replay
+### M1.7 — Replay
 
 Delivers: REQ-REPLAY-01..03 (core; CLI surface in M1.9, docs page in M1.15).
 
@@ -198,7 +198,7 @@ Acceptance:
 
 ---
 
-## M1.8 — Versioning
+### M1.8 — Versioning
 
 Delivers: REQ-VERSION-01..03 (core; CLI surface in M1.9).
 
@@ -216,7 +216,7 @@ Acceptance:
 
 ---
 
-## M1.9 — CLI
+### M1.9 — CLI
 
 Delivers: REQ-CLI-01..04 · NFR-CLI-01 · REQ-CACHE-04 (CLI), REQ-VERSION-03 (CLI), REQ-REPLAY-03 (CLI).
 
@@ -237,7 +237,7 @@ Acceptance:
 
 ---
 
-## M1.10 — SDK (Go)
+### M1.10 — SDK (Go)
 
 Delivers: REQ-SDK-01..03.
 
@@ -257,7 +257,7 @@ Acceptance:
 
 ---
 
-## M1.11 — Interface: Shell & Canvas (React Flow)
+### M1.11 — Interface: Shell & Canvas (React Flow)
 
 Delivers: REQ-UI-01 · `serve` command of REQ-CLI-01.
 
@@ -276,7 +276,7 @@ Acceptance:
 
 ---
 
-## M1.12 — Interface: Live Execution & Timeline
+### M1.12 — Interface: Live Execution & Timeline
 
 Delivers: REQ-UI-02.
 
@@ -293,7 +293,7 @@ Acceptance:
 
 ---
 
-## M1.13 — Interface: Inspector & Artifact Viewer
+### M1.13 — Interface: Inspector & Artifact Viewer
 
 Delivers: REQ-UI-03, REQ-UI-04 · REQ-CTXPOL-03 (Inspector surface).
 
@@ -311,7 +311,7 @@ Acceptance:
 
 ---
 
-## M1.14 — Interface: Metrics & Templates
+### M1.14 — Interface: Metrics & Templates
 
 Delivers: REQ-UI-05 · REQ-METRIC-01..03 (local) · REQ-CONTRACT-04 (templates), REQ-CONTRACT-05 (verifier pattern).
 
@@ -328,7 +328,7 @@ Acceptance:
 
 ---
 
-## M1.15 — Flagship Demo, Docs & Launch
+### M1.15 — Flagship Demo, Docs & Launch
 
 Delivers: NFR-SEC-04 · REQ-REPLAY-03 (honesty page) · Phase 1 exit criterion.
 
@@ -347,7 +347,7 @@ Acceptance (Phase 1 exit):
 
 ---
 
-# PHASE 2 — FINAL PRODUCT
+## PHASE 2 — FINAL PRODUCT
 
 Goal: teams pay. Hosted execution, shared cache, collaboration, and the hardening that hosting demands. The Core stays open source and self-hostable; commercial value is in operation and coordination, never in withheld features.
 
@@ -355,7 +355,7 @@ Exit criterion: **a 5-person team uses the hosted product for a real workflow we
 
 ---
 
-## M2.0 — Core Hardening (pre-hosting prerequisites)
+### M2.0 — Core Hardening (pre-hosting prerequisites)
 
 Deliverables:
 
@@ -374,7 +374,7 @@ Acceptance:
 
 ---
 
-## M2.1 — Remote Execution Service (Hosted Runtime)
+### M2.1 — Remote Execution Service (Hosted Runtime)
 
 Deliverables:
 
@@ -393,7 +393,7 @@ Acceptance:
 
 ---
 
-## M2.2 — Remote Node Cache
+### M2.2 — Remote Node Cache
 
 Deliverables:
 
@@ -410,7 +410,7 @@ Acceptance:
 
 ---
 
-## M2.3 — Accounts, Workspaces & Billing
+### M2.3 — Accounts, Workspaces & Billing
 
 Deliverables:
 
@@ -427,7 +427,7 @@ Acceptance:
 
 ---
 
-## M2.4 — Collaboration
+### M2.4 — Collaboration
 
 Deliverables:
 
@@ -445,7 +445,7 @@ Acceptance:
 
 ---
 
-## M2.5 — Interface Maturity
+### M2.5 — Interface Maturity
 
 Deliverables:
 
@@ -463,7 +463,7 @@ Acceptance:
 
 ---
 
-## M2.6 — Ecosystem & Extensibility
+### M2.6 — Ecosystem & Extensibility
 
 Deliverables:
 
@@ -481,7 +481,7 @@ Acceptance:
 
 ---
 
-## M2.7 — Reliability, Security & Compliance Baseline
+### M2.7 — Reliability, Security & Compliance Baseline
 
 Deliverables:
 
@@ -498,7 +498,7 @@ Acceptance:
 
 ---
 
-## M2.8 — Launch: Commercial GA
+### M2.8 — Launch: Commercial GA
 
 Deliverables:
 
@@ -515,9 +515,9 @@ Acceptance (Phase 2 exit):
 
 ---
 
-# Dependency Overview
+## Dependency Overview
 
-```
+```text
 Phase 1:
 M1.0 → M1.1 → M1.2 → M1.3 → M1.4 → M1.5 → M1.6 → M1.7 → M1.8 → M1.9 → M1.10
                                             │
@@ -532,7 +532,7 @@ M2.0 → M2.1 → M2.2 ─┐
 
 ---
 
-# Standing Rules (both phases)
+## Standing Rules (both phases)
 
 1. **Core never depends on the Interface or the cloud.** Every Phase 2 capability must degrade gracefully to local/self-hosted.
 2. **No feature ships without events.** If it doesn't emit events, it isn't observable, and it doesn't merge.

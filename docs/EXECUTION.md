@@ -87,7 +87,7 @@ These resolve every "TBD" left in ROADMAP.md. Use them as-is.
 
 Repository layout (final, at the end of Phase 1):
 
-```
+```text
 workflow-execution-engine/
 ├── go.mod                     # single module: core + cli + sdk
 ├── core/
