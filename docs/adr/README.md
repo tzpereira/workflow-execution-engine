@@ -14,6 +14,7 @@ decision. Reference `docs/VISION.md`/`docs/ROADMAP.md` sections for background r
 
 | ADR | Decision | Status | Date |
 |---|---|---|---|
+| [0001](0001-harness-oriented-docs.md) | Docs structured for coding-agent harness consumption (AGENTS.md, ARCHITECTURE.md, adr/ index) | Accepted | 2026-07-15 |
 | [0002](0002-language-runtime.md) | Go for Core/CLI/SDK; TypeScript confined to the UI | Accepted | 2026-07-14 |
 | [0003](0003-serialization-format.md) | YAML canonical authoring, JSON canonical wire/storage, loss-free round-trip | Accepted | 2026-07-14 |
 | [0004](0004-content-addressing.md) | SHA-256 over canonical JSON for artifact and cache keys | Accepted | 2026-07-14 |

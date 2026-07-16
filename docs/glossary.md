@@ -61,3 +61,8 @@ instead.
 | Memory | Workspace / Artifacts / Context (whichever fits the meaning) |
 
 The rationale is in `docs/VISION.md` → "Naming Philosophy" and "Engineering-first".
+
+**One filename exception:** `AGENTS.md` at the repo root (imported by `CLAUDE.md`). It is not a domain
+concept — it's the cross-tool convention coding-agent harnesses (Codex, Cursor, Claude Code) look for at
+the repo root. PRIN-04 governs how the project describes itself in `schemas/`, `core/`, `cli/`, `sdk/`,
+`docs/`; it does not extend to that filename.
