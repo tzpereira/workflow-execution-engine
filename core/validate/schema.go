@@ -125,38 +125,11 @@ func (v *Validator) Validate(kind Kind, obj any, src LineResolver) error {
 	if err := sch.Validate(inst); err != nil {
 		var ve *jsonschema.ValidationError
 		if errors.As(err, &ve) {
-			return &SchemaError{Kind: kind, src: src, Problems: v.collect(ve, src)}
+			return &SchemaError{Kind: kind, src: src, Problems: collectProblems(ve, v.printer, src)}
 		}
 		return err
 	}
 	return nil
-}
-
-// collect flattens a ValidationError tree into leaf Problems.
-func (v *Validator) collect(ve *jsonschema.ValidationError, src LineResolver) []Problem {
-	var out []Problem
-	var walk func(e *jsonschema.ValidationError)
-	walk = func(e *jsonschema.ValidationError) {
-		if len(e.Causes) == 0 {
-			p := Problem{
-				Pointer: pointerOf(e.InstanceLocation),
-				Message: e.ErrorKind.LocalizedString(v.printer),
-			}
-			out = append(out, resolveLine(src, p))
-			return
-		}
-		for _, c := range e.Causes {
-			walk(c)
-		}
-	}
-	walk(ve)
-	if len(out) == 0 {
-		out = append(out, resolveLine(src, Problem{
-			Pointer: pointerOf(ve.InstanceLocation),
-			Message: ve.ErrorKind.LocalizedString(v.printer),
-		}))
-	}
-	return out
 }
 
 // pointerOf builds an RFC 6901 JSON pointer from instance-location segments.
