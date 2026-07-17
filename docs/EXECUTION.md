@@ -41,7 +41,7 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.6a — complete, locally verified. Next up: M1.7. **Milestone gate reached at
+- **Current milestone:** M1.7 — complete, locally verified. Next up: M1.8. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched).
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
@@ -127,6 +127,23 @@ Rules:
   build`/`go vet`/`go test -race` all stayed clean throughout; only the local lint run was affected. Not
   something this milestone caused or attempted to fix (touches global Homebrew tooling — a deliberate call
   for the project owner, not a silent workaround); re-verify with `golangci-lint` once resolved.
+- **M1.7:** all tasks and acceptance criteria verified locally (`go test -race ./...` green; `go vet` clean;
+  `golangci-lint` still blocked by the M1.6a environment note above, unchanged). New `core/replay` package,
+  a thin layer over `core/eventlog`/`core/store`/`core/engine`: `Auditor.Audit` reconstructs an execution's
+  `Timeline` (workflow, ordered events, per-node outcome + artifact bytes) from disk alone — the type holds
+  only a log and a store, no `Scheduler`/`NodeExecutor` reference, so it *structurally* cannot reach a model
+  or a tool (REQ-REPLAY-01); a call counter on the test executor proves it. `Reexecuter.Reexecute` reads the
+  frozen `engine.Snapshot` and runs it again under a new execution ID through the same Scheduler/cache/store,
+  so unchanged nodes reuse their cached artifact at zero cost and only invalidated nodes re-run
+  (REQ-REPLAY-02). `Divergence` classifies each node between two Timelines as `cached`/`re-executed`/
+  `added`/`removed` — a byte-equality report, not a claim about *why* (REQ-REPLAY-03 core; CLI in M1.9, docs
+  page in M1.15). Notes: (1) to let `core/replay` read the exact struct the engine writes to `snapshot.json`
+  rather than a hand-mirrored copy that could drift, the unexported `engine.snapshot` was renamed/exported
+  as `engine.Snapshot` (committed separately, no behavior change); (2) `Reexecute` takes the new execution
+  ID from the caller rather than generating one — ID policy belongs to the CLI (M1.9), matching
+  `Scheduler.Run`'s existing contract; (3) `docs/replay-honesty.md` states plainly the one guarantee replay
+  does *not* make — a re-executed LLM node's output is not guaranteed byte-identical, since models aren't
+  deterministic; replay replays the *process*, not the *result*.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -825,25 +842,36 @@ honest divergence report.
 
 ### Tasks
 
-- [ ] Write `core/replay/audit.go`: `Audit(executionID string) (Timeline, error)` — reconstructs the full
-      timeline (events + artifacts) from `.workflow/executions/<id>/` alone, zero model calls, zero cost.
-- [ ] Write `core/replay/reexecute.go`: `Reexecute(executionID string) (newExecutionID string, error)` —
-      loads the frozen snapshot (workflow/version/graph/contracts as recorded), re-runs it through
-      `core/engine`; cache (M1.6) naturally applies since the node keys are unchanged for untouched nodes.
-- [ ] Write `core/replay/divergence.go`: given an original execution and a re-execution, classify each node as
-      `cached` (byte-identical) or `re-executed` (new output), and produce a side-by-side artifact diff for
-      every re-executed node.
-- [ ] Write `docs/replay-honesty.md`: what replay guarantees (deterministic process, recorded results,
+- [x] Write `core/replay/audit.go`: `Auditor.Audit(executionID string) (Timeline, error)` — reconstructs the
+      full timeline (workflow, events, per-node outcome and artifact bytes) from `.workflow/executions/<id>/`
+      alone, zero model calls, zero cost. `Auditor` holds only an `*eventlog.Log` and `*store.Store` — no
+      `Scheduler`/`NodeExecutor` reference exists for it to accidentally call. (Constructor-based, not the
+      free-function signature originally sketched here — the type needs somewhere to hold the log/store.)
+- [x] Write `core/replay/reexecute.go`: `Reexecuter.Reexecute(ctx, originalExecutionID, newExecutionID string)
+      (*engine.Result, error)` — loads the frozen `engine.Snapshot` (workflow/budget/concurrency as recorded)
+      and re-runs it through the same `Scheduler`; cache (M1.6) naturally applies since node keys are
+      unchanged for untouched nodes. `newExecutionID` is caller-supplied (ID-generation policy belongs to the
+      caller, e.g. the future CLI — same pattern `Scheduler.Run` itself already uses).
+- [x] Write `core/replay/divergence.go`: `Divergence(original, reexecuted Timeline) []NodeDivergence` —
+      classifies each node as `cached` (byte-identical artifact hash) or `re-executed` (hash differs), plus
+      `added`/`removed` for a node present in only one Timeline. Exposes the original/new content pair per
+      node; rendering an actual diff is left to the caller (no requirement specifies a rendered format).
+- [x] Write `docs/replay-honesty.md`: what replay guarantees (deterministic process, recorded results,
       cache-identical re-runs of unchanged nodes) and what it explicitly does not guarantee (byte-identical
       *new* model output when a node actually re-executes — LLMs are not deterministic, and this document says
       so plainly).
 
 ### Acceptance criteria
 
-- [ ] Test: `Audit` on a previously-completed execution works with network/model access disabled (prove zero
-      external calls).
-- [ ] Test: `Reexecute` + `divergence.go` on an execution where one contract changed correctly labels the
-      changed node (and its downstream) as `re-executed` and everything else as `cached`.
+- [x] Test: `Audit` on a previously-completed execution works with network/model access disabled (prove zero
+      external calls). **Verified by:** `replay.TestAuditReconstructsSucceededFailedAndSkippedNodes` (a call
+      counter on the test executor proves Audit adds zero invocations across a succeeded, a
+      continue-policy-failed, and a conditionally-skipped node).
+- [x] Test: `Reexecute` + `divergence.go` on an execution where one contract changed correctly labels the
+      changed node (and its downstream) as `re-executed` and everything else as `cached`. **Verified by:**
+      `replay.TestReexecuteAndDivergenceLabelChangedNodeAndDownstream` (a chain a→b→c re-executed after only
+      b's registry-resolved contract changes: a stays cached, b and c re-execute — the downstream cascade
+      falls out of the existing cache-key input-hash chain with no special-casing).
 
 ---
 

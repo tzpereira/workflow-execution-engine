@@ -9,7 +9,7 @@
 ## Component map
 
 Two languages, one boundary — Go below the event stream, TypeScript only in `ui/` (ADR 0002). Nodes marked
-`✅` exist today (M1.0–M1.4); `▢` are specified but not yet built, tagged with the milestone that delivers
+`✅` exist today (M1.0–M1.7); `▢` are specified but not yet built, tagged with the milestone that delivers
 them.
 
 ```mermaid
@@ -33,9 +33,9 @@ graph TB
         Policy["policy ✅ M1.4 — resolves each Worker's context slice"]
         Model["model/openai, model/anthropic ✅ M1.4 —\nhand-rolled net/http clients (ADR 0006)"]
         Cost["cost ✅ M1.4 — per-call token/$ accounting"]
-        Tool["tool ▢ M1.5 — filesystem, terminal, git, http (sandboxed, PRIN-10)"]
-        Cache["cache ▢ M1.6 — content-addressed node cache"]
-        Replay["replay ▢ M1.7 — zero-cost audit replay + re-execution"]
+        Tool["tool ✅ M1.5 — filesystem, terminal, git, http (sandboxed, PRIN-10);\ntool-backed graph nodes ✅ M1.6a (ADR 0008)"]
+        Cache["cache ✅ M1.6 — content-addressed node cache"]
+        Replay["replay ✅ M1.7 — zero-cost audit replay + re-execution + divergence"]
         Registry["registry ▢ M1.8 — immutable versions"]
         Store["store ✅ — content-addressed artifact store"]
         EventLog["eventlog ✅ — append-only JSONL, hash-chained (ADR 0007)"]
