@@ -43,6 +43,8 @@ func Graph(wf *domain.Workflow, src LineResolver) error {
 		index[n.ID] = i
 	}
 
+	problems = append(problems, checkNodeRef(wf, src)...)
+
 	// Edge resolution. Only edges whose endpoints both exist feed the graph
 	// analysis below; unresolved endpoints are reported here.
 	adj := make(map[string][]string, len(index))    // from -> [to]
@@ -145,6 +147,35 @@ func findCycle(nodes []domain.Node, adj map[string][]string) []string {
 		}
 	}
 	return nil
+}
+
+// checkNodeRef verifies every node declares exactly one of Worker or Tool
+// (ADR 0008, REQ-WORKER-04) — a Worker-backed node runs an LLM role; a
+// Tool-backed node runs a deterministic tool call; a node is never both, and
+// never neither.
+func checkNodeRef(wf *domain.Workflow, src LineResolver) []Problem {
+	var problems []Problem
+	for i, n := range wf.Nodes {
+		if n.ID == "" {
+			continue // already reported by the id-uniqueness pass
+		}
+		hasWorker := n.Worker != ""
+		hasTool := n.Tool != nil
+		ptr := fmt.Sprintf("/nodes/%d", i)
+		switch {
+		case !hasWorker && !hasTool:
+			problems = append(problems, resolveLine(src, Problem{
+				Pointer: ptr,
+				Message: fmt.Sprintf("node %q references neither a worker nor a tool — exactly one is required", n.ID),
+			}))
+		case hasWorker && hasTool:
+			problems = append(problems, resolveLine(src, Problem{
+				Pointer: ptr,
+				Message: fmt.Sprintf("node %q references both a worker and a tool — exactly one is required", n.ID),
+			}))
+		}
+	}
+	return problems
 }
 
 // checkContextArtifacts verifies that every node id referenced by an

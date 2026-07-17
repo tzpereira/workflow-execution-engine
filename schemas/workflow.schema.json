@@ -13,10 +13,19 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "worker"],
+        "required": ["id"],
         "properties": {
           "id": { "type": "string" },
           "worker": { "type": "string" },
+          "tool": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["toolName", "input"],
+            "properties": {
+              "toolName": { "type": "string" },
+              "input": { "type": "object" }
+            }
+          },
           "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" },
           "onFailure": {
             "type": "object",

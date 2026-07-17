@@ -1,12 +1,29 @@
 package domain
 
-// Node is a placed Worker in a Workflow graph. Worker is a reference of the
-// form "id@version". ContextPolicy, when set, overrides the referenced Worker's
-// policy for this placement and is what graph validation reads. OnFailure sets
-// what the runtime does if the node fails (default: fail the whole execution).
+// ToolCall makes a Node tool-backed instead of Worker-backed (ADR 0008): the
+// engine invokes ToolName deterministically with Input, and no model ever
+// selects or shapes that input (ADR 0006). Input leaf values may be the
+// whole-string placeholders "${nodeID.path}" (an upstream artifact field) or
+// "${env:NAME}" (an OS environment variable, resolved at call time and never
+// persisted) — see core/engine/tool_input.go.
+type ToolCall struct {
+	ToolName string         `json:"toolName" yaml:"toolName"`
+	Input    map[string]any `json:"input" yaml:"input"`
+}
+
+// Node is a placed Worker or Tool call in a Workflow graph — exactly one of
+// Worker or Tool is set (core/validate/graph.go enforces this). Worker is a
+// reference of the form "id@version" into an LLM-backed role; Tool runs a
+// deterministic tool call instead (ADR 0008) — Worker itself is untouched by
+// this distinction, it still means exactly what spec/workers.md says.
+// ContextPolicy, when set, overrides the referenced Worker's policy for this
+// placement (Worker-backed nodes only) and is what graph validation reads.
+// OnFailure sets what the runtime does if the node fails (default: fail the
+// whole execution).
 type Node struct {
 	ID            string         `json:"id" yaml:"id"`
-	Worker        string         `json:"worker" yaml:"worker"`
+	Worker        string         `json:"worker,omitempty" yaml:"worker,omitempty"`
+	Tool          *ToolCall      `json:"tool,omitempty" yaml:"tool,omitempty"`
 	ContextPolicy *ContextPolicy `json:"contextPolicy,omitempty" yaml:"contextPolicy,omitempty"`
 	OnFailure     *FailurePolicy `json:"onFailure,omitempty" yaml:"onFailure,omitempty"`
 }

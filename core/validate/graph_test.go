@@ -80,6 +80,47 @@ func TestGraphRejectsOrphan(t *testing.T) {
 	}
 }
 
+// TestNodeRequiresExactlyOneOfWorkerOrTool is the REQ-WORKER-04 acceptance
+// test (ADR 0008): a node declaring both a worker and a tool, or neither, is
+// rejected with a clear, positional error; declaring exactly one is valid.
+func TestNodeRequiresExactlyOneOfWorkerOrTool(t *testing.T) {
+	base := func(n domain.Node) *domain.Workflow {
+		return &domain.Workflow{
+			ID: "ref", Version: "1.0.0",
+			Nodes:  []domain.Node{n},
+			Budget: domain.Budget{MaxCostUSD: 1, MaxTokens: 1, MaxDurationMs: 1, MaxRetriesPerNode: 1},
+		}
+	}
+
+	t.Run("neither is rejected", func(t *testing.T) {
+		err := validate.Graph(base(domain.Node{ID: "a"}), nil)
+		if err == nil || !strings.Contains(err.Error(), `"a" references neither a worker nor a tool`) {
+			t.Errorf("expected a neither-worker-nor-tool error, got: %v", err)
+		}
+	})
+
+	t.Run("both is rejected", func(t *testing.T) {
+		n := domain.Node{ID: "a", Worker: "w@1", Tool: &domain.ToolCall{ToolName: "terminal", Input: map[string]any{"command": "echo"}}}
+		err := validate.Graph(base(n), nil)
+		if err == nil || !strings.Contains(err.Error(), `"a" references both a worker and a tool`) {
+			t.Errorf("expected a both-worker-and-tool error, got: %v", err)
+		}
+	})
+
+	t.Run("worker only is valid", func(t *testing.T) {
+		if err := validate.Graph(base(domain.Node{ID: "a", Worker: "w@1"}), nil); err != nil {
+			t.Errorf("worker-only node should be valid, got: %v", err)
+		}
+	})
+
+	t.Run("tool only is valid", func(t *testing.T) {
+		n := domain.Node{ID: "a", Tool: &domain.ToolCall{ToolName: "terminal", Input: map[string]any{"command": "echo"}}}
+		if err := validate.Graph(base(n), nil); err != nil {
+			t.Errorf("tool-only node should be valid, got: %v", err)
+		}
+	})
+}
+
 func TestGraphRejectsContextArtifactNotUpstream(t *testing.T) {
 	// c reads an artifact from b, but b is a sibling (not upstream of c).
 	wf := &domain.Workflow{
