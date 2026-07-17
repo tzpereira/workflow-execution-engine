@@ -32,17 +32,23 @@ func CompileSchema(schema map[string]any) (*CompiledSchema, error) {
 	if err != nil {
 		return nil, fmt.Errorf("validate: encoding output schema: %w", err)
 	}
+	return CompileSchemaBytes(raw)
+}
+
+// CompileSchemaBytes compiles a JSON Schema document supplied as raw bytes — the
+// form a Tool declares its input/output schema in (REQ-TOOL-01).
+func CompileSchemaBytes(raw []byte) (*CompiledSchema, error) {
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
 	if err != nil {
-		return nil, fmt.Errorf("validate: parsing output schema: %w", err)
+		return nil, fmt.Errorf("validate: parsing schema: %w", err)
 	}
 	c := jsonschema.NewCompiler()
 	if err := c.AddResource(adhocSchemaID, doc); err != nil {
-		return nil, fmt.Errorf("validate: adding output schema: %w", err)
+		return nil, fmt.Errorf("validate: adding schema: %w", err)
 	}
 	sch, err := c.Compile(adhocSchemaID)
 	if err != nil {
-		return nil, fmt.Errorf("validate: compiling output schema: %w", err)
+		return nil, fmt.Errorf("validate: compiling schema: %w", err)
 	}
 	return &CompiledSchema{sch: sch, printer: message.NewPrinter(language.English)}, nil
 }
