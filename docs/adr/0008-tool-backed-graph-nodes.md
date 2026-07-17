@@ -48,9 +48,12 @@ the shared executor instance (which would be a data race under the scheduler's c
 A tool-backed node's static `Input` may reference an upstream artifact field via the whole-string placeholder
 `"${nodeID.path}"` (resolved by reusing the existing private `lookupPath` dotted-path walker from
 `core/engine/conditional.go` — zero new parsing library) and an environment secret via `"${env:NAME}"`
-(resolved from `os.LookupEnv` at call time). Resolved env values are redacted from any event payload or
-returned error text before they reach the log, narrowly scoped to this new code path (the general M2.0
-redaction pass remains separate, deferred scope). No embedded/concatenated interpolation — a workflow
+(resolved from `os.LookupEnv` at call time). Resolved env values are redacted from any event payload,
+returned error text, or the resulting artifact content before they reach the log or the store — a tool's
+real output can legitimately echo back what it was given (e.g. `curl -v`'s stderr printing the request
+headers it sent), so the stored artifact needs the same treatment as the log. Narrowly scoped to this new
+code path (the general M2.0 redaction pass remains separate, deferred scope). No embedded/concatenated
+interpolation — a workflow
 needing a composed multi-field string pushes that composition into a Worker's Contract output instead.
 
 `ToolExecutor` does not implement `CacheKeyer`; tool-backed nodes never populate a cache key. A Tool is an

@@ -14,7 +14,8 @@ milestone that touches provider keys (M1.4), provider implementations shall neve
 - **Rationale:** PRIN-10; the event log is exportable and hash-chained — a leaked secret would be
   permanent.
 - **Delivered by:** M1.4 (provider hygiene), M1.6a (`${env:NAME}` tool-input secret references, redacted
-  from event payloads and returned error text — narrowly scoped to `ToolExecutor`'s own emit/error paths,
+  from event payloads, returned error text, and the resulting artifact content (a tool can legitimately echo
+  back what it was given, e.g. `curl -v`'s stderr) — narrowly scoped to `ToolExecutor`'s own emit/error/result paths,
   not a general mechanism), M2.0 (full redaction pass across the whole engine). **Verified by:**
   `openai.TestNoKeyMaterialInExecutionRecord` (grep of every file a real-provider run writes),
   `openai.TestNoHeaderInError` (M1.4); `engine.TestToolExecutionRecordNeverContainsEnvSecretValue` (M1.6a);

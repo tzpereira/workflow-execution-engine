@@ -56,7 +56,9 @@ for both kinds in the same graph.
 A tool-backed node's `Input` leaf value that is the *whole string* `${nodeID.path}` shall resolve to the
 JSON value at `path` within the named upstream node's artifact (dotted-path lookup, no wildcards); a leaf
 value that is the whole string `${env:NAME}` shall resolve to the OS environment variable `NAME` at call
-time. Env-resolved values shall never appear in event payloads or returned error text (NFR-SEC-01). No
+time. Env-resolved values shall never appear in event payloads, returned error text, or the resulting
+artifact content (NFR-SEC-01) — a tool's real output can legitimately echo back what it was given (e.g.
+`curl -v`'s stderr), so the stored artifact needs the same redaction as the log. No
 other placeholder syntax (embedded or concatenated within a larger string) is supported in v1 — a workflow
 needing a composed multi-field string pushes that composition into a Worker's Contract output instead, and
 the tool node references that one pre-composed field.
