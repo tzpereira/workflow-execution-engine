@@ -19,8 +19,9 @@ func (e transientError) Error() string { return e.err.Error() }
 func (e transientError) Unwrap() error { return e.err }
 
 type contractViolationError struct {
-	err      error
-	Feedback string
+	err        error
+	Feedback   string
+	MaxRetries int // contract.maxRetries — the bound for THIS class, distinct from transient retries
 }
 
 func (e contractViolationError) Error() string { return e.err.Error() }
@@ -34,10 +35,12 @@ func (e fatalError) Unwrap() error { return e.err }
 // Transient marks err as a retryable transient failure.
 func Transient(err error) error { return transientError{err} }
 
-// ContractViolation marks err as a contract violation, carrying feedback to
-// surface on the retry.
-func ContractViolation(err error, feedback string) error {
-	return contractViolationError{err: err, Feedback: feedback}
+// ContractViolation marks err as a contract violation, carrying the delta
+// feedback to surface on the retry and the contract's own retry bound
+// (contract.maxRetries) — contract-violation retries are counted separately from
+// transient retries (REQ-CONTRACT-02).
+func ContractViolation(err error, feedback string, maxRetries int) error {
+	return contractViolationError{err: err, Feedback: feedback, MaxRetries: maxRetries}
 }
 
 // Fatal marks err as non-retryable.
@@ -87,32 +90,65 @@ func exponentialBackoff(base, max time.Duration) backoffFunc {
 	}
 }
 
-// withRetry runs fn until it succeeds, hits a fatal error, or exhausts
-// maxRetries. onRetry is called before each retry with the upcoming attempt
-// number and the reason. Backoff sleeps respect ctx cancellation.
-func withRetry(ctx context.Context, maxRetries int, backoff backoffFunc, fn func(attempt int) error, onRetry func(attempt int, reason string)) error {
-	for attempt := 0; ; attempt++ {
-		err := fn(attempt)
+// withRetry runs fn until it succeeds, hits a fatal error, or exhausts the retry
+// budget for the failure's class. Transient failures are bounded by maxTransient
+// (the per-node retry budget); contract violations are bounded independently by
+// each violation's own contract.maxRetries (REQ-CONTRACT-02) — one loop, two
+// counters, so a flaky provider and a stubborn model don't share a budget.
+// onRetry is called before each retry with the running attempt number and the
+// reason. A transient failure carrying a server Retry-After hint raises the
+// backoff for that attempt (REQ-MODEL-05). Backoff sleeps respect ctx.
+func withRetry(ctx context.Context, maxTransient int, backoff backoffFunc, fn func() error, onRetry func(attempt int, reason string)) error {
+	transientN, contractN := 0, 0
+	for {
+		err := fn()
 		if err == nil {
 			return nil
 		}
-		if classify(err) == classFatal || attempt >= maxRetries {
+		switch classify(err) {
+		case classFatal:
 			return err
-		}
-		if onRetry != nil {
-			onRetry(attempt+1, err.Error())
-		}
-		if backoff != nil {
-			if d := backoff(attempt + 1); d > 0 {
-				if !sleep(ctx, d) {
-					return ctx.Err()
-				}
+		case classTransient:
+			if transientN >= maxTransient {
+				return err
 			}
+			transientN++
+		case classContractViolation:
+			var cve contractViolationError
+			errors.As(err, &cve)
+			if contractN >= cve.MaxRetries {
+				return err
+			}
+			contractN++
+		}
+		attempt := transientN + contractN
+		if onRetry != nil {
+			onRetry(attempt, err.Error())
+		}
+		d := backoff(attempt)
+		if hint, ok := retryAfterOf(err); ok && hint > d {
+			d = hint
+		}
+		if d > 0 && !sleep(ctx, d) {
+			return ctx.Err()
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 	}
+}
+
+// retryAfterOf extracts a server-requested delay from a transient error without
+// importing the provider layer: any error in the chain exposing RetryAfterHint
+// (model.TransientError does) supplies it.
+func retryAfterOf(err error) (time.Duration, bool) {
+	var h interface {
+		RetryAfterHint() (time.Duration, bool)
+	}
+	if errors.As(err, &h) {
+		return h.RetryAfterHint()
+	}
+	return 0, false
 }
 
 // sleep waits for d or until ctx is done; it returns false if ctx ended first.

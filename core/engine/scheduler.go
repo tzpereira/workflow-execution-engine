@@ -249,7 +249,8 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 					active = false
 					continue
 				}
-				inputs = append(inputs, NodeInput{FromNode: e.From, Content: output[e.From].Content})
+				po := output[e.From]
+				inputs = append(inputs, NodeInput{FromNode: e.From, Content: po.Content, Type: po.Type, Hash: po.Hash})
 			}
 			if active {
 				state[id] = StateRunning

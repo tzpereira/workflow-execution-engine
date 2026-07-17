@@ -41,7 +41,8 @@ func newStub() *stub {
 	}
 }
 
-func (s *stub) Execute(ctx context.Context, node domain.Node, inputs []engine.NodeInput) (engine.NodeResult, error) {
+func (s *stub) Execute(ctx context.Context, req engine.NodeRequest) (engine.NodeResult, error) {
+	node, inputs := req.Node, req.Inputs
 	s.mu.Lock()
 	s.starts[node.ID]++
 	s.inputs[node.ID] = len(inputs)
