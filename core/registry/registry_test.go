@@ -1,0 +1,105 @@
+package registry_test
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/tzpereira/workflow-execution-engine/core/domain"
+	"github.com/tzpereira/workflow-execution-engine/core/engine"
+	"github.com/tzpereira/workflow-execution-engine/core/registry"
+)
+
+// The Registry must satisfy engine.WorkerSource so it drops in wherever the
+// in-memory map stood, without the executor changing (worker_executor.go:17-19).
+var _ engine.WorkerSource = (*registry.Registry)(nil)
+
+func worker(id, version, objective string) domain.Worker {
+	return domain.Worker{
+		ID:        id,
+		Version:   version,
+		Objective: objective,
+		Contract:  domain.Contract{Goal: "g", OutputSchema: map[string]any{"type": "object"}},
+		Model:     domain.ModelConfig{Provider: "openai", Model: "gpt-4o"},
+	}
+}
+
+// TestRegisterAndLookup covers the happy path: a registered worker resolves by
+// its "id@version" reference, and an unregistered one does not.
+func TestRegisterAndLookup(t *testing.T) {
+	r := registry.New()
+	if err := r.RegisterWorker(worker("reviewer", "1.0.0", "review code")); err != nil {
+		t.Fatalf("RegisterWorker: %v", err)
+	}
+	got, ok := r.Lookup("reviewer@1.0.0")
+	if !ok {
+		t.Fatal("Lookup(reviewer@1.0.0) = not found, want found")
+	}
+	if got.Objective != "review code" {
+		t.Errorf("resolved worker objective = %q, want %q", got.Objective, "review code")
+	}
+	if _, ok := r.Lookup("reviewer@9.9.9"); ok {
+		t.Error("Lookup(reviewer@9.9.9) = found, want not found")
+	}
+}
+
+// TestReRegisterIdenticalContentIsNoOp: registering byte-identical content at
+// the same version again is allowed (idempotent), not a conflict.
+func TestReRegisterIdenticalContentIsNoOp(t *testing.T) {
+	r := registry.New()
+	w := worker("reviewer", "1.0.0", "review code")
+	if err := r.RegisterWorker(w); err != nil {
+		t.Fatalf("first register: %v", err)
+	}
+	if err := r.RegisterWorker(w); err != nil {
+		t.Errorf("re-registering identical content should be a no-op, got: %v", err)
+	}
+}
+
+// TestImmutableVersionRejectsMutation is the REQ-VERSION-01 acceptance path:
+// changing a released version's content without bumping the version is a
+// *ConflictError naming the reference.
+func TestImmutableVersionRejectsMutation(t *testing.T) {
+	r := registry.New()
+	if err := r.RegisterWorker(worker("reviewer", "1.0.0", "review code")); err != nil {
+		t.Fatalf("first register: %v", err)
+	}
+
+	err := r.RegisterWorker(worker("reviewer", "1.0.0", "review code differently"))
+	if err == nil {
+		t.Fatal("re-registering different content at 1.0.0 should fail")
+	}
+	var ce *registry.ConflictError
+	if !errors.As(err, &ce) {
+		t.Fatalf("want *ConflictError, got %T: %v", err, err)
+	}
+	if ce.Ref != "reviewer@1.0.0" || ce.Kind != registry.KindWorker {
+		t.Errorf("conflict = %+v, want worker reviewer@1.0.0", ce)
+	}
+	if ce.Existing == ce.Incoming || ce.Existing == "" || ce.Incoming == "" {
+		t.Errorf("conflict should name two distinct non-empty hashes, got existing=%q incoming=%q", ce.Existing, ce.Incoming)
+	}
+
+	// Bumping the version is the sanctioned path — the same new content at a new
+	// version registers cleanly, and both versions coexist.
+	if err := r.RegisterWorker(worker("reviewer", "2.0.0", "review code differently")); err != nil {
+		t.Errorf("registering the new content at a bumped version should succeed, got: %v", err)
+	}
+	if _, ok := r.Lookup("reviewer@1.0.0"); !ok {
+		t.Error("original version should still be resolvable after a bump")
+	}
+	if _, ok := r.Lookup("reviewer@2.0.0"); !ok {
+		t.Error("bumped version should be resolvable")
+	}
+}
+
+// TestRegisterRejectsInvalidSemver: a non-semver version is refused at
+// registration, before it can pollute the store.
+func TestRegisterRejectsInvalidSemver(t *testing.T) {
+	r := registry.New()
+	if err := r.RegisterWorker(worker("reviewer", "latest", "review")); err == nil {
+		t.Error("registering a worker at version \"latest\" should fail")
+	}
+	if err := r.RegisterWorkflow(domain.Workflow{ID: "wf", Version: "1.0"}); err == nil {
+		t.Error("registering a workflow at version \"1.0\" should fail")
+	}
+}
