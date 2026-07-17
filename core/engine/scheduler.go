@@ -216,6 +216,24 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 			cancel()
 		}
 	}
+	// cancelHalt finalizes a parent-cancelled run deterministically: it emits the
+	// single Cancelled event and halts with the cancellation cause. It is
+	// idempotent (halt is), so whichever path first observes the cancellation —
+	// the ctxDone branch, or an in-flight node returning its own cancellation
+	// error first under load — produces the same Cancelled outcome and exactly
+	// one event. Without this, a completion processed before ctxDone could exit
+	// the loop with the run mislabeled "failed".
+	cancelHalt := func() {
+		if halted {
+			return
+		}
+		s.emit(execID, domain.Cancelled, "", nil)
+		err := parent.Err()
+		if err == nil {
+			err = ErrCancelled
+		}
+		halt(err)
+	}
 	settle := func(id string, st NodeState) {
 		state[id] = st
 		for _, ch := range children[id] {
@@ -296,6 +314,11 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 			if halted || parent.Err() != nil || errors.Is(c.err, context.Canceled) || errors.Is(c.err, context.DeadlineExceeded) {
 				outcomes[c.id] = NodeOutcome{State: StateFailed, Err: c.err.Error()}
 				settle(c.id, StateFailed)
+				// A cancelled parent must finalize as Cancelled even if this
+				// completion is observed before the ctxDone branch runs.
+				if parent.Err() != nil {
+					cancelHalt()
+				}
 				return
 			}
 			pol := failurePolicyOf(c.node)
@@ -343,14 +366,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 			processDecisions()
 		case <-ctxDone:
 			ctxDone = nil
-			if !halted {
-				s.emit(execID, domain.Cancelled, "", nil)
-				err := parent.Err()
-				if err == nil {
-					err = ErrCancelled
-				}
-				halt(err)
-			}
+			cancelHalt()
 		}
 	}
 	close(tasks)
