@@ -65,6 +65,20 @@ type CacheKeyer interface {
 	CacheKey(node domain.Node, inputs []NodeInput) (key string, ok bool)
 }
 
+// ToolEmitter is an optional NodeExecutor capability (ADR 0008, mirroring
+// CacheKeyer exactly): an executor that needs to emit its own sub-events (a
+// tool-backed node's ToolCalled/ToolResult pair, REQ-TOOL-02) implements it.
+// emit is passed as a per-call parameter — a closure bound to that call's
+// execution/node id — never a field mutated on the shared executor instance,
+// which would race under the scheduler's concurrent goroutine pool (the
+// executor is called concurrently for independent ready nodes). An executor
+// that doesn't implement ToolEmitter (e.g. WorkerExecutor) simply relies on
+// the generic WorkerStarted/ArtifactCreated/WorkerFinished events every node
+// already gets from executeNode.
+type ToolEmitter interface {
+	ExecuteWithEmit(ctx context.Context, req NodeRequest, emit func(domain.EventType, map[string]any)) (NodeResult, error)
+}
+
 // executeNode runs one node with retries, stores its artifact, and emits the
 // WorkerStarted / ArtifactCreated / WorkerFinished (or Retry / Failure) events.
 // runNode is the node actually executed; logicalID is the graph node the result
