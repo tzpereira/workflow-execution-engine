@@ -17,18 +17,20 @@ When dispatching a node, the engine shall resolve the Worker's declared context 
 execution state and provide the Worker **exactly** the resulting slice of upstream artifacts/history — no
 implicit additions.
 - **Rationale:** PRIN-05 (minimal context is enforced, not hoped for).
-- **Delivered by:** M1.4. **Verified by:** _pending_ (diff-only policy: compiled context contains the diff
-  artifact and nothing from a sibling Planning node).
+- **Delivered by:** M1.4. **Verified by:** `contract.TestCompiledContextIsDiffOnly` (compiled context has the
+  diff artifact, not the sibling Planning output); `policy` resolver unit tests.
 
 ### REQ-CTXPOL-02 — Minimal by default
 If a node declares no context policy, then the engine shall default to the **smallest** slice that
 satisfies its contract inputs (parent output only) — never "full history". Widening context is an explicit,
 declared act.
 - **Rationale:** PRIN-05 — a senior engineer doesn't paste the repo into a review; defaults encode that.
-- **Delivered by:** M1.4. **Verified by:** _pending_.
+- **Delivered by:** M1.4. **Verified by:** `policy.TestResolveDefaultIsParentOnly`, `TestResolveNoneAdmitsNothing`.
 
 ### REQ-CTXPOL-03 — Resolved context is auditable
 When a context slice is resolved, the engine shall record what was actually included (artifact hashes, not
 copies) so any execution can later answer "what did this Worker see?" exactly — via events/Inspector.
 - **Rationale:** PRIN-01, PRIN-02; also the substrate for savings accounting (REQ-METRIC-03).
-- **Delivered by:** M1.4 (recording), M1.13 (Inspector surface). **Verified by:** _pending_.
+- **Delivered by:** M1.4 (recording: admitted hashes in the `WorkerFinished` event payload via
+  `policy.Hashes`), M1.13 (Inspector surface). **Verified by:** M1.13 (Inspector) _pending_; recording covered
+  by `policy.TestHashes`.

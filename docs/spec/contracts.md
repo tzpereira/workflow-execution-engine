@@ -12,7 +12,8 @@ is internal plumbing (`core/contract/compiler.go`), never a user-facing concept 
 When a Worker produces output, the engine shall parse it as JSON and validate it against the node's
 `contract.outputSchema` (via `core/validate`) before any downstream node may consume it.
 - **Rationale:** PRIN-01 (recorded, typed results), PRIN-08.
-- **Delivered by:** M1.4. **Verified by:** _pending_ (`outputSchema = {score, issues[]}` acceptance test).
+- **Delivered by:** M1.4. **Verified by:** `engine.TestNoMalformedOutputCrossesBoundary`,
+  `TestMalformedNeverReachesDownstream` (`outputSchema = {score, issues[]}`).
 
 ### REQ-CONTRACT-02 — Bounded retry with delta feedback
 If output validation fails, then the engine shall re-invoke the Worker with the validation errors appended
@@ -20,14 +21,15 @@ as feedback — **only the errors, never a re-inflated copy of the full context*
 `contract.maxRetries` times, emitting a `Retry` event (carrying the validation error text) per attempt.
 - **Rationale:** PRIN-05 (feedback is delta, not re-inflation) — this is the token-economy rule applied to
   the engine's own loop.
-- **Delivered by:** M1.4. **Verified by:** _pending_ (stub provider: malformed-once-then-valid → exactly
-  one `Retry` event).
+- **Delivered by:** M1.4. **Verified by:** `engine.TestContractRetryWithDeltaFeedback` (malformed-once-then-valid
+  → exactly one `Retry` event carrying the validation text; retry call carries the delta and only the delta).
 
 ### REQ-CONTRACT-03 — Explicit terminal violation
 If validation still fails after `contract.maxRetries` attempts, then the engine shall emit
 `ContractViolation` and fail the node under its failure policy (REQ-RUNTIME-04) — never silently pass the
 malformed output through.
-- **Delivered by:** M1.4. **Verified by:** _pending_.
+- **Delivered by:** M1.4. **Verified by:** `engine.TestContractViolationTerminal` (emits `ContractViolation`,
+  no `ContractValidated`, run fails).
 
 ### REQ-CONTRACT-04 — Tight-by-default schema guidance (anti-slop)
 The engine's documentation and templates shall model tight contracts — bounded arrays (`maxItems`), bounded

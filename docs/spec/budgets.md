@@ -1,6 +1,6 @@
 # Spec — Budgets
 
-**Prefix:** `REQ-BUDGET` · **Status:** partially DELIVERED (M1.3), cost wiring M1.4 · **Principles:**
+**Prefix:** `REQ-BUDGET` · **Status:** partially DELIVERED (M1.3; real-cost wiring M1.4) · **Principles:**
 PRIN-05 · **Implementation:** `core/engine/budget.go`, `core/cost/` (M1.4)
 
 Every execution declares a budget: max cost (USD), max tokens, max duration, max retries per node. The
@@ -24,4 +24,5 @@ once for that dimension.
 ### REQ-BUDGET-03 — Accurate per-call accounting
 When a model call completes, the engine shall record input/output tokens and compute cost from the
 provider's published rates, aggregated per node and rolled up per execution (feeding REQ-METRIC-01).
-- **Delivered by:** M1.4 (`core/cost/accounting.go`). **Verified by:** _pending_.
+- **Delivered by:** M1.4 (`core/cost/accounting.go`). **Verified by:** `cost` package tests; real per-call
+  cost surfaced through `NodeResult.CostUSD` (`engine.TestNoMalformedOutputCrossesBoundary` asserts it is priced).

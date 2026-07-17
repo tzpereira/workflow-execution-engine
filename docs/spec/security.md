@@ -13,15 +13,16 @@ values shall never be serialized into definitions, snapshots, events, exports, o
 milestone that touches provider keys (M1.4), provider implementations shall never log request headers.
 - **Rationale:** PRIN-10; the event log is exportable and hash-chained — a leaked secret would be
   permanent.
-- **Delivered by:** M1.4 (provider hygiene), M2.0 (full redaction pass). **Verified by:** _pending_ (grep
-  test: no key material in any event/snapshot produced by the test suite).
+- **Delivered by:** M1.4 (provider hygiene), M2.0 (full redaction pass). **Verified by:**
+  `openai.TestNoKeyMaterialInExecutionRecord` (grep of every file a real-provider run writes),
+  `openai.TestNoHeaderInError` (M1.4); full redaction pass _pending_ (M2.0).
 
 ### NFR-SEC-02 — Tamper-evident execution records
 The engine shall detect any post-hoc modification of an execution's record: artifacts via content
 addressing (REQ-ARTIFACT-01), history via the event hash chain (REQ-EVENT-03), configuration via the
 frozen snapshot's hash (REQ-EVENT-04).
-- **Delivered by:** M1.2 (artifacts) + M1.4 (chain retrofit). **Verified by:** store tests; chain test
-  _pending_.
+- **Delivered by:** M1.2 (artifacts) + M1.4 (chain retrofit). **Verified by:** store tests;
+  `eventlog.TestVerifyDetectsTamper` / `TestVerifyDetectsGenesisBreak` (chain).
 
 ### NFR-SEC-03 — Untrusted workflow threat model
 Before the engine runs workflows from untrusted sources (registry/templates/Phase 2 hosting), the project

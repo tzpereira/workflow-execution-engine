@@ -1,6 +1,6 @@
 # Spec — Event System
 
-**Prefix:** `REQ-EVENT` · **Status:** DELIVERED (M1.2) + hash-chain retrofit pending (M1.4) ·
+**Prefix:** `REQ-EVENT` · **Status:** DELIVERED (M1.2, hash-chain retrofit M1.4) ·
 **Principles:** PRIN-01, PRIN-02, PRIN-09 · **Decisions:** ADR 0007 (hash chain) ·
 **Implementation:** `core/domain/event.go`, `core/eventlog/`
 
@@ -30,7 +30,8 @@ any edit, deletion, or truncation of history.
 - **Rationale:** PRIN-09 — append-only by *convention* becomes tamper-evident by *construction*; the audit
   pitch depends on it. (Decision 2026-07-15: retrofit now, before real executions exist to migrate.)
 - **Delivered by:** M1.4 (retrofit task, amends M1.2's log format before any real executions exist).
-- **Verified by:** _pending_ (corrupt-one-line test → verification fails and names the break point).
+- **Verified by:** `eventlog.TestVerifyDetectsTamper` (corrupt one line → `Verify` fails, names the break),
+  `TestVerifyCleanChain`, `TestVerifyDetectsGenesisBreak`.
 
 ### REQ-EVENT-04 — Frozen execution snapshot
 When an execution starts, the engine shall write a frozen snapshot (workflow, budget, concurrency) that

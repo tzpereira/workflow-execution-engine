@@ -14,7 +14,7 @@ policy, output contract, and model configuration (`provider`, `model`, `params`)
 hidden state.
 - **Rationale:** PRIN-04; roles are reviewable data (versionable per REQ-VERSION-01).
 - **Delivered by:** M1.1 (struct + schema), M1.4 (execution). **Verified by:** schema tests (M1.1);
-  _pending_ M1.4 execution test.
+  `engine.TestNoMalformedOutputCrossesBoundary` (M1.4 execution).
 
 ### REQ-WORKER-02 — Uniform executor boundary
 The engine shall invoke every Worker through the single `NodeExecutor` boundary (`Execute(ctx, node,
@@ -22,10 +22,11 @@ inputs) → NodeResult`), so scheduling, retry, budgeting, caching, and event em
 model-backed, tool-backed, and stub executors.
 - **Rationale:** PRIN-02 — one seam to observe; one seam to test against.
 - **Delivered by:** M1.3 (seam), M1.4 (model-backed executor). **Verified by:** scheduler tests run
-  entirely through the seam (M1.3); _pending_ M1.4.
+  entirely through the seam (M1.3); `engine.WorkerExecutor` tests (M1.4).
 
 ### REQ-WORKER-03 — No malformed output crosses the boundary
 The engine shall guarantee that no Worker output that fails its contract validation is ever visible to a
 downstream node — enforcement happens inside the executor boundary, not as an optional post-step.
 - **Rationale:** PRIN-08; this is what makes a Contract enforcement rather than suggestion.
-- **Delivered by:** M1.4. **Verified by:** _pending_ (M1.4 acceptance test at the `NodeExecutor` boundary).
+- **Delivered by:** M1.4. **Verified by:** `engine.TestNoMalformedOutputCrossesBoundary`,
+  `TestMalformedNeverReachesDownstream` (enforcement inside the `NodeExecutor` boundary).

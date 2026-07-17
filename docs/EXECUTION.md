@@ -35,7 +35,7 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.3 — complete, locally verified. Next up: M1.4.
+- **Current milestone:** M1.4 — complete, locally verified. Next up: M1.5.
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -53,6 +53,19 @@ Rules:
   skips finished nodes, a $0.01 budget halts with a distinct error. Conditional edges use a hand-rolled
   dotted-path evaluator (gjson dropped, see §1a); retry/failure-policy/cancellation covered by tests, incl. a
   goroutine-leak check.
+- **M1.4:** all tasks and acceptance criteria verified locally (`go test ./... -race` green; `go vet` and
+  `golangci-lint` v1.55.2 clean). Workers now call real providers behind one `Provider` interface (OpenAI
+  default, base-URL-configurable for Ollama/vLLM; Anthropic); vendor types provably confined to their
+  package (`core/model` isolation test); output enforced against `contract.outputSchema` with bounded,
+  delta-feedback retries (contract retries counted separately from transient ones); context policies resolve
+  the minimal slice and record admitted hashes; real per-call cost feeds the budget; the event log is
+  hash-chained and tamper-evident. Notes: (1) the `NodeExecutor` seam took a `NodeRequest{Node, Inputs,
+  RetryFeedback}` so contract-violation feedback can flow back into the executor without cross-attempt state;
+  (2) the chain hashes raw line bytes (catches unknown-field injection), and tail-truncation detection is
+  explicitly deferred to external anchoring (ADR 0007); (3) fixed a latent M1.3 scheduler race — a
+  parent-cancelled run could finalize as `failed` if an in-flight node returned its cancellation before the
+  coordinator observed `ctx.Done()`; cancellation is now deterministic (`cancelHalt`). Local test runs use
+  `CGO_ENABLED=0` to sidestep a macOS-only cgo/`net` linker quirk (`missing LC_UUID`); Linux CI is unaffected.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -517,68 +530,77 @@ it's allowed downstream; Context Policies are enforced and auditable.
 
 ### Tasks
 
-- [ ] **Event-log hash-chain retrofit** (REQ-EVENT-03, ADR 0007): add a `prevHash` field to `domain.Event`
+- [x] **Event-log hash-chain retrofit** (REQ-EVENT-03, ADR 0007): add a `prevHash` field to `domain.Event`
       (+ `event.schema.json`); `eventlog.Append` computes each event's canonical hash and chains it to its
       predecessor (genesis chains from the snapshot's hash); add a `Verify(executionID)` routine that walks
       the chain and reports the first break. Done first — before real executions exist to migrate.
-- [ ] Write `core/model/provider.go` (REQ-MODEL-01): a `Provider` interface — `Complete(ctx, messages, params)
+- [x] Write `core/model/provider.go` (REQ-MODEL-01): a `Provider` interface — `Complete(ctx, messages, params)
       (Response, error)` — abstracting the model call. Keep it strictly provider-agnostic; no vendor- or
       transport-specific types (no request/response JSON structs, no HTTP concerns) leak across this interface.
       Add a small registry so a workflow's `provider` field selects the implementation; **OpenAI is the
       default** (cheaper).
-- [ ] Write `core/model/openai/client.go` (REQ-MODEL-02, REQ-MODEL-04, REQ-MODEL-05): implements `Provider`
+- [x] Write `core/model/openai/client.go` (REQ-MODEL-02, REQ-MODEL-04, REQ-MODEL-05): implements `Provider`
       with a **hand-rolled `net/http` client** against `POST /v1/chat/completions`, reading `OPENAI_API_KEY`.
       **Base URL is configurable** — any OpenAI-compatible endpoint (Ollama, vLLM, llama.cpp server) works
       as a provider; the API key becomes optional for keyless endpoints. Map `429`/`5xx`/timeouts →
       `retry.Transient` (honor `Retry-After`) so `core/engine/retry.go` owns backoff. Read
       `usage.prompt_tokens`/`completion_tokens` from the response body for cost accounting. No third-party
       SDK. Never log request headers (NFR-SEC-01).
-- [ ] Write `core/model/anthropic/client.go` (REQ-MODEL-03, REQ-MODEL-05): implements `Provider` with a
+- [x] Write `core/model/anthropic/client.go` (REQ-MODEL-03, REQ-MODEL-05): implements `Provider` with a
       **hand-rolled `net/http` client** against `POST /v1/messages` (headers `x-api-key` +
       `anthropic-version`), reading `ANTHROPIC_API_KEY`. Same transient-error mapping; read
       `usage.input_tokens`/`output_tokens`. No third-party SDK. Never log request headers (NFR-SEC-01).
-- [ ] Vendor-type isolation test (REQ-MODEL-01): a package-boundary check (e.g. a small `go/packages` or
+- [x] Vendor-type isolation test (REQ-MODEL-01): a package-boundary check (e.g. a small `go/packages` or
       grep-based test, or an architecture assertion) proving no `core/model/anthropic` or `core/model/openai`
       type is referenced outside its own package — the rest of the engine sees only `Provider`/`Response`.
-- [ ] Write `core/contract/compiler.go` (REQ-CONTRACT-01 plumbing, REQ-CTXPOL-01): `Compile(worker
-      domain.Worker, resolvedContext Context) (messages []Message)` — the **only** place in the codebase
-      prompt text is constructed. Never expose this as a public/user-facing concept — it's plumbing, not a
-      feature.
-- [ ] Write `core/contract/enforce.go` (REQ-CONTRACT-01..03): the output pipeline —
+- [x] Write `core/contract/compiler.go` (REQ-CONTRACT-01 plumbing, REQ-CTXPOL-01): `Compile(worker
+      domain.Worker, resolvedContext, feedback) (messages []model.Message)` — the **only** place in the
+      codebase model-input text is constructed. Never exposed as a public/user-facing concept — it's
+      plumbing, not a feature. (Signature took the policy-resolved `[]policy.Item` plus the retry-feedback
+      delta, keeping the compiler engine-free and avoiding an import cycle.)
+- [x] Write `core/contract/enforce.go` (REQ-CONTRACT-01..03): the output pipeline —
       1. parse model output as JSON,
       2. validate against `contract.outputSchema` via `core/validate`,
       3. on violation, retry via `core/engine/retry.go`'s contract-violation path with the validation errors
          appended as feedback — **only the errors, never a re-inflated copy of the full context** (delta
          feedback, PRIN-05),
       4. after `contract.maxRetries`, emit `ContractViolation` and fail the node.
-- [ ] Write `core/cost/accounting.go` (REQ-BUDGET-03): per-call token/cost tracking (input/output tokens ×
+- [x] Write `core/cost/accounting.go` (REQ-BUDGET-03): per-call token/cost tracking (input/output tokens ×
       provider's published rates), aggregated per node and rolled up per execution; wire this into
       `core/engine/budget.go`'s checks (REQ-BUDGET-01 with real cost).
-- [ ] Write `core/policy/resolver.go` (REQ-CTXPOL-01..03): given a `ContextPolicy` and the current execution
+- [x] Write `core/policy/resolver.go` (REQ-CTXPOL-01..03): given a `ContextPolicy` and the current execution
       state, produce exactly the context slice (subset of upstream artifacts/history) the Worker is allowed
       to see; **when no policy is declared, default to the smallest slice — parent output only — never full
       history** (REQ-CTXPOL-02). Log the resolved slice (artifact hashes actually included) so it's auditable
       later via the Inspector (M1.13).
-- [ ] Ship tight example contracts (REQ-CONTRACT-04): the M1.4 examples use bounded arrays (`maxItems`),
-      bounded strings (`maxLength`), and enums — the anti-slop shape templates will inherit.
+- [x] Ship tight example contracts (REQ-CONTRACT-04): the M1.4 examples use bounded arrays (`maxItems`),
+      bounded strings (`maxLength`), and enums — the anti-slop shape templates will inherit. (Shipped
+      `examples/pr-review/`; `examples/examples_test.go` schema-validates them and asserts the tight-contract
+      markers are present.)
 
 ### Acceptance criteria
 
-- [ ] Test (REQ-WORKER-03, REQ-CONTRACT-01): a Worker with `outputSchema = {score: number, issues: string[]}`
-      — no malformed output ever reaches downstream nodes (assert this at the `NodeExecutor` boundary from
-      M1.3).
-- [ ] Test (REQ-CONTRACT-02): a stubbed `Provider` that returns malformed JSON once then valid JSON —
+- [x] Test (REQ-WORKER-03, REQ-CONTRACT-01): a Worker with `outputSchema = {score: number, issues: string[]}`
+      — no malformed output ever reaches downstream nodes (asserted at the `NodeExecutor` boundary and across
+      a producer→consumer graph; `TestNoMalformedOutputCrossesBoundary`, `TestMalformedNeverReachesDownstream`).
+- [x] Test (REQ-CONTRACT-02): a stubbed `Provider` that returns malformed JSON once then valid JSON —
       triggers exactly one retry-with-feedback, visible as a `Retry` event containing the validation error
-      text.
-- [ ] Test (REQ-CTXPOL-01): a Worker configured with `diff-only` context policy — assert on the *compiled*
-      context (from `core/contract/compiler.go`) that it contains only the diff artifact and nothing from,
-      e.g., a sibling Planning node's output.
-- [ ] Test (REQ-EVENT-03): corrupt one line of a finished execution's `events.jsonl` → `Verify` fails and
-      names the break point; an untouched log verifies clean.
-- [ ] Test (REQ-MODEL-04): the OpenAI client with an overridden base URL talks to a local stub server —
-      proving any OpenAI-compatible endpoint (Ollama/vLLM) works with zero engine changes.
-- [ ] Test (NFR-SEC-01): grep the events/snapshots produced by the whole M1.4 test suite — no API-key
-      material appears anywhere.
+      text; the retry call carries the delta and only the delta (`TestContractRetryWithDeltaFeedback`).
+      Terminal violation covered by `TestContractViolationTerminal` (REQ-CONTRACT-03).
+- [x] Test (REQ-CTXPOL-01): a Worker configured with `diff-only` context policy — asserted on the *compiled*
+      context (from `core/contract/compiler.go`) that it contains only the diff artifact and nothing from a
+      sibling Planning node's output (`contract.TestCompiledContextIsDiffOnly`; resolver unit tests in
+      `core/policy`).
+- [x] Test (REQ-EVENT-03): corrupt one line of a finished execution's `events.jsonl` → `Verify` fails and
+      names the break point; an untouched log verifies clean (`eventlog.TestVerifyDetectsTamper`,
+      `TestVerifyCleanChain`, `TestVerifyDetectsGenesisBreak`). Chain hashes the *raw* line bytes, so
+      unknown-field injection is caught too.
+- [x] Test (REQ-MODEL-04): the OpenAI client with an overridden base URL talks to a local stub server —
+      proving any OpenAI-compatible endpoint (Ollama/vLLM) works with zero engine changes
+      (`openai.TestBaseURLOverrideTalksToStub`, keyless).
+- [x] Test (NFR-SEC-01): an execution driven by a real provider client with a secret key leaks no key
+      material into any file it writes — events, snapshot, or artifacts (`openai.TestNoKeyMaterialInExecutionRecord`);
+      provider errors never carry headers (`openai.TestNoHeaderInError`).
 
 ---
 
