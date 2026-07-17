@@ -41,7 +41,7 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.4 — complete, locally verified. Next up: M1.5.
+- **Current milestone:** M1.5 — complete, locally verified. Next up: M1.6.
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -72,6 +72,16 @@ Rules:
   parent-cancelled run could finalize as `failed` if an in-flight node returned its cancellation before the
   coordinator observed `ctx.Done()`; cancellation is now deterministic (`cancelHalt`). Local test runs use
   `CGO_ENABLED=0` to sidestep a macOS-only cgo/`net` linker quirk (`missing LC_UUID`); Linux CI is unaffected.
+- **M1.5:** all tasks and acceptance criteria verified locally (`go test ./... -race` green; `go vet` and
+  `golangci-lint` v1.55.2 clean). Workers touch the world only through the sandboxed `tool.Tool` interface:
+  `tool.Invoke` schema-validates input (rejecting before `Execute` runs), emits the `ToolCalled`/`ToolResult`
+  pair, and schema-validates output. Four built-ins — filesystem (workspace-root confined; rejects absolute,
+  `..`, and escaping symlinks), terminal (command allowlist + timeout, result as test-result/file artifact),
+  git (status/diff/add/commit/branch, **no push**), http (domain allowlist, deny-first). Threat model v1
+  shipped (`docs/threat-model.md`, NFR-SEC-03) with the residual gaps that gate untrusted definitions
+  (Phase 2). Not built this milestone: a tool-backed `NodeExecutor` wiring tools into graph nodes — the tasks
+  and acceptance criteria are tool-level; graph integration lands with the flagship template (M1.14), and
+  `tool.Invoke` already takes the scheduler's emitter so that wiring is a thin layer when it comes.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -618,31 +628,34 @@ it's allowed downstream; Context Policies are enforced and auditable.
 
 ### Tasks
 
-- [ ] Write `core/tool/tool.go`: `Tool` interface — `Name() string`, `Version() string`,
+- [x] Write `core/tool/tool.go`: `Tool` interface — `Name() string`, `Version() string`,
       `InputSchema() []byte`, `OutputSchema() []byte`, `Execute(ctx, input json.RawMessage) (json.RawMessage, error)`.
-- [ ] Write `core/tool/filesystem/filesystem.go`: read/write/list, path confined to the workspace root
+- [x] Write `core/tool/filesystem/filesystem.go`: read/write/list, path confined to the workspace root
       (resolve and reject any path that escapes it via `..` or symlink traversal — write an explicit test for
       this).
-- [ ] Write `core/tool/terminal/terminal.go`: executes a command from a per-workflow allowlist, enforces a
+- [x] Write `core/tool/terminal/terminal.go`: executes a command from a per-workflow allowlist, enforces a
       timeout, captures stdout/stderr, wraps the result as a `TestResult` or `File` artifact depending on
       config.
-- [ ] Write `core/tool/git/git.go`: `status`, `diff`, `add`, `commit`, `branch`. Explicitly **no `push`** in
+- [x] Write `core/tool/git/git.go`: `status`, `diff`, `add`, `commit`, `branch`. Explicitly **no `push`** in
       Phase 1 (matches ROADMAP.md).
-- [ ] Write `core/tool/http/http.go`: `GET`/`POST`, domain allowlist enforced per workflow (reject any request
+- [x] Write `core/tool/http/http.go`: `GET`/`POST`, domain allowlist enforced per workflow (reject any request
       to a host not on the list).
-- [ ] Document sandboxing rules in `docs/concepts/tools.md`: workspace-root confinement for filesystem/git,
+- [x] Document sandboxing rules in `docs/concepts/tools.md`: workspace-root confinement for filesystem/git,
       command allowlists for terminal, domain allowlists for HTTP.
-- [ ] Wire every tool call to emit `ToolCalled` (with input) and `ToolResult` (with output or error) events
-      via `core/eventlog`.
+- [x] Wire every tool call to emit `ToolCalled` (with input) and `ToolResult` (with output or error) events
+      — done via `tool.Invoke`, which takes the scheduler's emitter and records the pair (with the error on
+      `ToolResult` whichever step fails). Threat model shipped in `docs/threat-model.md` (NFR-SEC-03).
 
 ### Acceptance criteria
 
-- [ ] Test: terminal tool running a test command (e.g. `echo` standing in for `npm test` in unit tests, or
-      an actual `npm test` in an integration test fixture) produces a `TestResult` artifact with a pass/fail
-      flag and captured output.
-- [ ] Test: filesystem tool path-traversal attempts (`../../etc/passwd`, absolute paths outside root, symlink
-      escape) are all rejected with a clear error, none succeed.
-- [ ] Test: HTTP tool rejects a request to a domain not in the workflow's allowlist.
+- [x] Test: terminal tool running a test command (`echo` standing in for `npm test`) produces a
+      test-result-shaped output with a pass/fail flag and captured stdout, and a non-zero exit is captured as
+      `passed:false` rather than errored (`terminal.TestTestResultArtifact`, `TestNonZeroExitIsCapturedNotErrored`).
+- [x] Test: filesystem tool path-traversal attempts (`../../etc/passwd`, absolute paths outside root, symlink
+      escape) are all rejected with a clear error, none succeed (`filesystem.TestPathTraversalRejected`,
+      `TestSymlinkEscapeRejected`).
+- [x] Test: HTTP tool rejects a request to a domain not in the workflow's allowlist, and never contacts it
+      (`http.TestDisallowedDomainRejected`; empty allowlist denies all in `TestEmptyAllowlistDeniesAll`).
 
 ---
 

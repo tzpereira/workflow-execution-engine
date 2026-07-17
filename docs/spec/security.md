@@ -29,8 +29,9 @@ Before the engine runs workflows from untrusted sources (registry/templates/Phas
 shall maintain `docs/threat-model.md` covering: tool sandbox escape, allowlist bypass, malicious
 definitions (schema bombs, path traversal in artifact types), secret exfiltration via tool calls, and
 event-log poisoning — each with its mitigation and the milestone that ships it.
-- **Delivered by:** M1.5 (first version, alongside the tools), M2.7 (hardening review). **Verified by:**
-  document review, red-team pass in M2.7 (_pending_).
+- **Delivered by:** M1.5 (`docs/threat-model.md` v1, all five topics with mitigations + shipping milestone +
+  Phase 2 residuals), M2.7 (hardening review). **Verified by:** document review; red-team pass in M2.7
+  (_pending_).
 
 ### NFR-SEC-04 — Responsible disclosure
 The repository shall carry a `SECURITY.md` with a disclosure contact and response expectations before the

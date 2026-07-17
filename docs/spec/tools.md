@@ -9,23 +9,27 @@ Every call is schema-validated and audited; sandboxing is the default, not an op
 ### REQ-TOOL-01 — Uniform, schema-validated tool calls
 The engine shall invoke every tool through a single interface whose inputs and outputs are
 schema-validated; an invalid call is rejected before execution.
-- **Delivered by:** M1.5. **Verified by:** _pending_.
+- **Delivered by:** M1.5. **Verified by:** `tool.TestInvokeRejectsBadInputBeforeExecute`,
+  `TestInvokeRejectsBadOutput`.
 
 ### REQ-TOOL-02 — Every call is an event pair
 When a tool is invoked, the engine shall emit `ToolCalled` (tool, arguments) and `ToolResult` (outcome,
 duration), making tool activity fully reconstructable from the log.
 - **Rationale:** PRIN-02; tools are where workflows touch the world — the audit trail matters most here.
-- **Delivered by:** M1.5. **Verified by:** _pending_.
+- **Delivered by:** M1.5. **Verified by:** `tool.TestInvokeHappyPathEmitsEventPair`,
+  `TestInvokePropagatesExecuteError` (error recorded on `ToolResult`).
 
 ### REQ-TOOL-03 — Sandboxed by default (deny-first)
 The engine shall scope the filesystem tool to the execution's working directory, gate the terminal tool
 behind a per-workflow command allowlist, and gate the HTTP tool behind a per-workflow domain allowlist; a
 request outside the allowlist fails the call with a distinct error — it is never silently attempted.
 - **Rationale:** PRIN-10.
-- **Delivered by:** M1.5. **Verified by:** _pending_ (HTTP tool rejects non-allowlisted domain; terminal
-  rejects non-allowlisted command).
+- **Delivered by:** M1.5. **Verified by:** `http.TestDisallowedDomainRejected` /
+  `TestEmptyAllowlistDeniesAll`, `terminal.TestDisallowedCommandRejected`,
+  `filesystem.TestPathTraversalRejected` / `TestSymlinkEscapeRejected`.
 
 ### REQ-TOOL-04 — Built-in set for the MVP
 The engine shall ship filesystem, terminal, git, and HTTP tools (the set the flagship demo needs); custom
 tools implement the same interface.
-- **Delivered by:** M1.5. **Verified by:** _pending_ (flagship demo's Test Runner uses the terminal tool).
+- **Delivered by:** M1.5 (filesystem, terminal, git, http). **Verified by:** per-tool test suites in
+  `core/tool/*`; flagship demo wiring the terminal tool as a Test Runner lands with the template (M1.14).
