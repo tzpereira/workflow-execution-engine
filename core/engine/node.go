@@ -110,13 +110,27 @@ func (s *Scheduler) executeNode(
 		s.emit(execID, domain.CacheMiss, logicalID, map[string]any{"key": cacheKey})
 	}
 
+	// A tool-backed executor (or anything else opting in) reaches the real
+	// event log through a per-call closure bound to this call's execID/
+	// logicalID — never a field mutated on the shared s.exec instance, which
+	// would race under this scheduler's concurrent goroutine pool (ADR 0008).
+	toolEmitter, hasToolEmitter := s.exec.(ToolEmitter)
+
 	// feedback carries a contract violation's validation errors from one attempt
 	// into the next (the executor rebuilds its messages with the delta). It stays
 	// on this goroutine's stack — the executor never holds cross-attempt state.
 	var res NodeResult
 	var feedback string
 	err := withRetry(ctx, maxRetries, backoff, func() error {
-		r, e := s.exec.Execute(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback})
+		var r NodeResult
+		var e error
+		if hasToolEmitter {
+			r, e = toolEmitter.ExecuteWithEmit(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback}, func(t domain.EventType, payload map[string]any) {
+				s.emit(execID, t, logicalID, payload)
+			})
+		} else {
+			r, e = s.exec.Execute(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback})
+		}
 		if e == nil {
 			res = r
 			return nil
