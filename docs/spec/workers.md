@@ -73,4 +73,4 @@ any tool-backed node, unconditionally, regardless of whether its `Input` contain
 - **Rationale:** a Tool is an opaque interface — the engine cannot generically verify its `Execute` doesn't
   read ambient state (e.g. a live working tree); REQ-CACHE-01's key-completeness guarantee cannot be
   honestly made for tool calls without a new, undelivered per-tool purity signal (ADR 0008).
-- **Delivered by:** M1.6a. **Verified by:** `engine.TestToolBackedNodeNeverCached`.
+- **Delivered by:** M1.6a. **Verified by:** `engine.TestDispatchExecutorCacheKeyOnlyForWorkerNodes`.

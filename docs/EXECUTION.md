@@ -41,10 +41,9 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.6a — in progress (inserted between M1.6 and M1.7; see ADR 0008). M1.6 itself:
-  complete, locally verified. **Milestone gate reached at M1.6:** the domain model, event catalog, and
-  artifact model are frozen, with M1.6a recorded as its one disclosed, narrow exception (`domain.Node`
-  only — `domain.Worker`/`worker.schema.json` untouched).
+- **Current milestone:** M1.6a — complete, locally verified. Next up: M1.7. **Milestone gate reached at
+  M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
+  disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched).
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -100,6 +99,34 @@ Rules:
   so nothing is stored twice.
 - **Milestone gate (M1.6):** the domain model, event catalog, and artifact model are now **frozen**. UI work
   (M1.11+) may begin in parallel; the default path still finishes M1.7–M1.10 first.
+- **M1.6a:** all tasks and acceptance criteria verified locally (`go test -race ./...` green; `go vet` clean;
+  `golangci-lint` could not be run — see note below). Closes a pre-existing gap `spec/workers.md`'s
+  REQ-WORKER-02 already anticipated ("tool-backed... executors") without any milestone delivering it:
+  `domain.Node` gains an optional `Tool *ToolCall` (exactly one of `Worker`/`Tool` required, enforced in
+  `core/validate/graph.go`); `domain.Worker`/`worker.schema.json` are untouched (a disclosed, narrow
+  exception to the M1.6 freeze, scoped to `Node` only — see [ADR 0008](adr/0008-tool-backed-graph-nodes.md)).
+  A new `ToolExecutor` runs a tool-backed node deterministically (no model ever shapes its input, ADR 0006);
+  a new `DispatchExecutor` composes it with `WorkerExecutor` behind `Scheduler`'s one `exec` field, routing
+  each node by kind. Tool-input placeholders (`${nodeID.path}` for upstream artifacts, `${env:NAME}` for
+  secrets) reuse the existing dotted-path walker — zero new parsing library. Tool-backed nodes never cache
+  (`DispatchExecutor.CacheKey` returns `ok=false` unconditionally for them) — a Tool is opaque to the engine,
+  which cannot verify its `Execute` doesn't read ambient state. `ToolCalled`/`ToolResult` reach the log via a
+  new `ToolEmitter` capability mirroring `CacheKeyer` exactly — a per-call closure parameter, never a mutated
+  field on the executor the scheduler's goroutine pool calls concurrently (verified race-clean).
+  Notes: (1) found only while writing the NFR-SEC-01 e2e test, not anticipated by the ADR: a resolved
+  `${env:...}` secret can leak through a third path beyond events and error text — the resulting artifact
+  content itself, since a tool's real output can legitimately echo back what it was given (e.g. `curl -v`'s
+  stderr); redaction now covers `NodeResult.Content` too, before `core/store` ever writes it — the
+  already-committed ADR/spec wording was corrected to match once this was found; (2) the `examples/github-pr-review`
+  example surfaced a latent design bug before it shipped: a URL or header built from *multiple* embedded
+  placeholders (owner/repo/PR-number concatenated, or `"Bearer ${env:TOKEN}"`) silently fails to resolve,
+  since placeholders are whole-string-only by design — fixed by requiring one fully precomposed value per
+  field, documented in both the example and `spec/workers.md`'s REQ-WORKER-06. **Environment note:** Homebrew
+  silently upgraded the system `go` to 1.26.5 mid-session, incompatible with the CI-pinned `golangci-lint`
+  v1.55.2 (built against go1.22.12; its export-data reader can't parse the newer compiler's output) — `go
+  build`/`go vet`/`go test -race` all stayed clean throughout; only the local lint run was affected. Not
+  something this milestone caused or attempted to fix (touches global Homebrew tooling — a deliberate call
+  for the project owner, not a silent workaround); re-verify with `golangci-lint` once resolved.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -735,52 +762,55 @@ secrets).
 
 ### Tasks
 
-- [ ] Add `Tool *ToolCall` to `domain.Node` (`ToolCall{ToolName, Input}`), alongside the existing `Worker
+- [x] Add `Tool *ToolCall` to `domain.Node` (`ToolCall{ToolName, Input}`), alongside the existing `Worker
       string` — both optional, exactly one required by graph validation. `domain.Worker`/
       `worker.schema.json` are untouched (the M1.6 freeze holds for Worker; this is a disclosed, narrow
       exception scoped to `Node` only).
-- [ ] Update `schemas/workflow.schema.json`'s node item: drop `worker` from `required`, add the `tool`
+- [x] Update `schemas/workflow.schema.json`'s node item: drop `worker` from `required`, add the `tool`
       property. Confirmed schema-drift-safe: `TestSchemaDrift` only diffs top-level workflow keys, not the
       node-item shape nested inside `nodes[]`.
-- [ ] Add a `core/validate/graph.go` check: exactly one of `Worker`/`Tool` per node, with a clear positional
+- [x] Add a `core/validate/graph.go` check: exactly one of `Worker`/`Tool` per node, with a clear positional
       error for "neither" and "both" — a Go-level semantic rule (matching how `graph.go` already owns
       cycles/ancestry), not forced into a JSON Schema `oneOf`.
-- [ ] Write `core/engine/tool_input.go`: resolve a `ToolCall.Input`'s whole-string placeholders —
+- [x] Write `core/engine/tool_input.go`: resolve a `ToolCall.Input`'s whole-string placeholders —
       `${nodeID.path}` via the upstream artifact (reusing the existing private `lookupPath` from
       `conditional.go`, zero new parsing library) and `${env:NAME}` via the OS environment at call time.
       Collect which upstream hashes were actually referenced, for `NodeResult.ContextHashes` (the same
       audit property REQ-CTXPOL-03 gives model-backed nodes, extended to tool-backed ones for free).
-- [ ] Write `core/engine/tool_executor.go`: `ToolExecutor` implements `NodeExecutor` (and the new
+- [x] Write `core/engine/tool_executor.go`: `ToolExecutor` implements `NodeExecutor` (and the new
       `ToolEmitter` capability, not `CacheKeyer`), resolving input, calling `tool.Invoke`, and mapping the
       result — `Type` from the tool's optional `ArtifactType()` capability (already built in M1.5's
       `terminal.Tool`) or `ArtifactJSON` by default; `Validated` left `false` (tool output validation is
       REQ-TOOL-01's own concern, not REQ-CONTRACT-01's).
-- [ ] **Redact `${env:...}`-resolved secret values** from every event payload `ToolExecutor` emits and from
-      any error string it returns directly — narrowly scoped to this new code path (the general M2.0
-      redaction pass stays separate, deferred scope). This is a blocking requirement, not a nice-to-have:
-      without it, `tool.Invoke`'s existing `ToolCalled`/`ToolResult` payloads would write a resolved secret
-      straight into the persisted event log.
-- [ ] Add `ToolEmitter` to `core/engine/node.go` (`ExecuteWithEmit(ctx, req, emit) (NodeResult, error)`),
+- [x] **Redact `${env:...}`-resolved secret values** from every event payload `ToolExecutor` emits, from any
+      error string it returns directly, and from the resulting artifact content itself before `core/store`
+      persists it — narrowly scoped to this new code path (the general M2.0 redaction pass stays separate,
+      deferred scope). This is a blocking requirement, not a nice-to-have: without it, `tool.Invoke`'s
+      existing `ToolCalled`/`ToolResult` payloads would write a resolved secret straight into the persisted
+      event log — and, found only while writing the NFR-SEC-01 e2e test (not anticipated up front), a
+      tool's own output can legitimately echo back what it was given (e.g. terminal's `curl -v` printing
+      request headers to stderr), so the artifact needed the same treatment.
+- [x] Add `ToolEmitter` to `core/engine/node.go` (`ExecuteWithEmit(ctx, req, emit) (NodeResult, error)`),
       mirroring the existing `CacheKeyer` optional-capability pattern exactly — a per-call closure
       parameter (race-safe: no shared mutable state), never a mutated field on the executor `Scheduler`
       calls concurrently from its goroutine pool. Branch on it in `executeNode`.
-- [ ] Write `core/engine/dispatch_executor.go`: `DispatchExecutor` composes `WorkerExecutor` + `ToolExecutor`
+- [x] Write `core/engine/dispatch_executor.go`: `DispatchExecutor` composes `WorkerExecutor` + `ToolExecutor`
       behind `Scheduler`'s one `exec NodeExecutor` field, routing each node on `Node.Tool != nil`; its
       `CacheKey` returns `ok=false` unconditionally for tool-backed nodes (REQ-WORKER-07).
-- [ ] Extend `examples/pr-review/` (or add `examples/pr-review-autofix.yaml`) with real Test Runner
+- [x] Extend `examples/pr-review/` (or add `examples/pr-review-autofix.yaml`) with real Test Runner
       (terminal) and Commit (git) tool nodes.
-- [ ] Add `examples/github-pr-review/` demonstrating remote GitHub access — fetch a PR diff and post a
+- [x] Add `examples/github-pr-review/` demonstrating remote GitHub access — fetch a PR diff and post a
       review, both via the existing generic `http` tool + `${env:GITHUB_TOKEN}` — zero new tool code. `git
       push` remains explicitly out of scope (matches the existing, unreopened "no push in Phase 1"
       decision); a workflow's terminal state is "committed locally, tests green."
 
 ### Acceptance criteria
 
-- [ ] Test: a node declaring both `worker` and `tool`, and a node declaring neither, are both rejected by
+- [x] Test: a node declaring both `worker` and `tool`, and a node declaring neither, are both rejected by
       graph validation with a clear, positional error.
-- [ ] Test: a mixed graph (an LLM-backed node feeding a tool-backed node) runs end-to-end through the real
+- [x] Test: a mixed graph (an LLM-backed node feeding a tool-backed node) runs end-to-end through the real
       `Scheduler`, emitting `ToolCalled`/`ToolResult` for the tool node and skipping the cache for it.
-- [ ] Test: an execution driven by a tool node referencing `${env:SOME_SECRET}` never contains that secret's
+- [x] Test: an execution driven by a tool node referencing `${env:SOME_SECRET}` never contains that secret's
       value in any file the run writes — events, snapshot, or artifacts — including on the error path
       (mirrors `openai.TestNoKeyMaterialInExecutionRecord`).
 
