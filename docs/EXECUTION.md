@@ -21,9 +21,15 @@ Rules:
    session should be able to open it cold and know exactly where to pick up.
 4. **Do not move to the next milestone until every acceptance criterion in the current one is verified**,
    not just implemented. Run the verification command, see it pass, then check the box.
-5. **Commit at the end of each milestone**, not mid-milestone. Commit message format: `M1.X: <summary>`
-   (e.g. `M1.3: goroutine-based scheduler with retries and cancellation`). One commit per milestone is the
-   default; split further only if a milestone is unusually large.
+5. **Commit each logical unit of work as it lands**, not the whole milestone squashed into one commit. A
+   commit corresponds to one coherent piece — a package, a bug fix, a doc pass — never a milestone-wide
+   diff and never a file-by-file trickle. Prefix milestone-scoped commits `M1.X: <summary>` (e.g. `M1.3:
+   goroutine-based scheduler with retries and cancellation`); an incidental fix or chore uncovered along
+   the way gets its own conventional prefix (`fix:`, `chore:`) instead. Where feasible, verify each commit
+   builds (and its own tests pass) standalone before moving to the next — a plain `git stash -u` of
+   everything else in the working tree is enough to check this without a branch per commit. The
+   milestone-acceptance gate (rule 4 above) still applies before starting the *next* milestone, not before
+   each commit inside this one.
 6. **Never invent scope.** If ROADMAP.md/VISION.md don't ask for it, it doesn't belong in Phase 1. When in
    doubt, re-read the "Explicit Non-Goals" section of VISION.md before adding anything.
 7. Where a concrete technical choice was left open by ROADMAP.md, it is pinned in §1 below (with the

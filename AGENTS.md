@@ -43,7 +43,9 @@ prompt builder. If you're about to describe it that way, stop and read
 ## Process laws (binding — see CONSTITUTION.md §Process laws for the full text)
 
 - Milestone-driven, sequential. No skipping ahead.
-- One commit per milestone: `M<phase>.<n>: <summary>`.
+- Commit by logical unit of work, not by milestone squash and not by file: prefix milestone-scoped commits
+  `M<phase>.<n>: <summary>`; a fix or chore found along the way gets its own conventional prefix (`fix:`,
+  `chore:`) instead.
 - Never invent scope — if ROADMAP/spec don't ask for it, it doesn't belong in Phase 1.
 - Irreversible or contested choices get an ADR before they're pinned.
 - Third-party dependencies are vetted (PRIN-07) before entering `go.mod` — findings + recommendation

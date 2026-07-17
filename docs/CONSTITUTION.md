@@ -107,7 +107,12 @@ These bind how the project is built (operationalized in [EXECUTION.md](EXECUTION
 
 1. **Milestone-driven, sequentially.** No milestone starts until the previous one's acceptance criteria are
    *verified* — run, seen passing — not merely implemented.
-2. **One commit per milestone**, message `M<phase>.<n>: <summary>`. Split only when unusually large.
+2. **Commit by logical unit of work, not by milestone squash and not by file.** A milestone lands as
+   however many commits its actual units of work need — one package, one bug fix, one doc pass — each
+   message standing on its own for `git blame`/bisect without needing the rest of the milestone as context.
+   Prefix milestone-scoped commits `M<phase>.<n>: <summary>`; a fix or chore found along the way gets its
+   own conventional prefix (`fix:`, `chore:`) instead of being folded under the milestone tag. Where
+   feasible, each commit builds and passes its own tests on its own.
 3. **Never invent scope.** If the specs don't ask for it, it doesn't belong. When in doubt, re-read the
    Non-Goals below.
 4. **Decisions live in ADRs.** Irreversible or contested technical choices are recorded in `docs/adr/`
