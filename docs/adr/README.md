@@ -21,6 +21,7 @@ decision. Reference `docs/VISION.md`/`docs/ROADMAP.md` sections for background r
 | [0005](0005-contract-validation.md) | JSON Schema draft 2020-12 via `santhosh-tekuri/jsonschema/v6` | Accepted | 2026-07-14 |
 | [0006](0006-model-provider-integration.md) | Model providers via hand-rolled `net/http` clients, no vendor SDKs | Accepted | 2026-07-15 |
 | [0007](0007-event-log-hash-chain.md) | Hash-chained event log (tamper-evident by construction) | Accepted | 2026-07-15 |
+| [0008](0008-tool-backed-graph-nodes.md) | Tool-backed graph nodes: Node-level (not Worker-level) extension, optional-interface event bridge | Accepted | 2026-07-17 |
 
 IDs are stable: never renumbered, never reused. A superseded ADR keeps its number and gets `Status:
 Superseded by ADR-NNNN` — see [spec/README.md](../spec/README.md) for the project-wide ID scheme (`ADR-NNNN`
