@@ -1,0 +1,59 @@
+# A diff-scoped reviewer with a TIGHT output contract (REQ-CONTRACT-04).
+#
+# Anti-slop by construction (PRIN-08): every field the model may emit is bounded.
+#   - enums instead of free prose      -> verdict, issue.severity
+#   - bounded integers                 -> score (0..100), issue.line (>= 0)
+#   - bounded arrays (maxItems)        -> at most 5 issues
+#   - bounded strings (maxLength)      -> issue.message <= 200 chars
+# Slop needs unbounded space; the contract denies it. The reviewer also sees only
+# the diff (contextPolicy: diff-only), so a sibling's output can neither bloat nor
+# bias it (REQ-CTXPOL-01).
+id: reviewer
+version: 1.0.0
+objective: Review a unified diff and report a bounded, structured verdict.
+constraints:
+  - Judge only what the diff shows; do not assume unshown context.
+  - Cite a line number for every issue.
+tools: []
+contextPolicy:
+  mode: diff-only
+contract:
+  goal: Produce a structured review verdict for the diff.
+  rules:
+    - Return at most five issues, most severe first.
+    - Every issue names a severity, a line, and a one-line message.
+  successCriteria:
+    - No critical defect in the diff is left unreported.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, score, issues]
+    properties:
+      verdict:
+        enum: [approve, request-changes, comment]
+      score:
+        type: integer
+        minimum: 0
+        maximum: 100
+      issues:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [severity, line, message]
+          properties:
+            severity:
+              enum: [critical, major, minor, nit]
+            line:
+              type: integer
+              minimum: 0
+            message:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

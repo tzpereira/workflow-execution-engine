@@ -1,0 +1,20 @@
+# A minimal PR-review workflow: one diff-scoped reviewer node.
+#
+# The "collect-diff" input is produced by a tool node in the fuller flagship
+# graph (tools arrive in M1.5); here the reviewer is shown standalone to keep the
+# example to what M1.4 delivers — a model-backed Worker whose output is enforced
+# against its Contract before anything downstream may read it.
+#
+# Budget is explicit and small: no silent overruns (PRIN-05). A zero in any
+# dimension would mean "unlimited", chosen deliberately — here nothing is zero.
+id: pr-review
+version: 1.0.0
+nodes:
+  - id: review
+    worker: reviewer@1.0.0
+edges: []
+budget:
+  maxCostUsd: 0.05
+  maxTokens: 20000
+  maxDurationMs: 60000
+  maxRetriesPerNode: 2
