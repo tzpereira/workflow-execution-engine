@@ -16,6 +16,10 @@ type Snapshot struct {
 	Workflow    domain.Workflow `json:"workflow"`
 	Budget      domain.Budget   `json:"budget"`
 	Concurrency int             `json:"concurrency"`
+	// DefinitionHashes pins the content hash of each worker "id@version" the run
+	// used (REQ-VERSION-02). omitempty keeps a run that pinned nothing (e.g. a
+	// bare test, or a run not driven by a registry) byte-identical to before.
+	DefinitionHashes map[string]string `json:"definitionHashes,omitempty"`
 }
 
 // Resume restarts an execution from its recorded state. It reads the snapshot

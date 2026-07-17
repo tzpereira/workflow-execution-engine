@@ -84,6 +84,13 @@ type RunOptions struct {
 	RetryBackoff    time.Duration // base backoff between retries; 0 → no delay
 	RetryBackoffMax time.Duration // cap; 0 → 30s
 	Cache           CacheMode     // "" → CacheOn
+	// DefinitionHashes pins the content hash of each definition this run used
+	// (worker "id@version" → canonical hash), recorded verbatim in the snapshot
+	// so replay resolves definitions from the pinned record, not the current
+	// registry state (REQ-VERSION-02). The engine treats it as opaque provenance
+	// — a caller (the registry, via DefinitionHashes(wf)) computes it. Optional:
+	// nil leaves the snapshot byte-identical to a run that never pinned anything.
+	DefinitionHashes map[string]string
 }
 
 // Scheduler runs workflows against a NodeExecutor, persisting artifacts and
@@ -226,7 +233,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	cacheMode := s.normalizeCacheMode(opts.Cache)
 
 	if fresh {
-		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency}); err != nil {
+		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes}); err != nil {
 			return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, fmt.Errorf("engine: write snapshot: %w", err)
 		}
 		s.emit(execID, domain.ExecutionStarted, "", map[string]any{"workflow": wf.ID, "version": wf.Version})

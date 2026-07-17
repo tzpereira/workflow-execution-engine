@@ -44,6 +44,12 @@ type Timeline struct {
 	Nodes        map[string]NodeRecord
 	SpentCostUSD float64
 	SpentTokens  int64
+	// DefinitionHashes are the content hashes of the definitions this execution
+	// pinned at start (worker "id@version" → hash), read straight from the frozen
+	// snapshot (REQ-VERSION-02). Audit never consults a registry — this is the
+	// pinned record, immune to any registry change made since the run. nil if the
+	// run pinned nothing (not registry-driven).
+	DefinitionHashes map[string]string
 }
 
 // Auditor renders past executions from their on-disk record alone (REQ-
@@ -134,12 +140,13 @@ func (a *Auditor) Audit(executionID string) (Timeline, error) {
 	}
 
 	return Timeline{
-		ExecutionID:  executionID,
-		Workflow:     snap.Workflow,
-		Budget:       snap.Budget,
-		Events:       events,
-		Nodes:        nodes,
-		SpentCostUSD: totalCost,
-		SpentTokens:  totalTokens,
+		ExecutionID:      executionID,
+		Workflow:         snap.Workflow,
+		Budget:           snap.Budget,
+		Events:           events,
+		Nodes:            nodes,
+		SpentCostUSD:     totalCost,
+		SpentTokens:      totalTokens,
+		DefinitionHashes: snap.DefinitionHashes,
 	}, nil
 }
