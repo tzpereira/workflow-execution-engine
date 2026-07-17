@@ -41,8 +41,10 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.6 — complete, locally verified. Next up: M1.7. **Milestone gate reached:** the
-  domain model, event catalog, and artifact model are now frozen (see the gate note under M1.6).
+- **Current milestone:** M1.6a — in progress (inserted between M1.6 and M1.7; see ADR 0008). M1.6 itself:
+  complete, locally verified. **Milestone gate reached at M1.6:** the domain model, event catalog, and
+  artifact model are frozen, with M1.6a recorded as its one disclosed, narrow exception (`domain.Node`
+  only — `domain.Worker`/`worker.schema.json` untouched).
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -713,6 +715,74 @@ re-executes it and its downstream.
 **Milestone gate:** once M1.6's acceptance criteria pass, the domain model, event catalog, and artifact model
 are frozen. UI work (M1.11 onward) may begin here if you choose to parallelize; the default path in this
 document still finishes M1.7–M1.10 first.
+
+---
+
+## M1.6a — Tool-Backed Graph Nodes
+
+**Goal:** a graph node can run a Tool deterministically — no LLM ever decides its input — so the flagship
+demo's Test Runner/Commit nodes (and any non-code workflow's tool-only steps) are actually buildable.
+**Depends on:** M1.6. **Inserted milestone:** closes a pre-existing gap `docs/spec/workers.md`'s
+REQ-WORKER-02 already anticipated ("tool-backed... executors") without any milestone ever delivering it —
+not new scope invention. See [ADR 0008](adr/0008-tool-backed-graph-nodes.md) for the two contested design
+choices (Node- vs Worker-level declaration; the event-emission bridge) and why each was decided the way it
+was. Numbered `M1.6a` rather than renumbering M1.7–M1.15 — that would be a large, error-prone, zero-benefit
+edit across every spec file's `Delivered by:` line for work not yet started; nothing in M1.7 depends on
+tool-backed nodes existing first.
+**Delivers:** REQ-WORKER-04..07 (new) · REQ-WORKER-02 (closes its "tool-backed" clause) · REQ-TOOL-02 (wires
+`tool.Invoke` into the graph for the first time) · NFR-SEC-01 (narrow extension: `${env:...}` tool-input
+secrets).
+
+### Tasks
+
+- [ ] Add `Tool *ToolCall` to `domain.Node` (`ToolCall{ToolName, Input}`), alongside the existing `Worker
+      string` — both optional, exactly one required by graph validation. `domain.Worker`/
+      `worker.schema.json` are untouched (the M1.6 freeze holds for Worker; this is a disclosed, narrow
+      exception scoped to `Node` only).
+- [ ] Update `schemas/workflow.schema.json`'s node item: drop `worker` from `required`, add the `tool`
+      property. Confirmed schema-drift-safe: `TestSchemaDrift` only diffs top-level workflow keys, not the
+      node-item shape nested inside `nodes[]`.
+- [ ] Add a `core/validate/graph.go` check: exactly one of `Worker`/`Tool` per node, with a clear positional
+      error for "neither" and "both" — a Go-level semantic rule (matching how `graph.go` already owns
+      cycles/ancestry), not forced into a JSON Schema `oneOf`.
+- [ ] Write `core/engine/tool_input.go`: resolve a `ToolCall.Input`'s whole-string placeholders —
+      `${nodeID.path}` via the upstream artifact (reusing the existing private `lookupPath` from
+      `conditional.go`, zero new parsing library) and `${env:NAME}` via the OS environment at call time.
+      Collect which upstream hashes were actually referenced, for `NodeResult.ContextHashes` (the same
+      audit property REQ-CTXPOL-03 gives model-backed nodes, extended to tool-backed ones for free).
+- [ ] Write `core/engine/tool_executor.go`: `ToolExecutor` implements `NodeExecutor` (and the new
+      `ToolEmitter` capability, not `CacheKeyer`), resolving input, calling `tool.Invoke`, and mapping the
+      result — `Type` from the tool's optional `ArtifactType()` capability (already built in M1.5's
+      `terminal.Tool`) or `ArtifactJSON` by default; `Validated` left `false` (tool output validation is
+      REQ-TOOL-01's own concern, not REQ-CONTRACT-01's).
+- [ ] **Redact `${env:...}`-resolved secret values** from every event payload `ToolExecutor` emits and from
+      any error string it returns directly — narrowly scoped to this new code path (the general M2.0
+      redaction pass stays separate, deferred scope). This is a blocking requirement, not a nice-to-have:
+      without it, `tool.Invoke`'s existing `ToolCalled`/`ToolResult` payloads would write a resolved secret
+      straight into the persisted event log.
+- [ ] Add `ToolEmitter` to `core/engine/node.go` (`ExecuteWithEmit(ctx, req, emit) (NodeResult, error)`),
+      mirroring the existing `CacheKeyer` optional-capability pattern exactly — a per-call closure
+      parameter (race-safe: no shared mutable state), never a mutated field on the executor `Scheduler`
+      calls concurrently from its goroutine pool. Branch on it in `executeNode`.
+- [ ] Write `core/engine/dispatch_executor.go`: `DispatchExecutor` composes `WorkerExecutor` + `ToolExecutor`
+      behind `Scheduler`'s one `exec NodeExecutor` field, routing each node on `Node.Tool != nil`; its
+      `CacheKey` returns `ok=false` unconditionally for tool-backed nodes (REQ-WORKER-07).
+- [ ] Extend `examples/pr-review/` (or add `examples/pr-review-autofix.yaml`) with real Test Runner
+      (terminal) and Commit (git) tool nodes.
+- [ ] Add `examples/github-pr-review/` demonstrating remote GitHub access — fetch a PR diff and post a
+      review, both via the existing generic `http` tool + `${env:GITHUB_TOKEN}` — zero new tool code. `git
+      push` remains explicitly out of scope (matches the existing, unreopened "no push in Phase 1"
+      decision); a workflow's terminal state is "committed locally, tests green."
+
+### Acceptance criteria
+
+- [ ] Test: a node declaring both `worker` and `tool`, and a node declaring neither, are both rejected by
+      graph validation with a clear, positional error.
+- [ ] Test: a mixed graph (an LLM-backed node feeding a tool-backed node) runs end-to-end through the real
+      `Scheduler`, emitting `ToolCalled`/`ToolResult` for the tool node and skipping the cache for it.
+- [ ] Test: an execution driven by a tool node referencing `${env:SOME_SECRET}` never contains that secret's
+      value in any file the run writes — events, snapshot, or artifacts — including on the error path
+      (mirrors `openai.TestNoKeyMaterialInExecutionRecord`).
 
 ---
 
