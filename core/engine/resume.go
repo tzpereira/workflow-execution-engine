@@ -7,10 +7,12 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 )
 
-// snapshot is the frozen graph + config written at ExecutionStarted and read
-// back by Resume. It is what makes an execution replayable without re-resolving
-// anything live (M1.7 builds on the same file).
-type snapshot struct {
+// Snapshot is the frozen graph + config written at ExecutionStarted and read
+// back by Resume and core/replay. It is what makes an execution replayable
+// (M1.7) or resumable (M1.3) without re-resolving anything live — exported so
+// core/replay can read the exact type this package writes, instead of a
+// hand-mirrored struct that could drift from it.
+type Snapshot struct {
 	Workflow    domain.Workflow `json:"workflow"`
 	Budget      domain.Budget   `json:"budget"`
 	Concurrency int             `json:"concurrency"`
@@ -21,7 +23,7 @@ type snapshot struct {
 // done (reusing its persisted artifact), and runs the rest — so finished nodes
 // are never re-executed. It appends to the same execution's log.
 func (s *Scheduler) Resume(ctx context.Context, executionID string) (*Result, error) {
-	var snap snapshot
+	var snap Snapshot
 	if err := s.log.ReadSnapshot(executionID, &snap); err != nil {
 		return nil, fmt.Errorf("engine: resume %s: %w", executionID, err)
 	}

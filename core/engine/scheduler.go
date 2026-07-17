@@ -226,7 +226,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	cacheMode := s.normalizeCacheMode(opts.Cache)
 
 	if fresh {
-		if err := s.log.WriteSnapshot(execID, snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency}); err != nil {
+		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency}); err != nil {
 			return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, fmt.Errorf("engine: write snapshot: %w", err)
 		}
 		s.emit(execID, domain.ExecutionStarted, "", map[string]any{"workflow": wf.ID, "version": wf.Version})
