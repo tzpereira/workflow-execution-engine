@@ -1,0 +1,187 @@
+package engine_test
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
+	"github.com/tzpereira/workflow-execution-engine/core/domain"
+	"github.com/tzpereira/workflow-execution-engine/core/engine"
+	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/model"
+	"github.com/tzpereira/workflow-execution-engine/core/store"
+)
+
+// echoProvider returns a deterministic function of the messages it is given, so
+// a node's output changes iff its compiled input changes — exactly what drives
+// downstream cache invalidation. It counts calls so a test can prove a cache hit
+// skipped the model entirely.
+type echoProvider struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (p *echoProvider) Complete(_ context.Context, msgs []model.Message, _ model.Params) (model.Response, error) {
+	p.mu.Lock()
+	p.calls++
+	p.mu.Unlock()
+	var sb strings.Builder
+	for _, m := range msgs {
+		sb.WriteString(string(m.Role))
+		sb.WriteString(m.Content)
+	}
+	sum := sha256.Sum256([]byte(sb.String()))
+	return model.Response{Content: fmt.Sprintf(`{"v":%q}`, hex.EncodeToString(sum[:8])), InputTokens: 10, OutputTokens: 5}, nil
+}
+
+func (p *echoProvider) count() int { p.mu.Lock(); defer p.mu.Unlock(); return p.calls }
+
+func permissiveWorker(id string) domain.Worker {
+	return domain.Worker{
+		ID: id, Version: "1.0.0", Objective: "produce a value",
+		Contract: domain.Contract{Goal: "any object", OutputSchema: map[string]any{"type": "object"}},
+		Model:    domain.ModelConfig{Model: "gpt-4o-mini"},
+	}
+}
+
+// cachingScheduler builds a scheduler over a shared base dir so store + cache
+// persist across runs. The same instance is reused for both runs.
+func cachingScheduler(t *testing.T, exec engine.NodeExecutor) (*engine.Scheduler, *eventlog.Log) {
+	t.Helper()
+	base := t.TempDir()
+	log := eventlog.New(base)
+	return engine.New(exec, store.New(base), log, cache.New(base)), log
+}
+
+// countByType tallies events of type ty per node id for one execution.
+func countByType(t *testing.T, log *eventlog.Log, execID string, ty domain.EventType) map[string]int {
+	t.Helper()
+	events, err := log.ReadAll(execID)
+	if err != nil {
+		t.Fatalf("read events: %v", err)
+	}
+	out := map[string]int{}
+	for _, ev := range events {
+		if ev.Type == ty {
+			out[ev.NodeID]++
+		}
+	}
+	return out
+}
+
+// TestSecondRunIsAllCacheHitsAtZeroCost is M1.6 acceptance #1: re-running an
+// unchanged workflow is 100% cache hits at $0.00, with zero model calls.
+func TestSecondRunIsAllCacheHitsAtZeroCost(t *testing.T) {
+	workers := engine.MapWorkerSource{
+		"A@1.0.0": permissiveWorker("A"),
+		"B@1.0.0": permissiveWorker("B"),
+		"C@1.0.0": permissiveWorker("C"),
+	}
+	prov := &echoProvider{}
+	reg := model.NewRegistry()
+	reg.Register("openai", prov)
+	ex := engine.NewWorkerExecutor(workers, reg)
+	s, log := cachingScheduler(t, ex)
+
+	wf := &domain.Workflow{
+		ID: "chain", Version: "1.0.0",
+		Nodes: []domain.Node{{ID: "A", Worker: "A@1.0.0"}, {ID: "B", Worker: "B@1.0.0"}, {ID: "C", Worker: "C@1.0.0"}},
+		Edges: []domain.Edge{{From: "A", To: "B"}, {From: "B", To: "C"}},
+	}
+
+	// Run 1: cold — three model calls, cost > 0, three CacheMiss.
+	r1, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "run1", Concurrency: 2})
+	if err != nil || r1.State != domain.ExecutionSucceeded {
+		t.Fatalf("run1: state=%s err=%v", r1.State, err)
+	}
+	if prov.count() != 3 {
+		t.Fatalf("run1 should make 3 model calls, made %d", prov.count())
+	}
+	if r1.SpentCostUSD <= 0 {
+		t.Fatalf("run1 should cost > 0, got %v", r1.SpentCostUSD)
+	}
+	if miss := countByType(t, log, "run1", domain.CacheMiss); len(miss) != 3 {
+		t.Errorf("run1 should be 3 misses, got %v", miss)
+	}
+
+	// Run 2: warm, unchanged — no new model calls, $0, three CacheHit.
+	callsBefore := prov.count()
+	r2, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "run2", Concurrency: 2})
+	if err != nil || r2.State != domain.ExecutionSucceeded {
+		t.Fatalf("run2: state=%s err=%v", r2.State, err)
+	}
+	if prov.count() != callsBefore {
+		t.Errorf("run2 should make zero model calls, made %d extra", prov.count()-callsBefore)
+	}
+	if r2.SpentCostUSD != 0 {
+		t.Errorf("run2 should cost $0.00, got %v", r2.SpentCostUSD)
+	}
+	hits := countByType(t, log, "run2", domain.CacheHit)
+	if hits["A"] != 1 || hits["B"] != 1 || hits["C"] != 1 {
+		t.Errorf("run2 should be 100%% cache hits, got %v", hits)
+	}
+}
+
+// TestChangingOneNodeReExecutesOnlyItsCone is M1.6 acceptance #2: bump one node's
+// contract and only that node plus its downstream cone re-executes; upstream and
+// siblings stay cached (REQ-CACHE-03).
+func TestChangingOneNodeReExecutesOnlyItsCone(t *testing.T) {
+	// Graph: R -> A, R -> B (A,B siblings), A -> C (C downstream of A).
+	workers := engine.MapWorkerSource{
+		"R@1.0.0": permissiveWorker("R"),
+		"A@1.0.0": permissiveWorker("A"),
+		"B@1.0.0": permissiveWorker("B"),
+		"C@1.0.0": permissiveWorker("C"),
+	}
+	prov := &echoProvider{}
+	reg := model.NewRegistry()
+	reg.Register("openai", prov)
+	ex := engine.NewWorkerExecutor(workers, reg)
+	s, log := cachingScheduler(t, ex)
+
+	wf := &domain.Workflow{
+		ID: "cone", Version: "1.0.0",
+		Nodes: []domain.Node{
+			{ID: "R", Worker: "R@1.0.0"}, {ID: "A", Worker: "A@1.0.0"},
+			{ID: "B", Worker: "B@1.0.0"}, {ID: "C", Worker: "C@1.0.0"},
+		},
+		Edges: []domain.Edge{{From: "R", To: "A"}, {From: "R", To: "B"}, {From: "A", To: "C"}},
+	}
+
+	if _, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "cold", Concurrency: 2}); err != nil {
+		t.Fatalf("cold run: %v", err)
+	}
+
+	// Change A's contract only — its key (and its output) changes.
+	a := workers["A@1.0.0"]
+	a.Contract.Goal = "produce a DIFFERENT value"
+	workers["A@1.0.0"] = a
+
+	if _, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "warm", Concurrency: 2}); err != nil {
+		t.Fatalf("warm run: %v", err)
+	}
+
+	hits := countByType(t, log, "warm", domain.CacheHit)
+	miss := countByType(t, log, "warm", domain.CacheMiss)
+
+	// R (upstream) and B (sibling) are untouched → hits.
+	if hits["R"] != 1 || hits["B"] != 1 {
+		t.Errorf("R and B should be cache hits, got hits=%v", hits)
+	}
+	// A (changed) and C (downstream of A, changed input) → misses.
+	if miss["A"] != 1 || miss["C"] != 1 {
+		t.Errorf("A and its downstream C should re-execute, got miss=%v", miss)
+	}
+	// And the converse must not happen.
+	if hits["A"] != 0 || hits["C"] != 0 {
+		t.Errorf("A/C must not be hits: %v", hits)
+	}
+	if miss["R"] != 0 || miss["B"] != 0 {
+		t.Errorf("R/B must not re-execute: %v", miss)
+	}
+}

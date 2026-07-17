@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
@@ -20,6 +21,19 @@ import (
 
 // DefaultConcurrency is the worker-pool size when RunOptions.Concurrency is 0.
 const DefaultConcurrency = 4
+
+// CacheMode controls how a run uses the node cache (REQ-CACHE-04).
+type CacheMode string
+
+const (
+	// CacheOn reads hits and writes new entries. The zero value normalizes to
+	// this, so a run caches by default.
+	CacheOn CacheMode = "on"
+	// CacheOff bypasses the cache entirely — no reads, no writes, no events.
+	CacheOff CacheMode = "off"
+	// CacheReadOnly serves hits but never records new entries (e.g. replay).
+	CacheReadOnly CacheMode = "readonly"
+)
 
 // Sentinel errors returned by Run/Resume. Callers (and the CLI's exit codes in
 // M1.9) branch on these with errors.Is.
@@ -69,6 +83,7 @@ type RunOptions struct {
 	Budget          domain.Budget // 0 in any dimension means "no limit"
 	RetryBackoff    time.Duration // base backoff between retries; 0 → no delay
 	RetryBackoffMax time.Duration // cap; 0 → 30s
+	Cache           CacheMode     // "" → CacheOn
 }
 
 // Scheduler runs workflows against a NodeExecutor, persisting artifacts and
@@ -77,12 +92,27 @@ type Scheduler struct {
 	exec  NodeExecutor
 	store *store.Store
 	log   *eventlog.Log
+	cache *cache.Cache
 	now   func() time.Time
 }
 
-// New builds a Scheduler over the given executor, artifact store, and event log.
-func New(exec NodeExecutor, st *store.Store, log *eventlog.Log) *Scheduler {
-	return &Scheduler{exec: exec, store: st, log: log, now: time.Now}
+// New builds a Scheduler over the given executor, artifact store, event log, and
+// node cache. cache may be nil to disable caching entirely (equivalent to every
+// run using CacheOff).
+func New(exec NodeExecutor, st *store.Store, log *eventlog.Log, c *cache.Cache) *Scheduler {
+	return &Scheduler{exec: exec, store: st, log: log, cache: c, now: time.Now}
+}
+
+// normalizeCacheMode maps the zero value to the default (on) and, when no cache
+// is wired, forces off.
+func (s *Scheduler) normalizeCacheMode(m CacheMode) CacheMode {
+	if s.cache == nil {
+		return CacheOff
+	}
+	if m == "" {
+		return CacheOn
+	}
+	return m
 }
 
 // Run executes wf from scratch.
@@ -193,6 +223,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 
 	budget := newBudgetTracker(opts.Budget, s.now)
 	backoff := exponentialBackoff(opts.RetryBackoff, opts.RetryBackoffMax)
+	cacheMode := s.normalizeCacheMode(opts.Cache)
 
 	if fresh {
 		if err := s.log.WriteSnapshot(execID, snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency}); err != nil {
@@ -298,7 +329,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 		go func() {
 			defer wg.Done()
 			for t := range tasks {
-				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff)
+				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode)
 				completions <- completion{id: t.attrTo, node: t.node, res: res, err: err}
 			}
 		}()

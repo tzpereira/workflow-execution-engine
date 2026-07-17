@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
+	"github.com/tzpereira/workflow-execution-engine/core/canonical"
 	"github.com/tzpereira/workflow-execution-engine/core/contract"
 	"github.com/tzpereira/workflow-execution-engine/core/cost"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
@@ -97,6 +99,42 @@ func (e *WorkerExecutor) Execute(ctx context.Context, req NodeRequest) (NodeResu
 		Validated:     true,
 		ContextHashes: policy.Hashes(admitted),
 	}, nil
+}
+
+// CacheKey derives the node's cache key from its Worker definition and resolved
+// inputs (REQ-CACHE-01), opting model-backed nodes into the cache. It returns
+// ok=false when the Worker can't be resolved (the node then always executes).
+//
+// Tool "versions" are the Worker's declared tool names for now: tools are not
+// yet invoked by the executor (that wiring lands with the flagship template,
+// M1.14), so the names are the version proxy — changing the allowlist still
+// invalidates the key.
+func (e *WorkerExecutor) CacheKey(node domain.Node, inputs []NodeInput) (string, bool) {
+	w, ok := e.workers.Lookup(node.Worker)
+	if !ok {
+		return "", false
+	}
+	contractHash, err := canonical.Hash(w.Contract)
+	if err != nil {
+		return "", false
+	}
+	hashes := make([]string, 0, len(inputs))
+	for _, in := range inputs {
+		hashes = append(hashes, in.Hash)
+	}
+	pol := w.ContextPolicy
+	if node.ContextPolicy != nil {
+		pol = *node.ContextPolicy
+	}
+	return cache.Key(cache.Inputs{
+		WorkerID:            w.ID,
+		WorkerVersion:       w.Version,
+		ContractHash:        contractHash,
+		InputArtifactHashes: hashes,
+		Model:               w.Model,
+		ToolVersions:        w.Tools,
+		ContextPolicy:       pol,
+	}), true
 }
 
 // mapProviderError translates a provider's transient/fatal classification into

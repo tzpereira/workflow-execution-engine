@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
@@ -101,7 +102,7 @@ func newScheduler(t *testing.T, exec engine.NodeExecutor) (*engine.Scheduler, *e
 	t.Helper()
 	base := t.TempDir()
 	log := eventlog.New(base)
-	return engine.New(exec, store.New(base), log), log
+	return engine.New(exec, store.New(base), log, cache.New(base)), log
 }
 
 func eventCount(t *testing.T, log *eventlog.Log, execID string, typ domain.EventType) int {
@@ -183,7 +184,7 @@ func TestResumeSkipsFinishedNodes(t *testing.T) {
 			cancel()
 		}
 	}
-	res1, _ := engine.New(stub1, st, log).Run(ctx, wf, engine.RunOptions{ExecutionID: "e1", Concurrency: 1})
+	res1, _ := engine.New(stub1, st, log, cache.New(base)).Run(ctx, wf, engine.RunOptions{ExecutionID: "e1", Concurrency: 1})
 	if res1.State != domain.ExecutionCancelled {
 		t.Fatalf("run 1 state = %s, want cancelled", res1.State)
 	}
@@ -193,7 +194,7 @@ func TestResumeSkipsFinishedNodes(t *testing.T) {
 
 	// Run 2: resume. A, B are skipped (reused from disk); C, D run.
 	stub2 := newStub()
-	res2, err := engine.New(stub2, st, log).Resume(context.Background(), "e1")
+	res2, err := engine.New(stub2, st, log, cache.New(base)).Resume(context.Background(), "e1")
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}

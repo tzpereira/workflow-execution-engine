@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
@@ -48,7 +49,7 @@ func TestNoKeyMaterialInExecutionRecord(t *testing.T) {
 
 	base := t.TempDir()
 	ex := engine.NewWorkerExecutor(workers, registry)
-	s := engine.New(ex, store.New(base), eventlog.New(base))
+	s := engine.New(ex, store.New(base), eventlog.New(base), cache.New(base))
 
 	wf := &domain.Workflow{ID: "sec", Version: "1.0.0", Nodes: []domain.Node{{ID: "A", Worker: "reviewer@1.0.0"}}}
 	res, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "e1", Concurrency: 1})
