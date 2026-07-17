@@ -1,9 +1,22 @@
-# A minimal PR-review workflow: one diff-scoped reviewer node.
+# A PR-review workflow: one diff-scoped reviewer feeding real tool-backed
+# steps — a Test Runner (terminal tool) and a Commit (git tool) — the shape
+# the flagship demo (VISION.md, M1.15) builds out in full. Review has no
+# incoming edges here (still a standalone root, as in M1.4); the diff it
+# would read arrives however the running workflow's inputs are wired — this
+# example's point is the tool-backed steps downstream, not diff-sourcing.
 #
-# The "collect-diff" input is produced by a tool node in the fuller flagship
-# graph (tools arrive in M1.5); here the reviewer is shown standalone to keep the
-# example to what M1.4 delivers — a model-backed Worker whose output is enforced
-# against its Contract before anything downstream may read it.
+# Test and Commit are ToolCall nodes (ADR 0008, M1.6a): no LLM ever decides
+# their input — `test`'s command is fully static, and `commit`'s message
+# interpolates the reviewer's own verdict via the whole-string placeholder
+# `${review.verdict}` (REQ-WORKER-06). Commit depends on both review and test
+# so it can read the verdict and only runs after tests are in — a real
+# Commit step would also stage changes (`git add`) first; elided here for
+# brevity, since building the complete flagship graph is M1.15's task, not
+# this milestone's.
+#
+# Running this for real needs the runner to wire: a terminal tool instance
+# whose command allowlist includes "go", and a git tool instance pointed at
+# a real repository working directory — see README.md.
 #
 # Budget is explicit and small: no silent overruns (PRIN-05). A zero in any
 # dimension would mean "unlimited", chosen deliberately — here nothing is zero.
@@ -12,7 +25,22 @@ version: 1.0.0
 nodes:
   - id: review
     worker: reviewer@1.0.0
-edges: []
+  - id: test
+    tool:
+      toolName: terminal
+      input:
+        command: go
+        args: ["test", "./..."]
+  - id: commit
+    tool:
+      toolName: git
+      input:
+        op: commit
+        message: "${review.verdict}: automated review pass"
+edges:
+  - { from: review, to: test }
+  - { from: review, to: commit }
+  - { from: test, to: commit }
 budget:
   maxCostUsd: 0.05
   maxTokens: 20000

@@ -1,0 +1,60 @@
+# Demonstrates remote GitHub access with ZERO new tool code (M1.6a): the
+# generic `http` tool (M1.5) plus a domain allowlist entry for
+# api.github.com and the ${env:...} secret-reference placeholder is all it
+# takes — see ADR 0008, REQ-WORKER-06.
+#
+# Both nodes are tool-backed (no LLM ever decides their input, ADR 0006).
+# Deliberately minimal: two calls proving the mechanism, not a production
+# template (that's M1.14/M1.15's job). A real review workflow would insert
+# an LLM reviewer node between these two — reading fetch-pr-diff's output
+# and producing the post body — following the documented tradeoff in
+# spec/workers.md's REQ-WORKER-06: because tool-input placeholders are
+# whole-string only (never embedded in a larger string), the reviewer's
+# Contract.outputSchema must emit the COMPLETE GitHub review JSON body as
+# one pre-composed string field (e.g. `githubReviewPayload`), which
+# post-review would then reference whole as `${review.githubReviewPayload}`
+# for its `input.body`. See ../pr-review/ for the LLM-reviewer pattern this
+# would reuse.
+#
+# The same whole-string-only rule is why the URLs and the auth header below
+# are each ONE precomposed environment variable, not built from separate
+# owner/repo/PR-number parts or a "Bearer " prefix + token: set GH_PR_URL /
+# GH_REVIEW_URL to the full request URLs, and GITHUB_AUTH_HEADER to the
+# complete header value (e.g. "Bearer ghp_..."). A CI job already has the
+# owner/repo/PR-number available and can compose these before invoking
+# `wee run` — see README.md.
+#
+# Documented v1 gaps (not solved here): GitHub's diff media type can be
+# truncated on very large PRs (the http tool caps reads at 8 MiB — generous,
+# not infinite); no rate-limit/pagination handling (a non-issue for this
+# demo's single GET + single POST, a real gap for sustained use). See
+# README.md.
+id: github-pr-review
+version: 1.0.0
+nodes:
+  - id: fetch-pr-diff
+    tool:
+      toolName: http
+      input:
+        method: GET
+        url: "${env:GH_PR_URL}"
+        headers:
+          Accept: "application/vnd.github.diff"
+          Authorization: "${env:GITHUB_AUTH_HEADER}"
+  - id: post-review
+    tool:
+      toolName: http
+      input:
+        method: POST
+        url: "${env:GH_REVIEW_URL}"
+        headers:
+          Accept: "application/vnd.github+json"
+          Authorization: "${env:GITHUB_AUTH_HEADER}"
+        body: '{"body":"Automated check: diff fetched successfully.","event":"COMMENT"}'
+edges:
+  - { from: fetch-pr-diff, to: post-review }
+budget:
+  maxCostUsd: 0.01
+  maxTokens: 1000
+  maxDurationMs: 30000
+  maxRetriesPerNode: 1

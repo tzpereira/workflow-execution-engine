@@ -37,6 +37,19 @@ func TestExamplesAreValid(t *testing.T) {
 	if _, err := validate.CompileSchema(worker.Contract.OutputSchema); err != nil {
 		t.Errorf("reviewer output schema does not compile: %v", err)
 	}
+
+	ghWorkflow := readWorkflow(t, "github-pr-review/workflow.yaml")
+	if err := v.Validate(validate.KindWorkflow, ghWorkflow, nil); err != nil {
+		t.Errorf("github-pr-review/workflow.yaml failed schema validation:\n%v", err)
+	}
+	if err := validate.Graph(&ghWorkflow, nil); err != nil {
+		t.Errorf("github-pr-review/workflow.yaml failed graph validation:\n%v", err)
+	}
+	for _, n := range ghWorkflow.Nodes {
+		if n.Tool == nil {
+			t.Errorf("github-pr-review node %q should be tool-backed", n.ID)
+		}
+	}
 }
 
 // TestExampleContractsAreTight locks in REQ-CONTRACT-04: the flagship example's
