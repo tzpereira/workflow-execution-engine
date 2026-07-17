@@ -21,8 +21,9 @@ The engine shall invoke every Worker through the single `NodeExecutor` boundary 
 inputs) → NodeResult`), so scheduling, retry, budgeting, caching, and event emission are identical for
 model-backed, tool-backed, and stub executors.
 - **Rationale:** PRIN-02 — one seam to observe; one seam to test against.
-- **Delivered by:** M1.3 (seam), M1.4 (model-backed executor). **Verified by:** scheduler tests run
-  entirely through the seam (M1.3); `engine.WorkerExecutor` tests (M1.4).
+- **Delivered by:** M1.3 (seam), M1.4 (model-backed executor), M1.6a (tool-backed executor, closing this
+  requirement's "tool-backed" clause). **Verified by:** scheduler tests run entirely through the seam
+  (M1.3); `engine.WorkerExecutor` tests (M1.4); `engine.TestDispatchExecutorRoutesByNodeKind` (M1.6a).
 
 ### REQ-WORKER-03 — No malformed output crosses the boundary
 The engine shall guarantee that no Worker output that fails its contract validation is ever visible to a
@@ -30,3 +31,44 @@ downstream node — enforcement happens inside the executor boundary, not as an 
 - **Rationale:** PRIN-08; this is what makes a Contract enforcement rather than suggestion.
 - **Delivered by:** M1.4. **Verified by:** `engine.TestNoMalformedOutputCrossesBoundary`,
   `TestMalformedNeverReachesDownstream` (enforcement inside the `NodeExecutor` boundary).
+
+### REQ-WORKER-04 — Tool-backed node declaration
+A `Node` shall reference exactly one of a Worker (`worker`) or a Tool call (`tool: {toolName, input}`);
+graph validation shall reject a node declaring both or neither. `Worker` itself is untouched — it still
+means exactly what REQ-WORKER-01 says (an LLM role); a tool-backed node is a property of the `Node`, not a
+new kind of Worker.
+- **Rationale:** ADR 0008 — keeps the M1.6-frozen domain model's one reopening narrow (`domain.Node` only,
+  not `domain.Worker`/`worker.schema.json`).
+- **Delivered by:** M1.6a. **Verified by:** `validate.TestNodeRequiresExactlyOneOfWorkerOrTool` (both
+  directions: neither set, both set).
+
+### REQ-WORKER-05 — Tool-backed dispatch through the executor boundary
+A `ToolExecutor` implementing `NodeExecutor` shall run a tool-backed node by resolving its `ToolCall`
+against the tool registry and invoking it via `tool.Invoke` (REQ-TOOL-01), deterministically — no model
+ever selects or shapes a tool call's input (ADR 0006). A `DispatchExecutor` shall compose model-backed and
+tool-backed execution behind one `Scheduler.exec`, preserving REQ-WORKER-02's "identical seam" guarantee
+for both kinds in the same graph.
+- **Rationale:** ADR 0008; the flagship demo's Test Runner/Commit nodes need this to exist at all.
+- **Delivered by:** M1.6a. **Verified by:** `engine.TestToolExecutorInvokesRegisteredTool`,
+  `engine.TestDispatchExecutorRoutesByNodeKind`.
+
+### REQ-WORKER-06 — Static artifact references and secret references in tool input
+A tool-backed node's `Input` leaf value that is the *whole string* `${nodeID.path}` shall resolve to the
+JSON value at `path` within the named upstream node's artifact (dotted-path lookup, no wildcards); a leaf
+value that is the whole string `${env:NAME}` shall resolve to the OS environment variable `NAME` at call
+time. Env-resolved values shall never appear in event payloads or returned error text (NFR-SEC-01). No
+other placeholder syntax (embedded or concatenated within a larger string) is supported in v1 — a workflow
+needing a composed multi-field string pushes that composition into a Worker's Contract output instead, and
+the tool node references that one pre-composed field.
+- **Rationale:** PRIN-05/ADR 0008 — reuses the existing dotted-path walker (no new query library, matching
+  the project's rejection of `gjson`); NFR-SEC-01 extended to this new code path.
+- **Delivered by:** M1.6a. **Verified by:** `engine.TestResolveToolInputArtifactReference`,
+  `engine.TestResolveToolInputEnvReference`, `engine.TestToolExecutionRecordNeverContainsEnvSecretValue`.
+
+### REQ-WORKER-07 — Tool-backed nodes are not cached (v1)
+`ToolExecutor` shall not implement `CacheKeyer`; `DispatchExecutor.CacheKey` shall return `ok=false` for
+any tool-backed node, unconditionally, regardless of whether its `Input` contains any placeholder.
+- **Rationale:** a Tool is an opaque interface — the engine cannot generically verify its `Execute` doesn't
+  read ambient state (e.g. a live working tree); REQ-CACHE-01's key-completeness guarantee cannot be
+  honestly made for tool calls without a new, undelivered per-tool purity signal (ADR 0008).
+- **Delivered by:** M1.6a. **Verified by:** `engine.TestToolBackedNodeNeverCached`.

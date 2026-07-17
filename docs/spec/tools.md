@@ -16,8 +16,11 @@ schema-validated; an invalid call is rejected before execution.
 When a tool is invoked, the engine shall emit `ToolCalled` (tool, arguments) and `ToolResult` (outcome,
 duration), making tool activity fully reconstructable from the log.
 - **Rationale:** PRIN-02; tools are where workflows touch the world — the audit trail matters most here.
-- **Delivered by:** M1.5. **Verified by:** `tool.TestInvokeHappyPathEmitsEventPair`,
-  `TestInvokePropagatesExecuteError` (error recorded on `ToolResult`).
+- **Delivered by:** M1.5 (`tool.Invoke`, unit-level), M1.6a (wired into the graph via `ToolExecutor`'s
+  `ToolEmitter` capability — closing the M1.5 note that `tool.Invoke` was built and tested but never called
+  from `core/engine`). **Verified by:** `tool.TestInvokeHappyPathEmitsEventPair`,
+  `TestInvokePropagatesExecuteError` (error recorded on `ToolResult`); `engine.TestToolExecutorEmitsEventPair`
+  (M1.6a, a real execution's log).
 
 ### REQ-TOOL-03 — Sandboxed by default (deny-first)
 The engine shall scope the filesystem tool to the execution's working directory, gate the terminal tool
@@ -32,4 +35,5 @@ request outside the allowlist fails the call with a distinct error — it is nev
 The engine shall ship filesystem, terminal, git, and HTTP tools (the set the flagship demo needs); custom
 tools implement the same interface.
 - **Delivered by:** M1.5 (filesystem, terminal, git, http). **Verified by:** per-tool test suites in
-  `core/tool/*`; flagship demo wiring the terminal tool as a Test Runner lands with the template (M1.14).
+  `core/tool/*`; the flagship demo's Test Runner/Commit nodes wiring terminal/git as real graph nodes lands
+  in `examples/` once the tool-backed executor exists (M1.6a); the M1.14 template gallery packages it.
