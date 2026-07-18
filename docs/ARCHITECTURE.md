@@ -9,7 +9,7 @@
 ## Component map
 
 Two languages, one boundary — Go below the event stream, TypeScript only in `ui/` (ADR 0002). Nodes marked
-`✅` exist today (M1.0–M1.7); `▢` are specified but not yet built, tagged with the milestone that delivers
+`✅` exist today (M1.0–M1.9); `▢` are specified but not yet built, tagged with the milestone that delivers
 them.
 
 ```mermaid
@@ -42,7 +42,7 @@ graph TB
     end
 
     subgraph Clients["Clients — no second source of truth"]
-        CLI["cli/ ▢ M1.9 — wee binary"]
+        CLI["cli/ ✅ M1.9 — wee binary (run/replay/inspect/validate/export/cache/init/list)"]
         SDKPkg["sdk/ ▢ M1.10 — Go authoring SDK, in-process"]
         UI["ui/ ▢ M1.11–M1.14 — React + TypeScript,\npure client of wee serve"]
     end
