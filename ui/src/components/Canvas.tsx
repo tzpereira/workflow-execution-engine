@@ -7,6 +7,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
+import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 import { WorkflowNode } from './WorkflowNode'
 
@@ -23,13 +24,23 @@ export function Canvas() {
   const onConnect = useWorkspace((s) => s.onConnect)
   const selectNode = useWorkspace((s) => s.selectNode)
 
+  // Data actively flowing into a node currently running a live execution
+  // (REQ-UI-02's "animated edge flow") — a pure rendering overlay, never
+  // written back into the canonical edge (which carries no `animated` field).
+  const liveNodes = useLive((s) => s.live.nodes)
+  const isWatching = useLive((s) => s.live.state !== 'idle')
+
   // React Flow needs each node tagged with its registered type.
   const typedNodes = nodes.map((n) => ({ ...n, type: 'workflow' }))
+  const renderedEdges = edges.map((e) => ({
+    ...e,
+    animated: isWatching && liveNodes[e.target]?.status === 'running',
+  }))
 
   return (
     <ReactFlow
       nodes={typedNodes}
-      edges={edges}
+      edges={renderedEdges}
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
