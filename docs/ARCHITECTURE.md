@@ -9,14 +9,14 @@
 ## Component map
 
 Two languages, one boundary — Go below the event stream, TypeScript only in `ui/` (ADR 0002). Nodes marked
-`✅` exist today (M1.0–M1.9); `▢` are specified but not yet built, tagged with the milestone that delivers
+`✅` exist today (M1.0–M1.10); `▢` are specified but not yet built, tagged with the milestone that delivers
 them.
 
 ```mermaid
 graph TB
     subgraph Authoring["Authoring — three doors, one canonical form (ADR 0003)"]
         YAML["YAML / JSON workflow definition"]
-        SDKCode["Go code (sdk/) ▢ M1.10"]
+        SDKCode["Go code (sdk/) ✅ M1.10"]
     end
 
     subgraph Schemas["schemas/ ✅ — JSON Schema draft 2020-12, language-neutral source of truth"]
@@ -43,7 +43,7 @@ graph TB
 
     subgraph Clients["Clients — no second source of truth"]
         CLI["cli/ ✅ M1.9 — wee binary (run/replay/inspect/validate/export/cache/init/list)"]
-        SDKPkg["sdk/ ▢ M1.10 — Go authoring SDK, in-process"]
+        SDKPkg["sdk/ ✅ M1.10 — Go authoring SDK, in-process (builder + Run + typed artifacts)"]
         UI["ui/ ▢ M1.11–M1.14 — React + TypeScript,\npure client of wee serve"]
     end
 

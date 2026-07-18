@@ -41,11 +41,12 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.9 — complete, locally verified. Next up: M1.10. **Milestone gate reached at
+- **Current milestone:** M1.10 — complete, locally verified. Next up: M1.11. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
-  changed. M1.9 is a pure client of core/ — it added no domain or engine capability (see the `--input` gap).
+  changed. M1.9 (CLI) and M1.10 (SDK) are both pure clients of core/ — neither added a domain or engine
+  capability (see the shared `--input`/no-external-input gap).
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -192,6 +193,20 @@ Rules:
   definitions hold only `${env:NAME}` references, NFR-SEC-01), not *references stripped*, which would defeat
   portability; a test with a real secret in the environment confirms the value is absent while the reference
   is preserved.
+- **M1.10:** all tasks and acceptance criteria verified locally (`go test -race ./...` green; `go vet` clean;
+  `golangci-lint` still blocked by the M1.6a environment note). New `sdk/` package: a fluent, frontier-based
+  builder (`New/.Worker/.Tool/.Parallel/.Merge/.Build`) compiling to the exact canonical `domain.Workflow` a
+  YAML file produces — proven by a content-hash-equality test (REQ-SDK-01, the headline guarantee: the SDK is
+  a third door into the same room, not a privileged path). `(*Workflow).Run` assembles the engine over the
+  in-code Workers and returns an `*Execution` exposing a live `Events()` channel (fed by polling the log —
+  best-effort, so an ignored channel never stalls the run or leaks the streamer; the log stays the complete
+  record, PRIN-02) and `Wait()`. `Artifact[T any]` decodes a node's already-contract-validated artifact into
+  a caller Go type via generics (REQ-SDK-02). The flagship (3 parallel reviewers → fixer → test → commit)
+  authored via the SDK is 82 lines (REQ-SDK-03, `examples/sdk-pr-review/`). Notes: (1) added `.Tool(...)`
+  beyond the task's `.Worker/.Parallel/.Merge` list — the flagship's test/commit nodes need it; (2) `Build()`
+  returns an `*sdk.Workflow` (canonical def + collected Workers) so the same value both hashes and runs;
+  (3) the SDK inherits every Phase 1 limit — no external-input seam, no `git push` — because it can only
+  express what `domain.Workflow` can.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -1033,24 +1048,26 @@ definitions evolve; tampering is rejected.
 
 ### Tasks
 
-- [ ] Scaffold `sdk/` (same module, imports `core/` directly — no subprocess, no serialization boundary
+- [x] Scaffold `sdk/` (same module, imports `core/` directly — no subprocess, no serialization boundary
       between SDK and engine at authoring time).
-- [ ] Implement `sdk.New(...) *WorkflowBuilder`, `.Worker(...)`, `.Parallel(...)`, `.Merge(...)` — a fluent
-      builder that produces a `domain.Workflow` value identical in content-hash to the equivalent hand-written
-      YAML.
-- [ ] Implement `(*Workflow).Run(ctx context.Context, opts RunOptions) (*Execution, error)` as the
-      programmatic execution entrypoint.
-- [ ] Implement event subscription: `exec.Events() <-chan domain.Event`.
-- [ ] Implement typed artifact access via generics: `sdk.Artifact[T any](exec *Execution, nodeID string) (T, error)`.
-- [ ] Publish `sdk/` as importable at its module path; tag the module (or a `sdk/vX.Y.Z` if using a Go
-      workspace/multi-module setup — default here is single module, so this just means the root module's tag
-      covers it).
+- [x] Implement `sdk.New(...) *Builder`, `.Worker(...)`, `.Tool(...)`, `.Parallel(...)`, `.Merge(...)` — a
+      fluent, frontier-tracking builder producing a `domain.Workflow` identical in content-hash to the
+      equivalent YAML. (`Build()` returns an `*sdk.Workflow` wrapping the canonical definition + the in-code
+      Workers, so it can also run itself. Added `.Tool(...)` for tool-backed nodes — the flagship needs them.)
+- [x] Implement `(*Workflow).Run(ctx context.Context, opts RunOptions) (*Execution, error)` as the
+      programmatic execution entrypoint (assembles providers/tools/registry/scheduler over the in-code Workers).
+- [x] Implement event subscription: `exec.Events() <-chan domain.Event` (best-effort live view fed by polling
+      the log; the log stays the complete record, so an ignored channel never stalls the run or leaks).
+- [x] Implement typed artifact access via generics: `sdk.Artifact[T any](exec *Execution, nodeID string) (T, error)`.
+- [x] Publish `sdk/` as importable at its module path — single module, so the root module's tag covers it (a
+      formal tag lands with the first release, alongside M1.9's goreleaser).
 
 ### Acceptance criteria
 
-- [ ] The flagship demo (see M1.15) expressed via the SDK is ≤100 lines.
-- [ ] Test: the same workflow defined once in YAML and once via the SDK produce byte-identical content hashes
-      (round through `core/canonical`).
+- [x] The flagship demo (see M1.15) expressed via the SDK is ≤100 lines. **Verified by:**
+      `examples.TestSDKFlagshipUnder100Lines` (`examples/sdk-pr-review/main.go` is 82 lines).
+- [x] Test: the same workflow defined once in YAML and once via the SDK produce byte-identical content hashes
+      (round through `core/canonical`). **Verified by:** `sdk.TestSDKAndYAMLHashIdentical`.
 
 ---
 

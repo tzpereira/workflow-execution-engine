@@ -12,14 +12,21 @@ The SDK shall provide `sdk.New(...)`, `.Worker(...)`, `.Parallel(...)`, `.Merge(
 compiling to exactly the canonical definition format — a workflow defined in YAML and the same workflow
 defined via the SDK shall produce **byte-identical content hashes** (REQ-DEF-02).
 - **Rationale:** no privileged path; the SDK is a third door into the same room.
-- **Delivered by:** M1.10. **Verified by:** _pending_ (hash-equality test).
+- **Delivered by:** M1.10 (`sdk.Builder`, frontier-based `Worker`/`Tool`/`Parallel`/`Merge`; `Run` assembles
+  the engine over the in-code Workers). **Verified by:** `sdk.TestSDKAndYAMLHashIdentical` (SDK graph and
+  hand-written YAML content-hash identically), `sdk.TestParallelMergeGraphShape`,
+  `sdk.TestRunStreamsEventsAndCompletes` (Run + `Events()` + `Wait()`).
 
 ### REQ-SDK-02 — Typed artifact access
 The SDK shall expose execution results with typed access via generics —
 `sdk.Artifact[T any](exec, nodeID) (T, error)` — validated against the node's contract schema.
-- **Delivered by:** M1.10. **Verified by:** _pending_.
+- **Delivered by:** M1.10. Note: the artifact is validated against the Contract *at execution time*, before
+  it is stored (REQ-WORKER-03) — so a worker node's output is already schema-guaranteed; `Artifact[T]`
+  decodes that stored, already-valid artifact into the caller's Go type rather than re-running validation.
+  **Verified by:** `sdk.TestArtifactTypedAccess`, `sdk.TestArtifactUnknownNodeErrors`.
 
 ### REQ-SDK-03 — Flagship in ≤100 lines
 The flagship demo (PR review & auto-fix) expressed via the SDK shall fit in at most 100 lines.
 - **Rationale:** PRIN-06 — the API earns its keep by being small.
-- **Delivered by:** M1.10. **Verified by:** _pending_ (line count of the shipped example).
+- **Delivered by:** M1.10 (`examples/sdk-pr-review/main.go`, 82 lines). **Verified by:**
+  `examples.TestSDKFlagshipUnder100Lines`.
