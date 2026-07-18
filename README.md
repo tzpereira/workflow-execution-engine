@@ -24,13 +24,24 @@ governance layer that imposes engineering discipline on models built to spend.
 
 ## Status
 
-Phase 1 (MVP), milestone M1.3 of M1.15 complete. Not yet released; no stable binary or API.
+Phase 1 (MVP), milestone M1.11 of M1.15 complete. Not yet released; no stable binary or API.
+
+## Quickstart
+
+Build the CLI and run a workflow — the first one needs no API key:
+
+```sh
+go build -o wee ./cli
+```
+
+Then follow [docs/TUTORIAL.md](docs/TUTORIAL.md) — a hands-on, copy-pasteable terminal walkthrough (`run`,
+`inspect`, `replay`, `cache`, `export`), every command grounded in real output.
 
 ## Documentation
 
 Start at [AGENTS.md](AGENTS.md) — the index into the constitution (binding laws), vision (why), specs (what,
 as testable requirements), roadmap (when), execution plan (how), ADRs (irreversible decisions), and
-glossary.
+glossary. For a runnable terminal walkthrough, see [docs/TUTORIAL.md](docs/TUTORIAL.md).
 
 ## License
 
