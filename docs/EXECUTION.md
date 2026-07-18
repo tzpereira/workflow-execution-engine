@@ -41,9 +41,11 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.7 — complete, locally verified. Next up: M1.8. **Milestone gate reached at
+- **Current milestone:** M1.8 — complete, locally verified. Next up: M1.9. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
-  disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched).
+  disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
+  added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
+  changed.
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -144,6 +146,28 @@ Rules:
   `Scheduler.Run`'s existing contract; (3) `docs/replay-honesty.md` states plainly the one guarantee replay
   does *not* make — a re-executed LLM node's output is not guaranteed byte-identical, since models aren't
   deterministic; replay replays the *process*, not the *result*.
+- **M1.8:** all tasks and acceptance criteria verified locally (`go test -race ./...` green; `go vet` clean;
+  `golangci-lint` still blocked by the M1.6a environment note above, unchanged). New `core/registry`
+  package: a versioned definition store keyed by `id@version` that treats each version as immutable —
+  re-registering identical content is a no-op, different content at a taken version is a `*ConflictError`
+  naming both hashes (REQ-VERSION-01). `Registry.Lookup` satisfies the existing `engine.WorkerSource`
+  interface (a compile-time assertion proves it), so it drops in wherever the in-memory map stood, exactly
+  as `worker_executor.go`'s own doc anticipated. Semver is hand-rolled on the official SemVer 2.0.0 grammar
+  (RE2-compatible, no new dependency). Executions now pin the content hash of each worker they used in the
+  snapshot (optional `RunOptions.DefinitionHashes` → `Snapshot.DefinitionHashes`, computed by
+  `registry.DefinitionHashes(wf)`), surfaced on `replay.Timeline.DefinitionHashes` — audit reads the pinned
+  record, and since the auditor has no registry reference (M1.7) it *cannot* read "latest" (REQ-VERSION-02).
+  `Registry.Export` bundles a workflow + its workers into a tar of canonical JSON (`archive/tar`, stdlib);
+  `registry.Import` reads it back, hash-identical (REQ-VERSION-03, REQ-DEF-02). Notes: (1) scope corrected
+  against the domain model — a Contract has no independent version (embedded in a Worker) and there is no
+  serializable Tool *definition* type (ADR 0008), so versioning is enforced on Workflow and Worker, Contract
+  transitively, tool versions via the cache key; (2) the snapshot content-hash pin was a real gap, *not*
+  already done in M1.2/M1.7 (they carried worker reference strings, not the workers' content hashes) — the
+  new field is `omitempty` so runs that pin nothing stay byte-identical and the event-log hash chain is
+  unchanged; (3) "secrets excluded" in export means *resolved values never appear* (true by construction —
+  definitions hold only `${env:NAME}` references, NFR-SEC-01), not *references stripped*, which would defeat
+  portability; a test with a real secret in the environment confirms the value is absent while the reference
+  is preserved.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -884,23 +908,39 @@ definitions evolve; tampering is rejected.
 
 ### Tasks
 
-- [ ] Add semantic version fields (already present in schemas from M1.1) enforcement: `core/registry/version.go`
-      validates that `Workflow`/`Worker`/`Contract`/`Tool` definitions carry a valid semver.
-- [ ] Ensure every `Execution` snapshot stores exact content hashes of the definitions it used (not just
-      version strings) — verify this was already done in M1.2/M1.7; add it if not.
-- [ ] Write `core/registry/immutability.go`: if a definition's content hash changes but its version string
-      does not, reject with a validation error naming the definition and the mismatched hash. This is what
+- [x] Add semantic version fields (already present in schemas from M1.1) enforcement: `core/registry/version.go`
+      validates that definitions carry a valid semver. (Scope corrected against the domain model: a Contract
+      has no version of its own — embedded in a Worker, versioned with it — and there is no serializable Tool
+      *definition* type, ADR 0008, so enforcement is on **Workflow** and **Worker**; Contract is covered
+      transitively, tool versions live in the cache key. Semver is hand-rolled on the official SemVer 2.0.0
+      grammar, no new dependency.)
+- [x] Ensure every `Execution` snapshot stores exact content hashes of the definitions it used (not just
+      version strings). It was **not** already done — M1.2/M1.7's snapshot carried the full workflow content
+      but only worker *reference strings*, not the workers' content hashes. Added: optional
+      `engine.RunOptions.DefinitionHashes` → `engine.Snapshot.DefinitionHashes`, computed by
+      `registry.DefinitionHashes(wf)`, surfaced on `replay.Timeline.DefinitionHashes`. `omitempty` keeps a
+      run that pins nothing byte-identical to before (hash chain unchanged).
+- [x] Write `core/registry/immutability.go`: if a definition's content hash changes but its version string
+      does not, reject with a `*ConflictError` naming the definition and both mismatched hashes. This is what
       prevents silent mutation of "released" definitions.
-- [ ] Write `core/registry/export.go`: `Export(name, version string) ([]byte, error)` — bundles a workflow +
-      its workers + contracts into one portable archive (e.g. a tar or zip of canonical JSON files), with
-      secrets explicitly excluded (assert nothing matching an env-var-reference pattern leaks in).
+- [x] Write `core/registry/export.go`: `Registry.Export(name, version string) ([]byte, error)` — bundles a
+      workflow + its workers (contracts embedded) into a tar of canonical JSON files (`archive/tar`, stdlib —
+      no new dependency), with secrets excluded. `registry.Import` reads it back. (Interpreted "secrets
+      excluded" as *resolved values never appear* — which holds by construction, since definitions hold only
+      `${env:NAME}` references, NFR-SEC-01 — rather than *strip references*, which would break portability;
+      references are preserved so the importer knows which env vars to supply.)
 
 ### Acceptance criteria
 
-- [ ] Test: an old execution (definitions since bumped to a new version) still replays correctly — audit
-      replay reads the pinned hashes, not the current registry state.
-- [ ] Test: hand-edit a definition's content without bumping its version — `immutability.go` rejects it with
-      a clear, specific error.
+- [x] Test: an old execution (definitions since bumped to a new version) still replays correctly — audit
+      replay reads the pinned hashes, not the current registry state. **Verified by:**
+      `registry.TestSnapshotPinsDefinitionHashesForReplay` (pin v1, ship a rewritten v2 to the registry,
+      audit the old execution back to v1's hash; the auditor holds no registry reference, so this is
+      structural, not disciplinary).
+- [x] Test: hand-edit a definition's content without bumping its version — `immutability.go` rejects it with
+      a clear, specific error. **Verified by:** `registry.TestImmutableVersionRejectsMutation` (different
+      content at a taken version → `*ConflictError` naming both hashes; a version bump is the sanctioned path
+      and both versions then coexist).
 
 ---
 

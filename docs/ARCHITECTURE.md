@@ -36,7 +36,7 @@ graph TB
         Tool["tool ✅ M1.5 — filesystem, terminal, git, http (sandboxed, PRIN-10);\ntool-backed graph nodes ✅ M1.6a (ADR 0008)"]
         Cache["cache ✅ M1.6 — content-addressed node cache"]
         Replay["replay ✅ M1.7 — zero-cost audit replay + re-execution + divergence"]
-        Registry["registry ▢ M1.8 — immutable versions"]
+        Registry["registry ✅ M1.8 — immutable versioned definitions,\nWorkerSource + hash-pinning + portable export"]
         Store["store ✅ — content-addressed artifact store"]
         EventLog["eventlog ✅ — append-only JSONL, hash-chained (ADR 0007)"]
     end
