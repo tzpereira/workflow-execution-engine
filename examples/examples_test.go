@@ -69,6 +69,17 @@ func TestExampleContractsAreTight(t *testing.T) {
 	}
 }
 
+// TestSDKFlagshipUnder100Lines is the REQ-SDK-03 acceptance test: the flagship
+// PR-review demo authored via the SDK fits in at most 100 lines.
+func TestSDKFlagshipUnder100Lines(t *testing.T) {
+	data := readFile(t, "sdk-pr-review/main.go")
+	lines := strings.Count(string(data), "\n")
+	if lines > 100 {
+		t.Errorf("sdk-pr-review/main.go is %d lines, want ≤ 100 (REQ-SDK-03)", lines)
+	}
+	t.Logf("flagship SDK demo: %d lines", lines)
+}
+
 func readWorkflow(t *testing.T, rel string) domain.Workflow {
 	t.Helper()
 	var wf domain.Workflow
