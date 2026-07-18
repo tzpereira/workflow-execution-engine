@@ -34,3 +34,29 @@ body {
 .btn:hover {
   background: #f5f5f5; /* neutral-100 */
 }
+
+/* @rjsf forms: compact, neutral inputs to match the dense workspace. */
+.rjsf .form-group {
+  margin-bottom: 8px;
+}
+
+.rjsf label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  color: #737373; /* neutral-500 */
+}
+
+.rjsf input,
+.rjsf select {
+  width: 100%;
+  border: 1px solid #d4d4d4; /* neutral-300 */
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.rjsf .btn-add,
+.rjsf .array-item-remove {
+  font-size: 12px;
+}
