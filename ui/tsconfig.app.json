@@ -7,6 +7,10 @@
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@schemas/*": ["../schemas/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
