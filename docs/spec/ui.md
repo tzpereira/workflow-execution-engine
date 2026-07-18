@@ -36,7 +36,31 @@ workflow format — no proprietary format, round-trippable with `wee` (byte-iden
 While an execution runs, the UI shall render node status, data flow, and artifacts live, driven solely by
 the `wee serve` event stream (HTTP + WebSocket) — parallel lanes visible (the flagship's three reviewers),
 cache hits visually distinct.
-- **Delivered by:** M1.12. **Verified by:** _pending_.
+- **Delivered by:** M1.12 — `core/server` streams `domain.Event` as Server-Sent Events (`GET
+  /api/executions/{id}/events`), the same encoding `wee run --json` emits; `POST /api/run` starts a run and
+  `GET /api/executions` lists recorded/in-flight ones. The transport is SSE, not WebSocket — a deliberate,
+  recorded refinement of this requirement's wording, since the stream is strictly server → client (see
+  [ADR 0009](../adr/0009-live-event-transport.md)). The UI's `src/core/live.ts` folds the identical event
+  sequence `core/engine` emits (`WorkerStarted` → `CacheHit`/`CacheMiss` → `ArtifactCreated` →
+  `WorkerFinished`, or a terminal `Failure`) into per-node status (`pending`/`running`/`succeeded`/
+  `failed`/`cached`), rendered as: a status-colored node border + badge (`Canvas.tsx`/`WorkflowNode.tsx`,
+  cached distinct from succeeded), animated edges into a currently-running node, a Gantt-style timeline with
+  parallel lanes and a live running-cost ticker (`Timeline.tsx`), and artifacts/logs filling in as their
+  events arrive. `src/liveClient.ts` wraps the browser's built-in `EventSource`; `src/liveStore.ts` is the
+  zustand slice components read.
+- **Verified by:** `core/server` (`server_test.go`: replay-then-close-on-terminal, live tailing of events
+  appended after connect, list/audit derive state from the log, CORS, `POST /api/run` wiring and its 501
+  when unconfigured); `cli/cmd` (`serve_test.go`: the command is registered, and the exact closure `wee
+  serve` hands the HTTP layer runs a real tool-backed workflow to completion in the background); `ui`
+  (`core/live.test.ts`: the event-to-status fold, cache-hit distinction, Gantt bar math; `liveClient.test.ts`:
+  the SSE wrapper against an injectable fake `EventSource`, `startRun` against a mocked `fetch`;
+  `liveStore.test.ts`: the zustand wiring, including stream teardown on re-watch/disconnect;
+  `App.live.test.tsx`: a full folded run rendered end-to-end — node status badges, the cost ticker,
+  artifacts, and logs, plus the cache-hit-distinct case). Manually verified end-to-end: `wee serve` and the
+  Vite dev server run simultaneously, and a real cross-origin request carrying `Origin:
+  http://localhost:5173` (the browser's `EventSource` would send the same) receives `GET
+  /api/executions`, `POST /api/run`, and the full SSE stream — CORS headers present on every response,
+  including the streamed one, closing cleanly on `ExecutionFinished`.
 
 ### REQ-UI-03 — Inspector
 When a node is selected, the UI shall show its goal, contract, validation result, resolved context (what

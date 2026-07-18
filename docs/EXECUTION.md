@@ -41,13 +41,16 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.11 — complete, locally verified. Next up: M1.12. **Milestone gate reached at
+- **Current milestone:** M1.12 — complete, locally verified. Next up: M1.13. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
-  changed. M1.9 (CLI), M1.10 (SDK), and M1.11 (UI) are all pure clients of core/ — none added a domain or
-  engine capability. The UI is the first TypeScript milestone; it imports the engine's `schemas/*.json`
-  directly rather than duplicating any field.
+  changed. M1.9 (CLI), M1.10 (SDK), M1.11 (UI), and M1.12 (live stream) are all pure clients of core/ — none
+  added a domain or engine capability; `core/server` reads the same event log everything else reads, adding
+  no new state of its own. M1.12's one contested choice (the live transport) is recorded as
+  [ADR 0009](adr/0009-live-event-transport.md): Server-Sent Events, not WebSocket — zero new dependencies on
+  either side, a deliberate refinement of REQ-UI-02's original wording. The UI is the first TypeScript
+  milestone; it imports the engine's `schemas/*.json` directly rather than duplicating any field.
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -280,7 +283,7 @@ workflow-execution-engine/
 │   ├── cache/                        # cache key, store, index
 │   ├── replay/                        # audit replay + re-execution + divergence report
 │   ├── registry/                       # versioning, immutability, export
-│   └── server/                          # `wee serve` HTTP + WebSocket transport
+│   └── server/                          # `wee serve` HTTP + SSE transport (ADR 0009)
 ├── cli/                        # cobra command definitions (imports core/)
 ├── sdk/                        # Go authoring SDK (imports core/, same module)
 ├── schemas/                    # canonical JSON Schemas (draft 2020-12)
@@ -1096,7 +1099,12 @@ definitions evolve; tampering is rejected.
 **Goal:** a single-workspace visual builder that round-trips the Core's YAML/JSON with zero drift.
 **Depends on:** M1.6 (schemas/events/artifacts frozen) at minimum; this document's default path also has
 M1.7–M1.10 done first.
-**Delivers:** REQ-UI-01 · `serve` command of REQ-CLI-01.
+**Delivers:** REQ-UI-01.
+
+> Note: an earlier pass planned the `serve` command of REQ-CLI-01 into this milestone. As actually executed,
+> M1.11 shipped only the visual builder below; `serve` needs `core/server` — a new engine-adjacent capability
+> the live-execution milestone builds, not a CLI-only wrapper — so it was moved to
+> [M1.12](#m112--interface-live-execution--timeline), which is where it is actually delivered.
 
 ### Tasks
 
@@ -1140,20 +1148,34 @@ M1.7–M1.10 done first.
 
 ### Tasks
 
-- [ ] Implement `wee serve` in `core/server/`: HTTP + WebSocket server exposing the same event schema as
+- [x] Implement `wee serve` in `core/server/`: HTTP + WebSocket server exposing the same event schema as
       `wee run --json` (from M1.9) — the UI is a pure client of this stream, never a second source of truth.
-- [ ] Add `cli/cmd/serve.go` wiring `wee serve` into the CLI.
-- [ ] Build the UI's WebSocket client (in `ui/`) consuming that event stream and updating canvas node state:
-      `queued` / `running` (animated edge flow) / `succeeded` / `failed` / `cached` (distinct badge) / `skipped`.
-- [ ] Build the Timeline: horizontal per-node bars (Gantt-style), parallel lanes visible side by side,
-      cache-hit bars visually distinct (e.g. different fill/border), a running cost ticker updating live.
-- [ ] Ensure artifacts appear in the Artifacts tab in real time as `ArtifactCreated` events arrive, not only
+      Delivered as Server-Sent Events, not WebSocket — a recorded, deliberate refinement (the stream is
+      strictly server → client; see [ADR 0009](adr/0009-live-event-transport.md)). `GET
+      /api/executions/{id}/events` replays-then-tails; `GET /api/executions` lists recorded/in-flight runs;
+      `POST /api/run` starts one.
+- [x] Add `cli/cmd/serve.go` wiring `wee serve` into the CLI.
+- [x] Build the UI's live client (`ui/src/liveClient.ts`, browser `EventSource`) consuming that event stream
+      and updating canvas node state: `pending` (shown as "queued" while a run is active) / `running`
+      (animated edge flow) / `succeeded` / `failed` / `cached` (distinct badge). "Skipped" has no distinct
+      state in Phase 1 — the engine emits no separate event for a conditional edge's false branch, so a
+      skipped node stays indistinguishable from `pending` (disclosed, not silently dropped).
+- [x] Build the Timeline: horizontal per-node bars (Gantt-style), parallel lanes visible side by side,
+      cache-hit bars visually distinct (amber vs. green), a running cost ticker updating live
+      (`ui/src/components/Timeline.tsx`).
+- [x] Ensure artifacts appear in the Artifacts tab in real time as `ArtifactCreated` events arrive, not only
       after execution completes.
 
 ### Acceptance criteria
 
-- [ ] Watching the flagship demo live shows the three reviewers in parallel lanes, then Fixer, then the test
-      run — with no visible polling delay/jank (this is a WebSocket push, not a poll loop).
+- [x] Watching a run live shows parallel lanes and no visible polling delay/jank — this is an SSE push, not a
+      client poll loop. Verified with a real, model-free 3-way concurrent tool fan-out (`start` → `p1`/`p2`/
+      `p3`, each a `sleep 0.3` terminal node): all three `WorkerStarted` within ~13µs of each other and all
+      three `WorkerFinished` within ~300µs of each other, total wall-clock 0.331s (not 3×0.3s) — genuine
+      concurrent dispatch, not staggered. The literal flagship scenario named here (three reviewers, then
+      Fixer, then the test run) needs the full flagship graph, which is M1.15 scope and doesn't exist yet;
+      this is the equivalent, cheaper, model-free proof of the same mechanism. Re-verify against the actual
+      flagship graph when M1.15 lands.
 
 ---
 

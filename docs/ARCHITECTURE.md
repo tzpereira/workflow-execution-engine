@@ -9,7 +9,7 @@
 ## Component map
 
 Two languages, one boundary — Go below the event stream, TypeScript only in `ui/` (ADR 0002). Nodes marked
-`✅` exist today (M1.0–M1.11); `▢` are specified but not yet built, tagged with the milestone that delivers
+`✅` exist today (M1.0–M1.12); `▢` are specified but not yet built, tagged with the milestone that delivers
 them.
 
 ```mermaid
@@ -39,12 +39,13 @@ graph TB
         Registry["registry ✅ M1.8 — immutable versioned definitions,\nWorkerSource + hash-pinning + portable export"]
         Store["store ✅ — content-addressed artifact store"]
         EventLog["eventlog ✅ — append-only JSONL, hash-chained (ADR 0007)"]
+        Server["server ✅ M1.12 — HTTP + Server-Sent Events (ADR 0009);\ntails the log, lists/audits executions, starts runs"]
     end
 
     subgraph Clients["Clients — no second source of truth"]
-        CLI["cli/ ✅ M1.9 — wee binary (run/replay/inspect/validate/export/cache/init/list)"]
+        CLI["cli/ ✅ M1.9 — wee binary (run/replay/inspect/validate/export/cache/init/list/serve)"]
         SDKPkg["sdk/ ✅ M1.10 — Go authoring SDK, in-process (builder + Run + typed artifacts)"]
-        UI["ui/ ✅ M1.11 — React + TypeScript visual builder;\nlive event stream ▢ M1.12–M1.14"]
+        UI["ui/ ✅ M1.11 — React + TypeScript visual builder;\nlive event stream ✅ M1.12, inspector/artifacts ▢ M1.13"]
     end
 
     YAML --> Serialize
@@ -73,8 +74,10 @@ graph TB
 
     CLI --> Engine
     CLI --> Replay
+    CLI --> Server
     EventLog -->|"--json"| CLI
-    EventLog -->|"wee serve, HTTP/WS"| UI
+    EventLog --> Server
+    Server -->|"SSE (ADR 0009)"| UI
 ```
 
 ## Execution lifecycle (single node)
@@ -133,6 +136,7 @@ sequenceDiagram
 | `replay` | [spec/replay.md](spec/replay.md) |
 | `registry` / versioning | [spec/versioning.md](spec/versioning.md) |
 | `cli/`, `sdk/`, `ui/` | [spec/cli.md](spec/cli.md), [spec/sdk.md](spec/sdk.md), [spec/ui.md](spec/ui.md) |
+| `server` live event transport (SSE, not WebSocket) | [spec/ui.md](spec/ui.md) REQ-UI-02, [ADR 0009](adr/0009-live-event-transport.md) |
 
 ## The flagship graph, for scale
 

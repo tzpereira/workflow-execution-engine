@@ -138,7 +138,7 @@ is `$0.0000` because a tool call is not a model call.
 ### See the raw event stream
 
 The human view above is a rendering of an event stream. Ask for the stream itself with `--json` — one JSON
-event per line, exactly what the UI consumes over WebSocket (§ M1.12):
+event per line, exactly what the UI consumes live over Server-Sent Events via `wee serve` ([§8](#8-watch-a-run-live-in-the-browser)):
 
 ```sh
 wee run check.yaml --json
@@ -350,25 +350,76 @@ workflow.json
 
 ---
 
-## 8. Command reference
+## 8. Watch a run live in the browser
+
+`wee serve` exposes the workspace over HTTP so the visual UI (`ui/`) can watch an execution happen live —
+parallel lanes, cache hits, and a running cost ticker, pushed over Server-Sent Events as they happen (no
+polling, no WebSocket dependency — see [ADR 0009](adr/0009-live-event-transport.md)).
+
+Start it in the same directory as your workflow:
+
+```sh
+wee serve --dir . --workspace .workflow
+```
+
+```
+wee serve listening on http://127.0.0.1:7676
+  workspace: .workflow   workflows under: .
+  stream:    GET http://127.0.0.1:7676/api/executions/{id}/events
+```
+
+In another terminal, start the UI (see [ui/README.md](../ui/README.md)):
+
+```sh
+pnpm --dir ../ui dev
+```
+
+Open the UI, import `check.yaml`, and click **Run** in the toolbar — it posts to `wee serve`'s
+`POST /api/run` with the imported file's name, then watches the returned execution live: the node's border
+and badge move through `running` → `succeeded`/`cached`/`failed`, edges animate while data is flowing into a
+running node, and the Timeline panel below draws a Gantt bar per node (cache hits colored distinctly from a
+fresh success) alongside a live `$cost` / token ticker. The Artifacts and Logs tabs fill in as their events
+arrive — never only after the run finishes.
+
+You can drive the same API directly, exactly as the UI does:
+
+```sh
+curl -s -X POST http://127.0.0.1:7676/api/run -d '{"workflow":"check.yaml"}'
+# {"executionId":"build-check-20260718T155700-596265"}
+
+curl -N http://127.0.0.1:7676/api/executions/build-check-20260718T155700-596265/events
+```
+
+The second command streams the exact same `data: <event>` frames the UI's `EventSource` receives — one line
+per `domain.Event`, byte-identical to `wee run --json`, closing automatically once `ExecutionFinished`
+arrives.
+
+> The **Run** button posts the imported file's *basename* (browsers never expose a full path) — it only
+> resolves if `wee serve --dir` points at the same folder the file was imported from. A mismatch surfaces as
+> an error in the toolbar (the server's 400), not a silent failure.
+
+---
+
+## 9. Command reference
 
 | Command | What it does |
 |---|---|
 | `wee init` | Scaffold `.workflow/` and a runnable `examples/hello.yaml` + Worker. |
 | `wee validate <file>` | Check a workflow against the schema and graph rules. |
 | `wee run <file>` | Run (or `--resume <id>`) a workflow, streaming events live. |
-| `wee run <file> --json` | Same, but emit line-delimited event JSON (what the UI consumes). |
+| `wee run <file> --json` | Same, but emit line-delimited event JSON (what `wee serve` also streams). |
 | `wee list` | List workflows in the directory and recorded executions. |
 | `wee inspect <id>` | Reconstruct a recorded run from disk (add `--node <id>` for detail + artifact). |
 | `wee replay <id>` | Audit a recorded run; `--reexecute` runs it again and reports divergence. |
 | `wee cache ls` / `inspect <key>` / `clear` | Inspect and manage the node cache. |
 | `wee export <file> [-o out.tar]` | Bundle a workflow + its Workers into a portable tar. |
+| `wee serve [--addr host:port] [--dir .] [--workspace .workflow]` | Serve the live SSE event stream + run API for the UI. |
 
 Common flags on `run`: `--cache on\|off\|readonly`, `--concurrency N` (0 = engine default),
 `--resume <id>`, `--budget <usd>` (override the workflow's max cost), `--workspace <dir>` (state directory,
 default `.workflow`).
 
-## 9. Exit codes
+## 10. Exit codes
 
 `wee` maps outcomes to process exit codes (REQ-CLI-04) so it composes in scripts and CI:
 
@@ -408,8 +459,8 @@ you delete the history; the workflow definitions (`*.yaml`) are untouched.
 
 - Build workflows **visually**: the React UI (`ui/`) reads and writes the same canonical YAML — see
   [ui/README.md](../ui/README.md) (`pnpm --dir ui dev`).
+- **Watch a run live in the browser** — `wee serve` streaming to the UI canvas and a Gantt timeline — see
+  [§8](#8-watch-a-run-live-in-the-browser) above.
 - Build workflows **in Go**: the authoring SDK (`sdk/`) — see [concepts/sdk.md](concepts/sdk.md).
-- **Watch a run live in the browser** — `wee serve` streaming to the UI canvas and a Gantt timeline — is
-  M1.12, in progress. Until it lands, `wee run --json` is the live stream and the UI is a builder/editor.
-- The deeper model: start at [AGENTS.md](../AGENTS.md), then [spec/cli.md](spec/cli.md) for the binding CLI
-  requirements this tutorial demonstrates.
+- The deeper model: start at [AGENTS.md](../AGENTS.md), then [spec/cli.md](spec/cli.md) and
+  [spec/ui.md](spec/ui.md) for the binding requirements this tutorial demonstrates.
