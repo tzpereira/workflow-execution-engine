@@ -1,15 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Canvas } from './components/Canvas'
+import { CommandPalette } from './components/CommandPalette'
 import { Inspector } from './components/Inspector'
 import { Timeline } from './components/Timeline'
 import { Toolbar } from './components/Toolbar'
 
 // App is the single workspace — one screen, no router, no page navigation
 // (VISION UI Philosophy). Toolbar on top, Canvas center, Inspector right,
-// Timeline bottom. The ⌘K command palette is mounted in the next step.
+// Timeline bottom, ⌘K command palette over everything.
 export default function App() {
-  const [, setPaletteOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <div className="flex h-screen flex-col bg-neutral-50 text-neutral-900">
@@ -23,6 +35,7 @@ export default function App() {
       <div className="h-48 shrink-0">
         <Timeline />
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   )
 }

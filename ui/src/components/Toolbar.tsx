@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 
+import { downloadText } from '../download'
 import { useWorkspace } from '../store'
 
 // Toolbar is the top bar: the workflow's id@version and the import/export
@@ -22,14 +23,7 @@ export function Toolbar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
   function onExport() {
     const format = fileName?.endsWith('.json') ? 'json' : 'yaml'
-    const text = exportText(format)
-    const blob = new Blob([text], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${meta.id}.${format === 'json' ? 'json' : 'yaml'}`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadText(exportText(format), `${meta.id}.${format === 'json' ? 'json' : 'yaml'}`)
   }
 
   return (
