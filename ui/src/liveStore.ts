@@ -24,8 +24,8 @@ export interface LiveStoreState {
   stop: (() => void) | null
 
   setServerUrl: (url: string) => void
-  /** Open the SSE stream for execId, resetting the fold seeded with nodeIds so
-   *  every node starts `pending` until its own WorkerStarted arrives. */
+  /** Open the WebSocket stream for execId, resetting the fold seeded with
+   *  nodeIds so every node starts `pending` until its own WorkerStarted arrives. */
   watch: (execId: string, nodeIds: string[]) => void
   /** POST /api/run, then watch() the execution id it returns. */
   run: (workflowRef: string, nodeIds: string[]) => Promise<void>
@@ -34,7 +34,7 @@ export interface LiveStoreState {
 
 /** createLiveStore takes injectable transport deps so the store's own logic —
  *  resetting state, folding events, tearing down the prior stream — is unit
- *  tested without a real EventSource or network call. useLive below is the one
+ *  tested without a real WebSocket or network call. useLive below is the one
  *  instance components use. */
 export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<StoreApi<LiveStoreState>> {
   return create<LiveStoreState>((set, get) => ({

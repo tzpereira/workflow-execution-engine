@@ -28,8 +28,8 @@ export type WFEventType =
   | 'BudgetExceeded'
   | 'Cancelled'
 
-/** WFEvent mirrors core/domain.Event by JSON tag — the exact object each SSE
- *  `data:` frame carries (byte-identical to `wee run --json`). */
+/** WFEvent mirrors core/domain.Event by JSON tag — the exact object each
+ *  WebSocket text frame carries (byte-identical to `wee run --json`). */
 export interface WFEvent {
   type: WFEventType
   timestamp: string

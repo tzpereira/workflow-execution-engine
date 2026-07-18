@@ -3,21 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WFEvent } from './core/live'
 import { startRun, watchExecution } from './liveClient'
 
-// A minimal fake EventSource: just enough surface for watchExecution to drive
-// (onmessage/onerror assignment, readyState, close()) without a real network
-// connection or a jsdom EventSource polyfill.
-class FakeEventSource {
-  static readonly CONNECTING = 0
-  static readonly OPEN = 1
-  static readonly CLOSED = 2
-  readonly CONNECTING = 0
-  readonly OPEN = 1
-  readonly CLOSED = 2
-
+// A minimal fake WebSocket: just enough surface for watchExecution to drive
+// (onmessage/onclose assignment, close()) without a real network connection or
+// a jsdom WebSocket polyfill.
+class FakeWebSocket {
   url: string
-  readyState = FakeEventSource.OPEN
   onmessage: ((ev: MessageEvent<string>) => void) | null = null
-  onerror: (() => void) | null = null
+  onclose: (() => void) | null = null
   closed = false
 
   constructor(url: string) {
@@ -28,42 +20,57 @@ class FakeEventSource {
     this.onmessage?.({ data: JSON.stringify(ev) } as MessageEvent<string>)
   }
 
-  fail() {
-    this.readyState = FakeEventSource.CLOSED
-    this.onerror?.()
+  serverClose() {
+    this.closed = true
+    this.onclose?.()
   }
 
   close() {
     this.closed = true
+    this.onclose?.()
   }
 }
 
 describe('watchExecution', () => {
-  it('builds the SSE URL from baseUrl and the execution id', () => {
-    let created: FakeEventSource | undefined
-    const ESImpl = class extends FakeEventSource {
+  it('rewrites an http(s) baseUrl to ws(s) and builds the URL from the execution id', () => {
+    let created: FakeWebSocket | undefined
+    const WSImpl = class extends FakeWebSocket {
       constructor(url: string) {
         super(url)
         created = this
       }
-    } as unknown as typeof EventSource
+    } as unknown as typeof WebSocket
 
-    watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { baseUrl: 'http://127.0.0.1:7676', EventSourceImpl: ESImpl })
+    watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { baseUrl: 'http://127.0.0.1:7676', WebSocketImpl: WSImpl })
 
-    expect(created?.url).toBe('http://127.0.0.1:7676/api/executions/wf-123/events')
+    expect(created?.url).toBe('ws://127.0.0.1:7676/api/executions/wf-123/events')
+  })
+
+  it('rewrites an https baseUrl to wss', () => {
+    let created: FakeWebSocket | undefined
+    const WSImpl = class extends FakeWebSocket {
+      constructor(url: string) {
+        super(url)
+        created = this
+      }
+    } as unknown as typeof WebSocket
+
+    watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { baseUrl: 'https://example.test', WebSocketImpl: WSImpl })
+
+    expect(created?.url).toBe('wss://example.test/api/executions/wf-123/events')
   })
 
   it('parses each message frame and forwards it as a WFEvent', () => {
-    let fake: FakeEventSource | undefined
-    const ESImpl = class extends FakeEventSource {
+    let fake: FakeWebSocket | undefined
+    const WSImpl = class extends FakeWebSocket {
       constructor(url: string) {
         super(url)
         fake = this
       }
-    } as unknown as typeof EventSource
+    } as unknown as typeof WebSocket
 
     const onEvent = vi.fn()
-    watchExecution('wf-123', { onEvent, onDone: () => {} }, { EventSourceImpl: ESImpl })
+    watchExecution('wf-123', { onEvent, onDone: () => {} }, { WebSocketImpl: WSImpl })
 
     const ev: WFEvent = { type: 'ExecutionStarted', timestamp: 't', executionId: 'wf-123', prevHash: 'x' }
     fake!.emit(ev)
@@ -72,53 +79,48 @@ describe('watchExecution', () => {
   })
 
   it('drops a malformed frame without calling onEvent or throwing', () => {
-    let fake: FakeEventSource | undefined
-    const ESImpl = class extends FakeEventSource {
+    let fake: FakeWebSocket | undefined
+    const WSImpl = class extends FakeWebSocket {
       constructor(url: string) {
         super(url)
         fake = this
       }
-    } as unknown as typeof EventSource
+    } as unknown as typeof WebSocket
 
     const onEvent = vi.fn()
-    watchExecution('wf-123', { onEvent, onDone: () => {} }, { EventSourceImpl: ESImpl })
+    watchExecution('wf-123', { onEvent, onDone: () => {} }, { WebSocketImpl: WSImpl })
 
     expect(() => fake!.onmessage?.({ data: 'not json' } as MessageEvent<string>)).not.toThrow()
     expect(onEvent).not.toHaveBeenCalled()
   })
 
-  it('calls onDone only once the connection reaches CLOSED, not on a transient error', () => {
-    let fake: FakeEventSource | undefined
-    const ESImpl = class extends FakeEventSource {
+  it('calls onDone once when the connection closes (no auto-reconnect, unlike EventSource)', () => {
+    let fake: FakeWebSocket | undefined
+    const WSImpl = class extends FakeWebSocket {
       constructor(url: string) {
         super(url)
         fake = this
       }
-    } as unknown as typeof EventSource
+    } as unknown as typeof WebSocket
 
     const onDone = vi.fn()
-    watchExecution('wf-123', { onEvent: () => {}, onDone }, { EventSourceImpl: ESImpl })
+    watchExecution('wf-123', { onEvent: () => {}, onDone }, { WebSocketImpl: WSImpl })
 
-    // A transient error while still OPEN/CONNECTING (auto-reconnect in flight)
-    // must not fire onDone.
-    fake!.readyState = FakeEventSource.CONNECTING
-    fake!.onerror?.()
     expect(onDone).not.toHaveBeenCalled()
-
-    fake!.fail() // reaches CLOSED
+    fake!.serverClose() // the server closes cleanly after ExecutionFinished
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
   it('the returned disposer closes the connection', () => {
-    let fake: FakeEventSource | undefined
-    const ESImpl = class extends FakeEventSource {
+    let fake: FakeWebSocket | undefined
+    const WSImpl = class extends FakeWebSocket {
       constructor(url: string) {
         super(url)
         fake = this
       }
-    } as unknown as typeof EventSource
+    } as unknown as typeof WebSocket
 
-    const stop = watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { EventSourceImpl: ESImpl })
+    const stop = watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { WebSocketImpl: WSImpl })
     stop()
     expect(fake?.closed).toBe(true)
   })

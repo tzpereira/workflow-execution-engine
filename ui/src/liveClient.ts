@@ -1,44 +1,57 @@
-// The transport half of the live view: connect to `wee serve`'s SSE endpoint
-// and fold frames through core/live's reducer. This is the only module that
-// touches EventSource/fetch directly — core/live.ts stays framework- and
-// browser-API-free so the fold itself is unit-tested without a server (ADR 0009).
+// The transport half of the live view: connect to `wee serve`'s WebSocket
+// endpoint and fold frames through core/live's reducer. This is the only
+// module that touches WebSocket/fetch directly — core/live.ts stays framework-
+// and browser-API-free so the fold itself is unit-tested without a server
+// (ADR 0010, github.com/coder/websocket on the server side).
 
 import type { WFEvent } from './core/live'
 
 export interface WatchHandlers {
   onEvent: (ev: WFEvent) => void
-  /** Called once the stream ends — either the server closed it on the
-   *  execution's terminal event, or the connection dropped for good. */
+  /** Called once the connection closes — either the server closed it on the
+   *  execution's terminal event, or the connection dropped. Unlike
+   *  EventSource, a browser WebSocket never auto-reconnects, so onDone always
+   *  means "watching has stopped," not "reconnecting" (a disclosed regression
+   *  from ADR 0009's SSE choice, accepted in ADR 0010). */
   onDone: () => void
 }
 
 export interface WatchOptions {
   baseUrl?: string
   /** Injectable for tests; defaults to the browser global. */
-  EventSourceImpl?: typeof EventSource
+  WebSocketImpl?: typeof WebSocket
 }
 
-/** watchExecution opens the SSE stream for one execution id and returns a
- *  disposer that closes it. EventSource auto-reconnects on a transient network
- *  drop; onDone fires only once the connection is in its terminal CLOSED state
- *  (the server closes cleanly after ExecutionFinished — core/server/server.go). */
+/** watchExecution opens the WebSocket stream for one execution id and returns
+ *  a disposer that closes it. onDone fires once, when the connection closes
+ *  for any reason (the server closes cleanly after ExecutionFinished —
+ *  core/server/server.go). */
 export function watchExecution(execId: string, handlers: WatchHandlers, opts: WatchOptions = {}): () => void {
-  const base = opts.baseUrl ?? ''
-  const ES = opts.EventSourceImpl ?? EventSource
-  const es = new ES(`${base}/api/executions/${encodeURIComponent(execId)}/events`)
+  const WS = opts.WebSocketImpl ?? WebSocket
+  const url = `${toWsUrl(opts.baseUrl ?? '')}/api/executions/${encodeURIComponent(execId)}/events`
+  const ws = new WS(url)
 
-  es.onmessage = (m: MessageEvent<string>) => {
+  ws.onmessage = (m: MessageEvent<string>) => {
     try {
       handlers.onEvent(JSON.parse(m.data) as WFEvent)
     } catch {
       // A malformed frame is dropped, not fatal — the stream continues.
     }
   }
-  es.onerror = () => {
-    if (es.readyState === ES.CLOSED) handlers.onDone()
-  }
+  ws.onclose = () => handlers.onDone()
 
-  return () => es.close()
+  return () => ws.close()
+}
+
+/** toWsUrl rewrites an http(s) base URL to its ws(s) equivalent — the browser
+ *  WebSocket constructor requires an absolute ws:// or wss:// URL and, unlike
+ *  EventSource/fetch, rejects a relative path outright. Already-ws(s) or empty
+ *  strings (test-only, always paired with an injected WebSocketImpl) pass
+ *  through unchanged. */
+function toWsUrl(baseUrl: string): string {
+  if (baseUrl.startsWith('https://')) return `wss://${baseUrl.slice('https://'.length)}`
+  if (baseUrl.startsWith('http://')) return `ws://${baseUrl.slice('http://'.length)}`
+  return baseUrl
 }
 
 export interface RunResponse {
