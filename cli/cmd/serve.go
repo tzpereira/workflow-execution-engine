@@ -13,23 +13,24 @@ import (
 )
 
 // newServeCmd implements `wee serve` (REQ-CLI-01 command surface, REQ-UI-02).
-// It exposes the workspace's event log over HTTP as a Server-Sent Events stream
-// (ADR 0009) so the UI can watch a run live — the same event schema `wee run
-// --json` emits, never a second source of truth (PRIN-02). The server also
-// starts runs on request (POST /api/run), resolving the workflow path under
-// --dir with the exact same assembly `wee run` uses.
+// It exposes the workspace's event log over HTTP, upgrading to WebSocket for
+// the live stream (ADR 0010, github.com/coder/websocket) so the UI can watch a
+// run live — the same event schema `wee run --json` emits, never a second
+// source of truth (PRIN-02). The server also starts runs on request (POST
+// /api/run), resolving the workflow path under --dir with the exact same
+// assembly `wee run` uses.
 func newServeCmd() *cobra.Command {
 	var addr, workspace, dir, cache string
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Serve the live execution event stream (SSE) for the UI",
+		Short: "Serve the live execution event stream (WebSocket) for the UI",
 		Long: "Serve exposes the workspace over HTTP for the visual UI:\n" +
 			"  GET  /api/executions            list recorded and in-flight runs\n" +
 			"  GET  /api/executions/{id}       a run's full recorded events (audit)\n" +
-			"  GET  /api/executions/{id}/events  live event stream (Server-Sent Events)\n" +
+			"  GET  /api/executions/{id}/events  live event stream (WebSocket)\n" +
 			"  POST /api/run                   start a run ({\"workflow\":\"<path under --dir>\"})\n\n" +
-			"The event stream is byte-identical to `wee run --json` and is pushed, not\n" +
-			"polled (ADR 0009). The UI is a pure client of it.",
+			"Each frame is byte-identical to one line of `wee run --json` and is pushed,\n" +
+			"not polled (ADR 0010). The UI is a pure client of it.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cacheMode, err := parseCacheMode(cache)
@@ -56,7 +57,7 @@ func newServeCmd() *cobra.Command {
 // under dir, assembles the engine exactly as `wee run` does, and launches the
 // execution in the background. The run uses context.Background() — NOT the HTTP
 // request's context, which ends the moment POST /api/run returns — so the run
-// outlives the request and the client watches it over the SSE stream.
+// outlives the request and the client watches it over the WebSocket stream.
 func runStarter(dir, workspace string, cache engine.CacheMode) server.StartFunc {
 	return func(ref string) (string, error) {
 		path := filepath.Join(dir, ref)

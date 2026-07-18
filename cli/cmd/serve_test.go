@@ -24,7 +24,7 @@ func TestServeCommandRegistered(t *testing.T) {
 // TestRunStarterExecutesInBackground drives the exact closure `wee serve` hands
 // the HTTP server: it must resolve a tool-only workflow (no API key needed),
 // return an execution id immediately, and run to completion in the background,
-// writing the terminal ExecutionFinished event to the log the SSE stream tails.
+// writing the terminal ExecutionFinished event to the log the live stream tails.
 func TestRunStarterExecutesInBackground(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "check.yaml"), `id: build-check
@@ -52,7 +52,7 @@ budget: {maxCostUsd: 0, maxTokens: 0, maxDurationMs: 30000, maxRetriesPerNode: 1
 		t.Fatal("empty execution id")
 	}
 
-	// The run is asynchronous; poll the log (as the SSE handler does) for the
+	// The run is asynchronous; poll the log (as the WebSocket handler does) for the
 	// terminal event.
 	log := eventlog.New(workspace)
 	deadline := time.Now().Add(3 * time.Second)
