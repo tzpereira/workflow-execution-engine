@@ -1,0 +1,50 @@
+# GoReleaser config for the wee CLI (M1.9). Cross-compiles a single static
+# binary for macOS, Linux, and Windows and publishes to GitHub Releases.
+#
+# CGO is disabled so the binaries are fully static and reproducible across the
+# targets (and to sidestep the macOS-only cgo/net linker quirk noted in
+# EXECUTION.md's M1.4 status). Run locally with:  goreleaser release --clean
+version: 2
+
+project_name: wee
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: wee
+    main: ./cli
+    binary: wee
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Windows on arm64 is out of scope for Phase 1 (EXECUTION.md M1.9).
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: wee
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: tzpereira
+    name: workflow-execution-engine
