@@ -54,7 +54,7 @@ func Load(workflowPath, baseDir string) (*Assembly, error) {
 	if err := reg.RegisterWorkflow(*wf); err != nil {
 		return nil, fmt.Errorf("register workflow: %w", err)
 	}
-	if err := loadWorkers(dir, reg); err != nil {
+	if err := LoadWorkers(workflowPath, reg); err != nil {
 		return nil, err
 	}
 
@@ -89,10 +89,13 @@ func Load(workflowPath, baseDir string) (*Assembly, error) {
 	}, nil
 }
 
-// loadWorkers registers every *.worker.yaml / *.worker.yml file in dir into reg,
-// keyed by the Worker's own id@version. This is the CLI's Worker-resolution
-// convention: a workflow's Workers live beside it (matching examples/pr-review).
-func loadWorkers(dir string, reg *registry.Registry) error {
+// LoadWorkers registers every *.worker.yaml / *.worker.yml file beside
+// workflowPath into reg, keyed by the Worker's own id@version. This is the
+// CLI's Worker-resolution convention: a workflow's Workers live in its
+// directory (matching examples/pr-review). Shared by Load and the export
+// command.
+func LoadWorkers(workflowPath string, reg *registry.Registry) error {
+	dir := filepath.Dir(workflowPath)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("read workflow dir %s: %w", dir, err)

@@ -57,6 +57,11 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newValidateCmd())
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newRunCmd())
+	root.AddCommand(newReplayCmd())
+	root.AddCommand(newInspectCmd())
+	root.AddCommand(newExportCmd())
+	root.AddCommand(newCacheCmd())
+	root.AddCommand(newListCmd())
 	return root
 }
 
