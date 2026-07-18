@@ -1,9 +1,10 @@
 module github.com/tzpereira/workflow-execution-engine
 
-go 1.22
+go 1.23
 
 require (
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/coder/websocket v1.8.15
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/text v0.14.0

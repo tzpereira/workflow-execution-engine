@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -12,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
@@ -57,7 +57,7 @@ func TestEventsReplaysThenClosesOnTerminal(t *testing.T) {
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	events := readSSE(t, ts.URL+"/api/executions/"+id+"/events", 2*time.Second)
+	events := readWS(t, ts.URL+"/api/executions/"+id+"/events", 2*time.Second)
 	if len(events) != 4 {
 		t.Fatalf("want 4 events, got %d: %+v", len(events), events)
 	}
@@ -77,7 +77,7 @@ func TestEventsTailsLiveEventsAppendedAfterConnect(t *testing.T) {
 
 	// Connect while the run is still "in flight", then append the rest.
 	got := make(chan []domain.Event, 1)
-	go func() { got <- readSSE(t, ts.URL+"/api/executions/"+id+"/events", 2*time.Second) }()
+	go func() { got <- readWS(t, ts.URL+"/api/executions/"+id+"/events", 2*time.Second) }()
 
 	time.Sleep(20 * time.Millisecond) // let the stream open and drain the first event
 	appendEvent(t, log, id, domain.WorkerStarted, "a", nil)
@@ -199,38 +199,33 @@ func TestCORSPreflight(t *testing.T) {
 	}
 }
 
-// readSSE connects to an SSE endpoint and collects domain.Events from `data:`
-// lines until the connection closes (the server closes on ExecutionFinished) or
-// the deadline hits.
-func readSSE(t *testing.T, url string, deadline time.Duration) []domain.Event {
+// readWS dials the WebSocket events endpoint and collects domain.Events from
+// each text frame until the connection closes (the server closes cleanly on
+// ExecutionFinished) or the deadline hits.
+func readWS(t *testing.T, url string, deadline time.Duration) []domain.Event {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	resp, err := http.DefaultClient.Do(req)
+
+	wsURL := "ws" + strings.TrimPrefix(url, "http")
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
-		t.Fatalf("connect SSE: %v", err)
+		t.Fatalf("dial %s: %v", wsURL, err)
 	}
-	defer resp.Body.Close()
-	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
-		t.Fatalf("content-type = %q, want text/event-stream", ct)
-	}
+	defer func() { _ = conn.CloseNow() }()
 
 	var events []domain.Event
-	sc := bufio.NewScanner(resp.Body)
-	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	for sc.Scan() {
-		line := bytes.TrimSpace(sc.Bytes())
-		if !bytes.HasPrefix(line, []byte("data: ")) {
-			continue
+	for {
+		_, data, err := conn.Read(ctx)
+		if err != nil {
+			return events // server closed the connection (or the deadline hit)
 		}
 		var ev domain.Event
-		if err := json.Unmarshal(bytes.TrimPrefix(line, []byte("data: ")), &ev); err != nil {
-			t.Fatalf("bad SSE frame %q: %v", line, err)
+		if err := json.Unmarshal(data, &ev); err != nil {
+			t.Fatalf("bad frame %q: %v", data, err)
 		}
 		events = append(events, ev)
 	}
-	return events
 }
 
 func getJSON(t *testing.T, url string, dst any) {

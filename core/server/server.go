@@ -4,22 +4,24 @@
 // injected hook to start a run; it never holds engine state of its own and
 // never becomes a second record of what happened.
 //
-// The live transport is Server-Sent Events (ADR 0009): a long-lived
-// text/event-stream response, one `data: <json>` frame per domain.Event —
-// byte-identical to the line-delimited JSON `wee run --json` emits. The client
-// consumes it with the browser's built-in EventSource; there is no WebSocket
-// and no new dependency on either side.
+// The live transport is WebSocket via github.com/coder/websocket (ADR 0010,
+// superseding ADR 0009's Server-Sent Events choice): one JSON text frame per
+// domain.Event — byte-identical to the line-delimited JSON `wee run --json`
+// emits. The client consumes it with the browser's built-in WebSocket. The
+// stream is still functionally one-directional (server pushes, client only
+// listens) — WebSocket was chosen to match spec/ui.md REQ-UI-02's original
+// wording literally, not because this milestone needs full duplex.
 package server
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
@@ -33,9 +35,9 @@ import (
 // leaving a read-only server that still streams and audits existing executions.
 type StartFunc func(ref string) (execID string, err error)
 
-// defaultPoll is how often a live SSE handler re-reads the log for new events.
-// It matches `wee run`'s streamer tick: fast enough to feel live, cheap enough
-// for a local dev tool. The client sees pushed frames, never this tail.
+// defaultPoll is how often the live WebSocket handler re-reads the log for new
+// events. It matches `wee run`'s streamer tick: fast enough to feel live, cheap
+// enough for a local dev tool. The client sees pushed frames, never this tail.
 const defaultPoll = 40 * time.Millisecond
 
 // Server serves the read side of the workspace over HTTP.
@@ -71,14 +73,14 @@ func New(workspace string, start StartFunc) *Server {
 func (s *Server) Handler() http.Handler { return withCORS(s.mux) }
 
 // ListenAndServe runs the server until the process exits. No write timeout is
-// set: SSE responses are deliberately long-lived.
+// set: the live WebSocket connection is deliberately long-lived.
 func (s *Server) ListenAndServe(addr string) error {
 	srv := &http.Server{Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	return srv.ListenAndServe()
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	_, _ = io.WriteString(w, "ok")
+	_, _ = w.Write([]byte("ok"))
 }
 
 // ExecutionSummary is one row of GET /api/executions. Workflow/Version come from
@@ -119,26 +121,24 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Audit{ExecutionSummary: summarize(id, events), Events: events})
 }
 
-// handleEvents streams an execution's events as SSE, replaying everything
-// recorded so far and then tailing live until the terminal ExecutionFinished
-// event (always the last event a run emits — engine/scheduler.go), at which
-// point the stream closes. A transient read error (log not yet created, or a
-// torn trailing line under a concurrent append) is retried on the next tick,
-// never surfaced — no event is lost or duplicated (ADR 0009).
+// handleEvents upgrades to WebSocket and streams an execution's events,
+// replaying everything recorded so far and then tailing live until the
+// terminal ExecutionFinished event (always the last event a run emits —
+// engine/scheduler.go), at which point the connection is closed with a normal
+// closure status. A transient read error (log not yet created, or a torn
+// trailing line under a concurrent append) is retried on the next tick, never
+// surfaced — no event is lost or duplicated. OriginPatterns is permissive
+// (matching withCORS below): this is a local dev tool, and the origin check is
+// WebSocket's own cross-origin gate — the CORS headers withCORS sets have no
+// effect on the upgrade itself.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-		return
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"*"}})
+	if err != nil {
+		return // Accept already wrote the appropriate HTTP error response
 	}
-	id := r.PathValue("id")
-	h := w.Header()
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush() // open the stream immediately so EventSource fires `open`
+	defer func() { _ = conn.CloseNow() }() // best-effort if we return before an explicit Close
 
+	id := r.PathValue("id")
 	ctx := r.Context()
 	ticker := time.NewTicker(s.poll)
 	defer ticker.Stop()
@@ -147,15 +147,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	for {
 		if events, err := s.log.ReadAll(id); err == nil {
 			for ; sent < len(events); sent++ {
-				if err := writeSSE(w, events[sent]); err != nil {
+				data, err := json.Marshal(events[sent])
+				if err != nil {
+					return
+				}
+				if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 					return // client disconnected mid-write
 				}
 				if events[sent].Type == domain.ExecutionFinished {
-					flusher.Flush()
+					_ = conn.Close(websocket.StatusNormalClosure, "")
 					return
 				}
 			}
-			flusher.Flush()
 		}
 		select {
 		case <-ctx.Done():
@@ -236,18 +239,6 @@ func summarize(id string, events []domain.Event) ExecutionSummary {
 		}
 	}
 	return sum
-}
-
-// writeSSE frames one event as `data: <json>\n\n`. The JSON is domain.Event's
-// exact encoding — the same bytes `wee run --json` writes — so the client reads
-// event.type off the parsed object, no custom SSE event names needed.
-func writeSSE(w io.Writer, ev domain.Event) error {
-	data, err := json.Marshal(ev)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(w, "data: %s\n\n", data)
-	return err
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
