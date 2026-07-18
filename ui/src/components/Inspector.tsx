@@ -1,5 +1,7 @@
 import { useWorkspace } from '../store'
 import { nodeKind } from '../core/model'
+import { budget as budgetSchema } from '../schemas'
+import { SchemaForm } from './SchemaForm'
 
 // Inspector is the right pane: the selected node's details, or the workflow's
 // own metadata when nothing is selected. Schema-driven editing forms (from the
@@ -8,6 +10,7 @@ export function Inspector() {
   const selectedId = useWorkspace((s) => s.selectedNodeId)
   const nodes = useWorkspace((s) => s.nodes)
   const meta = useWorkspace((s) => s.meta)
+  const setMeta = useWorkspace((s) => s.setMeta)
 
   const selected = nodes.find((n) => n.id === selectedId)?.data.node
 
@@ -35,12 +38,24 @@ export function Inspector() {
             </div>
           </dl>
         ) : (
-          <dl className="space-y-2">
-            <Field label="id" value={meta.id} />
-            <Field label="version" value={meta.version} />
-            <Field label="max cost (USD)" value={String(meta.budget.maxCostUsd)} />
-            <Field label="max tokens" value={String(meta.budget.maxTokens)} />
-          </dl>
+          <div className="space-y-3">
+            <dl className="space-y-2">
+              <Field label="id" value={meta.id} />
+              <Field label="version" value={meta.version} />
+            </dl>
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Budget
+              </div>
+              {/* Generated from schemas/budget.schema.json — the exact file the
+                  engine validates against, never hand-copied fields. */}
+              <SchemaForm
+                schema={budgetSchema}
+                formData={meta.budget}
+                onChange={(b) => setMeta({ ...meta, budget: b })}
+              />
+            </div>
+          </div>
         )}
       </div>
     </aside>
