@@ -47,10 +47,14 @@ Rules:
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
   changed. M1.9 (CLI), M1.10 (SDK), M1.11 (UI), and M1.12 (live stream) are all pure clients of core/ — none
   added a domain or engine capability; `core/server` reads the same event log everything else reads, adding
-  no new state of its own. M1.12's one contested choice (the live transport) is recorded as
-  [ADR 0009](adr/0009-live-event-transport.md): Server-Sent Events, not WebSocket — zero new dependencies on
-  either side, a deliberate refinement of REQ-UI-02's original wording. The UI is the first TypeScript
-  milestone; it imports the engine's `schemas/*.json` directly rather than duplicating any field.
+  no new state of its own. M1.12's one contested choice (the live transport) went through two recorded
+  rounds: [ADR 0009](adr/0009-live-event-transport.md) first picked Server-Sent Events (zero new
+  dependencies, exact fit for a server→client-only stream), then
+  [ADR 0010](adr/0010-websocket-transport.md) superseded it same-day with WebSocket via
+  `github.com/coder/websocket` (vetted per PRIN-07: ISC license, zero transitive deps, actively maintained)
+  — the project owner's deliberate choice to match REQ-UI-02's original wording literally. The UI is the
+  first TypeScript milestone; it imports the engine's `schemas/*.json` directly rather than duplicating any
+  field.
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -283,7 +287,7 @@ workflow-execution-engine/
 │   ├── cache/                        # cache key, store, index
 │   ├── replay/                        # audit replay + re-execution + divergence report
 │   ├── registry/                       # versioning, immutability, export
-│   └── server/                          # `wee serve` HTTP + SSE transport (ADR 0009)
+│   └── server/                          # `wee serve` HTTP + WebSocket transport (ADR 0010)
 ├── cli/                        # cobra command definitions (imports core/)
 ├── sdk/                        # Go authoring SDK (imports core/, same module)
 ├── schemas/                    # canonical JSON Schemas (draft 2020-12)
@@ -1150,16 +1154,20 @@ M1.7–M1.10 done first.
 
 - [x] Implement `wee serve` in `core/server/`: HTTP + WebSocket server exposing the same event schema as
       `wee run --json` (from M1.9) — the UI is a pure client of this stream, never a second source of truth.
-      Delivered as Server-Sent Events, not WebSocket — a recorded, deliberate refinement (the stream is
-      strictly server → client; see [ADR 0009](adr/0009-live-event-transport.md)). `GET
-      /api/executions/{id}/events` replays-then-tails; `GET /api/executions` lists recorded/in-flight runs;
-      `POST /api/run` starts one.
+      First delivered as Server-Sent Events ([ADR 0009](adr/0009-live-event-transport.md), reasoning the
+      stream is strictly server → client), then same-day superseded by
+      [ADR 0010](adr/0010-websocket-transport.md): WebSocket via `github.com/coder/websocket`, per the
+      project owner's request to match this milestone's original "HTTP + WebSocket" wording literally. `GET
+      /api/executions/{id}/events` upgrades and replays-then-tails; `GET /api/executions` lists
+      recorded/in-flight runs; `POST /api/run` starts one.
 - [x] Add `cli/cmd/serve.go` wiring `wee serve` into the CLI.
-- [x] Build the UI's live client (`ui/src/liveClient.ts`, browser `EventSource`) consuming that event stream
+- [x] Build the UI's live client (`ui/src/liveClient.ts`, browser `WebSocket`) consuming that event stream
       and updating canvas node state: `pending` (shown as "queued" while a run is active) / `running`
       (animated edge flow) / `succeeded` / `failed` / `cached` (distinct badge). "Skipped" has no distinct
       state in Phase 1 — the engine emits no separate event for a conditional edge's false branch, so a
-      skipped node stays indistinguishable from `pending` (disclosed, not silently dropped).
+      skipped node stays indistinguishable from `pending` (disclosed, not silently dropped). Disclosed
+      regression from the SSE round: `WebSocket` does not auto-reconnect, so a dropped connection is terminal
+      (ADR 0010's Consequences) — acceptable for a local dev tool.
 - [x] Build the Timeline: horizontal per-node bars (Gantt-style), parallel lanes visible side by side,
       cache-hit bars visually distinct (amber vs. green), a running cost ticker updating live
       (`ui/src/components/Timeline.tsx`).
@@ -1168,8 +1176,8 @@ M1.7–M1.10 done first.
 
 ### Acceptance criteria
 
-- [x] Watching a run live shows parallel lanes and no visible polling delay/jank — this is an SSE push, not a
-      client poll loop. Verified with a real, model-free 3-way concurrent tool fan-out (`start` → `p1`/`p2`/
+- [x] Watching a run live shows parallel lanes and no visible polling delay/jank — this is a WebSocket push,
+      not a client poll loop. Verified with a real, model-free 3-way concurrent tool fan-out (`start` → `p1`/`p2`/
       `p3`, each a `sleep 0.3` terminal node): all three `WorkerStarted` within ~13µs of each other and all
       three `WorkerFinished` within ~300µs of each other, total wall-clock 0.331s (not 3×0.3s) — genuine
       concurrent dispatch, not staggered. The literal flagship scenario named here (three reviewers, then

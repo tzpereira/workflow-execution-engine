@@ -18,8 +18,8 @@ One workspace, no router, no page navigation (VISION "UI Philosophy" — neutral
   the workflow's static node list.
 - **⌘K command palette** — export, validate, add nodes, jump to a node.
 - **Live control** (toolbar) — a `wee serve` address field and a Run/Disconnect button. Run posts the
-  imported file to `POST /api/run` and watches the returned execution over Server-Sent Events (ADR 0009,
-  not WebSocket — the stream is strictly server → client).
+  imported file to `POST /api/run` and watches the returned execution over WebSocket (ADR 0010). Unlike the
+  browser's `EventSource`, `WebSocket` never auto-reconnects — a dropped connection ends the watch.
 
 ## Zero-drift round-trip
 
@@ -44,8 +44,8 @@ pnpm build        # tsc -b && vite build
   live-execution reducer (`live.ts`: events → node status/timeline/cost, framework-free). Pure logic, no
   React, fully unit-tested — the REQ-UI-01/UI-02 heart.
 - `src/store.ts` — the zustand workspace store (the graph + meta *is* the workflow being edited).
-- `src/liveClient.ts` / `src/liveStore.ts` — the `wee serve` SSE client and the zustand slice wiring it into
-  `core/live.ts`'s reducer. A separate store from `store.ts` on purpose: one is the definition being edited,
-  the other is a view of an execution happening elsewhere (REQ-UI-02, PRIN-02).
+- `src/liveClient.ts` / `src/liveStore.ts` — the `wee serve` WebSocket client and the zustand slice wiring it
+  into `core/live.ts`'s reducer. A separate store from `store.ts` on purpose: one is the definition being
+  edited, the other is a view of an execution happening elsewhere (REQ-UI-02, PRIN-02).
 - `src/schemas.ts` — imports and dereferences the engine's JSON Schemas for the @rjsf forms.
 - `src/components/` — Canvas, Inspector, Timeline, Toolbar, CommandPalette, WorkflowNode, SchemaForm.

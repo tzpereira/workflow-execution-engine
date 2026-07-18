@@ -39,7 +39,7 @@ graph TB
         Registry["registry ✅ M1.8 — immutable versioned definitions,\nWorkerSource + hash-pinning + portable export"]
         Store["store ✅ — content-addressed artifact store"]
         EventLog["eventlog ✅ — append-only JSONL, hash-chained (ADR 0007)"]
-        Server["server ✅ M1.12 — HTTP + Server-Sent Events (ADR 0009);\ntails the log, lists/audits executions, starts runs"]
+        Server["server ✅ M1.12 — HTTP + WebSocket (ADR 0010, coder/websocket);\ntails the log, lists/audits executions, starts runs"]
     end
 
     subgraph Clients["Clients — no second source of truth"]
@@ -77,7 +77,7 @@ graph TB
     CLI --> Server
     EventLog -->|"--json"| CLI
     EventLog --> Server
-    Server -->|"SSE (ADR 0009)"| UI
+    Server -->|"WebSocket (ADR 0010)"| UI
 ```
 
 ## Execution lifecycle (single node)
@@ -136,7 +136,7 @@ sequenceDiagram
 | `replay` | [spec/replay.md](spec/replay.md) |
 | `registry` / versioning | [spec/versioning.md](spec/versioning.md) |
 | `cli/`, `sdk/`, `ui/` | [spec/cli.md](spec/cli.md), [spec/sdk.md](spec/sdk.md), [spec/ui.md](spec/ui.md) |
-| `server` live event transport (SSE, not WebSocket) | [spec/ui.md](spec/ui.md) REQ-UI-02, [ADR 0009](adr/0009-live-event-transport.md) |
+| `server` live event transport (WebSocket, `coder/websocket`) | [spec/ui.md](spec/ui.md) REQ-UI-02, [ADR 0010](adr/0010-websocket-transport.md) |
 
 ## The flagship graph, for scale
 

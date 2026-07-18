@@ -22,7 +22,8 @@ decision. Reference `docs/VISION.md`/`docs/ROADMAP.md` sections for background r
 | [0006](0006-model-provider-integration.md) | Model providers via hand-rolled `net/http` clients, no vendor SDKs | Accepted | 2026-07-15 |
 | [0007](0007-event-log-hash-chain.md) | Hash-chained event log (tamper-evident by construction) | Accepted | 2026-07-15 |
 | [0008](0008-tool-backed-graph-nodes.md) | Tool-backed graph nodes: Node-level (not Worker-level) extension, optional-interface event bridge | Accepted | 2026-07-17 |
-| [0009](0009-live-event-transport.md) | Live event stream over Server-Sent Events (stdlib, zero-dep), not WebSocket | Accepted | 2026-07-18 |
+| [0009](0009-live-event-transport.md) | Live event stream over Server-Sent Events (stdlib, zero-dep), not WebSocket | Superseded by [0010](0010-websocket-transport.md) | 2026-07-18 |
+| [0010](0010-websocket-transport.md) | Live event stream over WebSocket (`github.com/coder/websocket`), superseding 0009 | Accepted | 2026-07-18 |
 
 IDs are stable: never renumbered, never reused. A superseded ADR keeps its number and gets `Status:
 Superseded by ADR-NNNN` — see [spec/README.md](../spec/README.md) for the project-wide ID scheme (`ADR-NNNN`

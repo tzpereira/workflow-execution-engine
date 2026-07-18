@@ -1,7 +1,12 @@
 # ADR 0009: Live event transport (Server-Sent Events, not WebSocket)
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0010](0010-websocket-transport.md)
 - **Date:** 2026-07-18
+
+> Superseded the same day: the project owner asked for WebSocket specifically, to match REQ-UI-02's
+> original wording literally rather than take this ADR's zero-dependency refinement. Kept verbatim below —
+> the reasoning was sound for the tradeoff it was optimizing for, and the record of *why* SSE was tried
+> first, and *why* it was reversed, is exactly what the ADR process exists to preserve.
 
 ## Context
 

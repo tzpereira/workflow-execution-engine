@@ -138,7 +138,7 @@ is `$0.0000` because a tool call is not a model call.
 ### See the raw event stream
 
 The human view above is a rendering of an event stream. Ask for the stream itself with `--json` — one JSON
-event per line, exactly what the UI consumes live over Server-Sent Events via `wee serve` ([§8](#8-watch-a-run-live-in-the-browser)):
+event per line, exactly what the UI consumes live over WebSocket via `wee serve` ([§8](#8-watch-a-run-live-in-the-browser)):
 
 ```sh
 wee run check.yaml --json
@@ -353,8 +353,8 @@ workflow.json
 ## 8. Watch a run live in the browser
 
 `wee serve` exposes the workspace over HTTP so the visual UI (`ui/`) can watch an execution happen live —
-parallel lanes, cache hits, and a running cost ticker, pushed over Server-Sent Events as they happen (no
-polling, no WebSocket dependency — see [ADR 0009](adr/0009-live-event-transport.md)).
+parallel lanes, cache hits, and a running cost ticker, pushed over WebSocket as they happen (no polling —
+see [ADR 0010](adr/0010-websocket-transport.md)).
 
 Start it in the same directory as your workflow:
 
@@ -381,18 +381,23 @@ running node, and the Timeline panel below draws a Gantt bar per node (cache hit
 fresh success) alongside a live `$cost` / token ticker. The Artifacts and Logs tabs fill in as their events
 arrive — never only after the run finishes.
 
-You can drive the same API directly, exactly as the UI does:
+You can start a run the same way the UI does — `POST /api/run` is plain HTTP/JSON, so `curl` works directly:
 
 ```sh
 curl -s -X POST http://127.0.0.1:7676/api/run -d '{"workflow":"check.yaml"}'
 # {"executionId":"build-check-20260718T155700-596265"}
-
-curl -N http://127.0.0.1:7676/api/executions/build-check-20260718T155700-596265/events
 ```
 
-The second command streams the exact same `data: <event>` frames the UI's `EventSource` receives — one line
-per `domain.Event`, byte-identical to `wee run --json`, closing automatically once `ExecutionFinished`
-arrives.
+The events endpoint itself is a WebSocket upgrade, which plain `curl` doesn't speak — inspect it with your
+browser's DevTools **Network** tab (filter to **WS**) while the UI is watching a run, or with a small
+WebSocket CLI client (e.g. `websocat`) if you want a terminal-only look:
+
+```sh
+websocat "ws://127.0.0.1:7676/api/executions/build-check-20260718T155700-596265/events"
+```
+
+Either way you'll see one JSON text frame per `domain.Event` — byte-identical to a line of `wee run --json`
+— with the connection closing cleanly (`StatusNormalClosure`) once `ExecutionFinished` arrives.
 
 > The **Run** button posts the imported file's *basename* (browsers never expose a full path) — it only
 > resolves if `wee serve --dir` points at the same folder the file was imported from. A mismatch surfaces as
@@ -413,7 +418,7 @@ arrives.
 | `wee replay <id>` | Audit a recorded run; `--reexecute` runs it again and reports divergence. |
 | `wee cache ls` / `inspect <key>` / `clear` | Inspect and manage the node cache. |
 | `wee export <file> [-o out.tar]` | Bundle a workflow + its Workers into a portable tar. |
-| `wee serve [--addr host:port] [--dir .] [--workspace .workflow]` | Serve the live SSE event stream + run API for the UI. |
+| `wee serve [--addr host:port] [--dir .] [--workspace .workflow]` | Serve the live WebSocket event stream + run API for the UI. |
 
 Common flags on `run`: `--cache on\|off\|readonly`, `--concurrency N` (0 = engine default),
 `--resume <id>`, `--budget <usd>` (override the workflow's max cost), `--workspace <dir>` (state directory,
