@@ -6,15 +6,25 @@
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
+import type { Audit } from './core/audit'
 import { emptyLive, reduce, type LiveState } from './core/live'
-import { startRun as defaultStartRun, watchExecution as defaultWatchExecution } from './liveClient'
+import {
+  fetchAudit as defaultFetchAudit,
+  startRun as defaultStartRun,
+  watchExecution as defaultWatchExecution,
+} from './liveClient'
 
 export interface LiveDeps {
   watchExecution: typeof defaultWatchExecution
   startRun: typeof defaultStartRun
+  fetchAudit: typeof defaultFetchAudit
 }
 
-const defaultDeps: LiveDeps = { watchExecution: defaultWatchExecution, startRun: defaultStartRun }
+const defaultDeps: LiveDeps = {
+  watchExecution: defaultWatchExecution,
+  startRun: defaultStartRun,
+  fetchAudit: defaultFetchAudit,
+}
 
 export interface LiveStoreState {
   serverUrl: string
@@ -22,13 +32,23 @@ export interface LiveStoreState {
   connected: boolean
   error: string | null
   stop: (() => void) | null
+  /** The Inspector's source for Contract/resolved-context/artifact-content
+   *  (REQ-UI-03/04) — null until the first successful fetch. */
+  audit: Audit | null
 
   setServerUrl: (url: string) => void
   /** Open the WebSocket stream for execId, resetting the fold seeded with
-   *  nodeIds so every node starts `pending` until its own WorkerStarted arrives. */
+   *  nodeIds so every node starts `pending` until its own WorkerStarted
+   *  arrives. Also loads the audit response — once immediately (the frozen
+   *  Workflow/Workers are available as soon as the run starts) and again once
+   *  the stream closes (to pick up final artifact content/cost). */
   watch: (execId: string, nodeIds: string[]) => void
   /** POST /api/run, then watch() the execution id it returns. */
   run: (workflowRef: string, nodeIds: string[]) => Promise<void>
+  /** GET /api/executions/{execId} on demand — watch() already calls this at
+   *  the right moments; exposed for a manual refresh or inspecting an
+   *  execution outside the current live stream. */
+  loadAudit: (execId: string) => Promise<void>
   disconnect: () => void
 }
 
@@ -43,6 +63,7 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
     connected: false,
     error: null,
     stop: null,
+    audit: null,
 
     setServerUrl: (url) => set({ serverUrl: url }),
 
@@ -52,11 +73,26 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
         execId,
         {
           onEvent: (ev) => set((s) => ({ live: reduce(s.live, ev) })),
-          onDone: () => set({ connected: false }),
+          onDone: () => {
+            set({ connected: false })
+            void get().loadAudit(execId)
+          },
         },
         { baseUrl: get().serverUrl },
       )
-      set({ live: emptyLive(nodeIds), connected: true, error: null, stop })
+      set({ live: emptyLive(nodeIds), connected: true, error: null, stop, audit: null })
+      void get().loadAudit(execId)
+    },
+
+    loadAudit: async (execId) => {
+      try {
+        const audit = await deps.fetchAudit(get().serverUrl, execId)
+        set({ audit })
+      } catch {
+        // Best-effort: the WS stream (or a retry via onDone) already surfaces
+        // failures for a run in progress — a transient audit-fetch error
+        // (e.g. snapshot not yet flushed) is not fatal to watching it live.
+      }
     },
 
     run: async (workflowRef, nodeIds) => {

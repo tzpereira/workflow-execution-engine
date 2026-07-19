@@ -4,6 +4,7 @@
 // and browser-API-free so the fold itself is unit-tested without a server
 // (ADR 0010, github.com/coder/websocket on the server side).
 
+import type { Audit } from './core/audit'
 import type { WFEvent } from './core/live'
 
 export interface WatchHandlers {
@@ -72,4 +73,18 @@ export async function startRun(baseUrl: string, workflow: string): Promise<strin
   }
   const data = (await res.json()) as RunResponse
   return data.executionId
+}
+
+/** fetchAudit GETs /api/executions/{id}: the frozen Workflow/Workers plus every
+ *  node's outcome and artifact bytes (core/server.Audit) — the Inspector's
+ *  source for Contract/resolved-context/artifact-content, distinct from the
+ *  evolving status the live WebSocket stream feeds (core/live.ts). Works for
+ *  an in-flight execution too (snapshot.json is written before any node runs),
+ *  though not-yet-finished nodes carry no artifact content yet. */
+export async function fetchAudit(baseUrl: string, execId: string): Promise<Audit> {
+  const res = await fetch(`${baseUrl}/api/executions/${encodeURIComponent(execId)}`)
+  if (!res.ok) {
+    throw new Error((await res.text()) || `GET /api/executions/${execId} failed: ${res.status}`)
+  }
+  return (await res.json()) as Audit
 }

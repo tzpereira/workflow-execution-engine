@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type { Audit } from './core/audit'
 import type { WFEvent } from './core/live'
 import { createLiveStore, type LiveDeps } from './liveStore'
+
+function fakeAudit(executionId: string): Audit {
+  return {
+    executionId,
+    workflow: { id: 'wf', version: '1.0.0', nodes: [], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+    budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 },
+    events: [],
+    nodes: {},
+    spentCostUsd: 0,
+    spentTokens: 0,
+    state: 'succeeded',
+  }
+}
 
 function fakeDeps() {
   const stops: Array<() => void> = []
@@ -17,9 +31,10 @@ function fakeDeps() {
   }) as unknown as LiveDeps['watchExecution']
 
   const startRun = vi.fn(async (_url: string, _ref: string) => 'exec-1') as unknown as LiveDeps['startRun']
+  const fetchAudit = vi.fn(async (_url: string, execId: string) => fakeAudit(execId)) as unknown as LiveDeps['fetchAudit']
 
   return {
-    deps: { watchExecution, startRun },
+    deps: { watchExecution, startRun, fetchAudit },
     stops,
     emit: (ev: WFEvent) => capturedOnEvent?.(ev),
     done: () => capturedOnDone?.(),
@@ -103,6 +118,7 @@ describe('liveStore', () => {
       startRun: vi.fn(async () => {
         throw new Error('workflow not found')
       }) as unknown as LiveDeps['startRun'],
+      fetchAudit: vi.fn() as unknown as LiveDeps['fetchAudit'],
     }
     const store = createLiveStore(deps)
     await store.getState().run('missing.yaml', [])
@@ -110,6 +126,27 @@ describe('liveStore', () => {
     expect(store.getState().error).toBe('workflow not found')
     expect(store.getState().connected).toBe(false)
     expect(deps.watchExecution).not.toHaveBeenCalled()
+  })
+
+  it('watch fetches the audit immediately and again once the stream closes', async () => {
+    const { deps, done } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.getState().watch('exec-1', ['a'])
+    await vi.waitFor(() => expect(store.getState().audit?.executionId).toBe('exec-1'))
+    expect(deps.fetchAudit).toHaveBeenCalledTimes(1)
+
+    done()
+    await vi.waitFor(() => expect(deps.fetchAudit).toHaveBeenCalledTimes(2))
+  })
+
+  it('watching a new execution clears the previous audit until the new one loads', () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.getState().watch('exec-1', ['a'])
+    store.getState().watch('exec-2', ['a'])
+
+    // Synchronous assertion, before the fake fetchAudit's microtask resolves.
+    expect(store.getState().audit).toBe(null)
   })
 
   it('setServerUrl changes the base url subsequent calls use', () => {

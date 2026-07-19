@@ -77,6 +77,22 @@ export interface Workflow {
   budget: Budget
 }
 
+// Worker mirrors core/domain.Worker — the full definition behind a node's
+// `worker: "id@version"` reference. The engine pins the resolved Worker into
+// an execution's snapshot at run start (REQ-VERSION-02), so the Inspector
+// (M1.13, REQ-UI-03) reads it from the audit response, never a re-fetched
+// *.worker.yaml file (see core/audit.ts's Audit.workers).
+export interface Worker {
+  id: string
+  version: string
+  objective: string
+  constraints: string[]
+  tools: string[]
+  contextPolicy: ContextPolicy
+  contract: Contract
+  model: ModelConfig
+}
+
 /** A node is worker-backed or tool-backed — exactly one, matching the engine's
  *  graph rule (core/validate/graph.go). */
 export function nodeKind(node: Node): 'worker' | 'tool' | 'invalid' {

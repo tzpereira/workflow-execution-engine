@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { Audit } from './core/audit'
 import type { WFEvent } from './core/live'
-import { startRun, watchExecution } from './liveClient'
+import { fetchAudit, startRun, watchExecution } from './liveClient'
 
 // A minimal fake WebSocket: just enough surface for watchExecution to drive
 // (onmessage/onclose assignment, close()) without a real network connection or
@@ -149,5 +150,39 @@ describe('startRun', () => {
       vi.fn(async () => new Response('workflow not found', { status: 400 })),
     )
     await expect(startRun('http://127.0.0.1:7676', 'missing.yaml')).rejects.toThrow('workflow not found')
+  })
+})
+
+describe('fetchAudit', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('GETs the execution and returns the parsed Audit', async () => {
+    const audit: Audit = {
+      executionId: 'exec-1',
+      workflow: { id: 'wf', version: '1.0.0', nodes: [], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+      budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 },
+      events: [],
+      nodes: {},
+      spentCostUsd: 0,
+      spentTokens: 0,
+      state: 'succeeded',
+    }
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/executions/exec-1')
+      return new Response(JSON.stringify(audit), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchAudit('http://127.0.0.1:7676', 'exec-1')).resolves.toEqual(audit)
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unknown execution', { status: 404 })),
+    )
+    await expect(fetchAudit('http://127.0.0.1:7676', 'missing')).rejects.toThrow('unknown execution')
   })
 })
