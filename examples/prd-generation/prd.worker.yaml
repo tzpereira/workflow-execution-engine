@@ -1,0 +1,36 @@
+# The final artifact — a JSON object with a `markdown` field, not a
+# "markdown"-typed artifact: every Worker's Contract output is validated JSON
+# (core/engine/tool_executor.go's ToolExecutor default mirrors this for
+# tools), so this renders in the Inspector's JSON tree view, not the
+# Markdown viewer — a real, disclosed Phase 1 limitation, not a bug here.
+id: prd
+version: 1.0.0
+objective: Synthesize research, scope, approach, and review verdict into one finished PRD document.
+constraints:
+  - Include the reviewer's verdict and every open issue verbatim — never soften a request-changes into an approve.
+  - The document must stand alone — a reader with none of the upstream artifacts must be able to follow it.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce the final PRD document as one self-contained markdown string.
+  rules:
+    - markdown must include sections for Problem, Goals, Non-Goals, Approach, Risks, and Review Verdict, in that order.
+  successCriteria:
+    - Every goal from pm's output appears in the document; every issue from the reviewer appears in the document.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [title, markdown]
+    properties:
+      title:
+        type: string
+        maxLength: 200
+      markdown:
+        type: string
+model:
+  provider: openai
+  model: gpt-4o
+  params:
+    temperature: 0.1

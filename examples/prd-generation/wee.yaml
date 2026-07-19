@@ -1,0 +1,4 @@
+# See README.md: set PRD_BRIEF_PATH before running (a short brief text file,
+# relative to workspaceRoot). No terminal/http tools needed — read-brief is
+# the only tool-backed node.
+workspaceRoot: .

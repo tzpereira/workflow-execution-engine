@@ -1,0 +1,41 @@
+id: pm
+version: 1.0.0
+objective: Given research findings, scope the feature — problem statement, goals, explicit non-goals, and success metrics.
+constraints:
+  - Every goal must be traceable to a finding or a risk research raised.
+  - non-goals must name things a reader would plausibly assume are in scope, not obvious exclusions.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce a scoped problem statement with goals, non-goals, and success metrics.
+  rules:
+    - Return at most five goals, five non-goals, and five success metrics.
+  successCriteria:
+    - An architect given only this scope could propose an approach without asking clarifying questions.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [problem, goals, nonGoals, successMetrics]
+    properties:
+      problem:
+        type: string
+        maxLength: 500
+      goals:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 200 }
+      nonGoals:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 200 }
+      successMetrics:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 200 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0.2

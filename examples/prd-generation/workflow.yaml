@@ -1,0 +1,46 @@
+# Secondary demo (VISION.md): "research -> PM -> architect -> reviewer -> PRD".
+# A linear chain, each Worker scoped to the minimum it needs (contextPolicy:
+# artifacts naming exactly its one predecessor, or parent-only where a step
+# genuinely needs more than one upstream view) — no tool-backed steps at all,
+# every artifact is a Worker's own structured Contract output.
+#
+# read-brief sources the topic the same way examples/bug-investigation's
+# read-logs does — an env-var-supplied path (see README.md for
+# PRD_BRIEF_PATH), since Phase 1 has no workflow-level "inputs" concept.
+id: prd-generation
+version: 1.0.0
+nodes:
+  - id: read-brief
+    tool:
+      toolName: filesystem
+      input:
+        op: read
+        path: "${env:PRD_BRIEF_PATH}"
+
+  - id: research
+    worker: research@1.0.0
+  - id: pm
+    worker: pm@1.0.0
+  - id: architect
+    worker: architect@1.0.0
+  - id: reviewer
+    worker: prd-reviewer@1.0.0
+  - id: prd
+    worker: prd@1.0.0
+
+edges:
+  - { from: read-brief, to: research }
+  - { from: research, to: pm }
+  - { from: pm, to: architect }
+  - { from: pm, to: reviewer }
+  - { from: architect, to: reviewer }
+  - { from: research, to: prd }
+  - { from: pm, to: prd }
+  - { from: architect, to: prd }
+  - { from: reviewer, to: prd }
+
+budget:
+  maxCostUsd: 0.30
+  maxTokens: 100000
+  maxDurationMs: 120000
+  maxRetriesPerNode: 2

@@ -1,0 +1,39 @@
+id: research
+version: 1.0.0
+objective: Read a short feature brief and produce structured research findings — prior art, constraints, and risks a PM should know before scoping.
+constraints:
+  - Judge only what the brief states; do not invent market data you cannot ground in the brief.
+  - Flag every risk the brief itself implies, even if the brief doesn't name it as a risk.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [read-brief]
+contract:
+  goal: Produce structured research findings for the feature brief.
+  rules:
+    - Return at most five findings and five risks.
+  successCriteria:
+    - A PM given only these findings could scope the feature without re-reading the brief.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [findings, risks, competitiveNotes]
+    properties:
+      findings:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 300 }
+      risks:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 300 }
+      competitiveNotes:
+        type: string
+        maxLength: 500
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0.2

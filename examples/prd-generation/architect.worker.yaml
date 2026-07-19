@@ -1,0 +1,37 @@
+id: architect
+version: 1.0.0
+objective: Given a scoped PRD (problem, goals, non-goals, success metrics), propose a technical approach — major components and the risks the approach itself introduces.
+constraints:
+  - Only propose components needed to satisfy the stated goals — nothing for non-goals.
+  - Name every risk the approach itself introduces, distinct from the risks research already raised.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce a technical approach for the scoped feature.
+  rules:
+    - Return at most six major components and five approach risks.
+  successCriteria:
+    - A reviewer given only goals + this approach can judge whether the approach actually satisfies the goals.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [approach, majorComponents, risks]
+    properties:
+      approach:
+        type: string
+        maxLength: 800
+      majorComponents:
+        type: array
+        maxItems: 6
+        items: { type: string, maxLength: 200 }
+      risks:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 200 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0.2

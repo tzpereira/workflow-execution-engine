@@ -1,0 +1,32 @@
+id: prd-reviewer
+version: 1.0.0
+objective: Judge whether the proposed technical approach actually satisfies the PM's stated goals, and flag anything the approach's own risks leave unaddressed.
+constraints:
+  - Judge the approach against goals/non-goals only — do not introduce new scope of your own.
+  - request-changes if any stated goal has no component addressing it.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce a verdict on whether the approach satisfies the scoped goals.
+  rules:
+    - Return at most five issues, most severe first.
+  successCriteria:
+    - Every stated goal is checked against at least one component in the approach.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, issues]
+    properties:
+      verdict:
+        enum: [approve, request-changes]
+      issues:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 300 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
