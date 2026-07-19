@@ -91,6 +91,14 @@ type RunOptions struct {
 	// — a caller (the registry, via DefinitionHashes(wf)) computes it. Optional:
 	// nil leaves the snapshot byte-identical to a run that never pinned anything.
 	DefinitionHashes map[string]string
+	// Workers pins the full resolved Worker definition (goal, contract,
+	// contextPolicy) behind each "id@version" DefinitionHashes also names —
+	// recorded in the snapshot so the Inspector (M1.13, REQ-UI-03) can render a
+	// node's Contract from the execution record alone, without re-reading the
+	// original *.worker.yaml file. Same opaque-provenance treatment: a caller
+	// (the registry, via Workers(wf)) computes it; nil is byte-identical to a run
+	// that pinned nothing.
+	Workers map[string]domain.Worker
 }
 
 // Scheduler runs workflows against a NodeExecutor, persisting artifacts and
@@ -233,7 +241,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	cacheMode := s.normalizeCacheMode(opts.Cache)
 
 	if fresh {
-		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes}); err != nil {
+		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers}); err != nil {
 			return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, fmt.Errorf("engine: write snapshot: %w", err)
 		}
 		s.emit(execID, domain.ExecutionStarted, "", map[string]any{"workflow": wf.ID, "version": wf.Version})

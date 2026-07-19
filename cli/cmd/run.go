@@ -95,6 +95,7 @@ func runRun(cmd *cobra.Command, path string, f runFlags) error {
 		Budget:           budgetFor(asm.Workflow, f.budget),
 		Cache:            cacheMode,
 		DefinitionHashes: asm.Registry.DefinitionHashes(*asm.Workflow),
+		Workers:          asm.Registry.Workers(*asm.Workflow),
 	}
 
 	type outcome struct {

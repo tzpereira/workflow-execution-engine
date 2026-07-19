@@ -20,6 +20,10 @@ type Snapshot struct {
 	// used (REQ-VERSION-02). omitempty keeps a run that pinned nothing (e.g. a
 	// bare test, or a run not driven by a registry) byte-identical to before.
 	DefinitionHashes map[string]string `json:"definitionHashes,omitempty"`
+	// Workers pins the full resolved Worker definition behind each
+	// DefinitionHashes entry (REQ-UI-03) — see RunOptions.Workers. omitempty for
+	// the same byte-identical-when-unused reason as DefinitionHashes.
+	Workers map[string]domain.Worker `json:"workers,omitempty"`
 }
 
 // Resume restarts an execution from its recorded state. It reads the snapshot

@@ -74,6 +74,7 @@ func runStarter(dir, workspace string, cache engine.CacheMode) server.StartFunc 
 			Budget:           asm.Workflow.Budget,
 			Cache:            cache,
 			DefinitionHashes: asm.Registry.DefinitionHashes(*asm.Workflow),
+			Workers:          asm.Registry.Workers(*asm.Workflow),
 		}
 		go func() { _, _ = asm.Scheduler.Run(context.Background(), asm.Workflow, opts) }()
 		return execID, nil
