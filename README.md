@@ -37,6 +37,21 @@ go build -o wee ./cli
 Then follow [docs/TUTORIAL.md](docs/TUTORIAL.md) — a hands-on, copy-pasteable terminal walkthrough (`run`,
 `inspect`, `replay`, `cache`, `export`), every command grounded in real output.
 
+### Running the CLI and UI together
+
+`make dev` builds the CLI, installs the UI's dependencies, and starts `wee serve` (`127.0.0.1:7676`) and the
+Vite dev server (`localhost:5173`) together — one Ctrl-C stops both (`make stop` if anything lingers). Put an
+`OPENAI_API_KEY=...` (or `ANTHROPIC_API_KEY=...`) in a `.env` file at the repo root first if you want to run
+an LLM-backed workflow from the UI — `wee` doesn't read `.env` itself, `make dev` sources it for you.
+
+```sh
+make dev                          # --dir defaults to the repo root
+make dev DIR=examples/pr-review   # so the UI's Run button resolves files imported from that folder
+```
+
+`make build` (CLI only), `make serve` (backend only), and `make ui` (frontend only) are also available — see
+the `Makefile` for the full list and overridable variables (`ADDR`, `UI_PORT`, `WORKSPACE`, `DIR`).
+
 ## Documentation
 
 Start at [AGENTS.md](AGENTS.md) — the index into the constitution (binding laws), vision (why), specs (what,
