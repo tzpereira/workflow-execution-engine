@@ -106,6 +106,8 @@ func TestListAndAudit(t *testing.T) {
 		t.Fatalf("write snapshot: %v", err)
 	}
 	appendEvent(t, log, done, domain.ExecutionStarted, "", map[string]any{"workflow": "wf", "version": "2.0.0"})
+	appendEvent(t, log, done, domain.WorkerFinished, "a", map[string]any{"costUsd": 0.03, "tokens": 100.0})
+	appendEvent(t, log, done, domain.WorkerFinished, "b", map[string]any{"costUsd": 0.02, "tokens": 50.0})
 	appendEvent(t, log, done, domain.ExecutionFinished, "", map[string]any{"state": "succeeded"})
 	seed(t, log, live)
 	appendEvent(t, log, live, domain.ExecutionStarted, "", map[string]any{"workflow": "wf", "version": "2.0.0"})
@@ -119,8 +121,10 @@ func TestListAndAudit(t *testing.T) {
 		t.Fatalf("want 2 executions, got %d", len(list))
 	}
 	states := map[string]string{}
+	summaries := map[string]ExecutionSummary{}
 	for _, e := range list {
 		states[e.ID] = e.State
+		summaries[e.ID] = e
 	}
 	if states[done] != "succeeded" {
 		t.Errorf("finished run state = %q, want succeeded", states[done])
@@ -128,10 +132,21 @@ func TestListAndAudit(t *testing.T) {
 	if states[live] != "running" {
 		t.Errorf("in-flight run state = %q, want running", states[live])
 	}
+	// M1.14: the history table's cost/tokens/duration columns (REQ-METRIC-01/02)
+	// summed across both WorkerFinished events, cheap from the event log alone.
+	if got := summaries[done]; got.SpentCostUSD != 0.05 || got.SpentTokens != 150 {
+		t.Errorf("done summary cost/tokens = %v/%v, want 0.05/150", got.SpentCostUSD, got.SpentTokens)
+	}
+	if summaries[done].DurationMs < 0 {
+		t.Errorf("done summary DurationMs = %d, want >= 0", summaries[done].DurationMs)
+	}
+	if got := summaries[live].DurationMs; got != 0 {
+		t.Errorf("in-flight run DurationMs = %d, want 0 (no ExecutionFinished yet)", got)
+	}
 
 	var audit Audit
 	getJSON(t, ts.URL+"/api/executions/"+done, &audit)
-	if audit.Workflow.Version != "2.0.0" || len(audit.Events) != 2 {
+	if audit.Workflow.Version != "2.0.0" || len(audit.Events) != 4 {
 		t.Fatalf("audit mismatch: version=%q events=%d", audit.Workflow.Version, len(audit.Events))
 	}
 	if audit.State != "succeeded" {

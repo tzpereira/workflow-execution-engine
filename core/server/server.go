@@ -90,12 +90,22 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // ExecutionSummary is one row of GET /api/executions. Workflow/Version come from
 // the ExecutionStarted event; State is "running" until an ExecutionFinished
 // event carries the terminal state (PRIN-02: derived from the log, not a
-// separate status store).
+// separate status store). SpentCostUSD/SpentTokens/DurationMs are cheap to
+// derive from the same event read as everything else here (M1.14's history
+// table, REQ-METRIC-01/02) — unlike the Inspector's per-node metrics (M1.13's
+// richer Audit), a list row never needs artifact bytes, so this stays a plain
+// event-log summary, no core/store touch.
 type ExecutionSummary struct {
-	ID       string `json:"id"`
-	Workflow string `json:"workflow"`
-	Version  string `json:"version"`
-	State    string `json:"state"`
+	ID           string  `json:"id"`
+	Workflow     string  `json:"workflow"`
+	Version      string  `json:"version"`
+	State        string  `json:"state"`
+	SpentCostUSD float64 `json:"spentCostUsd"`
+	SpentTokens  int64   `json:"spentTokens"`
+	// DurationMs is 0 until ExecutionFinished (an in-flight run's duration is
+	// the live client's own concern, ticked from ExecutionStarted — the same
+	// pattern Timeline.tsx already uses for a running node's bar).
+	DurationMs int64 `json:"durationMs"`
 }
 
 func (s *Server) handleList(w http.ResponseWriter, _ *http.Request) {
@@ -234,16 +244,29 @@ func (s *Server) summarize(id string) ExecutionSummary {
 // "running" and is overwritten only by a terminal ExecutionFinished.
 func summarize(id string, events []domain.Event) ExecutionSummary {
 	sum := ExecutionSummary{ID: id, State: "running"}
+	var startedAt, finishedAt time.Time
 	for _, ev := range events {
 		switch ev.Type {
 		case domain.ExecutionStarted:
 			sum.Workflow, _ = ev.Payload["workflow"].(string)
 			sum.Version, _ = ev.Payload["version"].(string)
+			startedAt = ev.Timestamp
 		case domain.ExecutionFinished:
 			if st, ok := ev.Payload["state"].(string); ok {
 				sum.State = st
 			}
+			finishedAt = ev.Timestamp
+		case domain.WorkerFinished:
+			if c, ok := ev.Payload["costUsd"].(float64); ok {
+				sum.SpentCostUSD += c
+			}
+			if t, ok := ev.Payload["tokens"].(float64); ok {
+				sum.SpentTokens += int64(t)
+			}
 		}
+	}
+	if !startedAt.IsZero() && !finishedAt.IsZero() {
+		sum.DurationMs = finishedAt.Sub(startedAt).Milliseconds()
 	}
 	return sum
 }
