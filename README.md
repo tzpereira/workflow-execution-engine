@@ -49,6 +49,11 @@ make dev                          # --dir defaults to the repo root
 make dev DIR=examples/pr-review   # so the UI's Run button resolves files imported from that folder
 ```
 
+Nothing appears on the canvas by itself — `make dev` only starts the two servers. Open
+[localhost:5173](http://localhost:5173), click **Import**, and pick a workflow file (e.g.
+`examples/pr-review/workflow.yaml`, matching whatever `DIR` you started with) — only then does **Run**
+resolve it correctly.
+
 `make build` (CLI only), `make serve` (backend only), and `make ui` (frontend only) are also available — see
 the `Makefile` for the full list and overridable variables (`ADDR`, `UI_PORT`, `WORKSPACE`, `DIR`).
 

@@ -50,6 +50,12 @@ ui: ui-deps
 dev: build ui-deps stop
 	@echo "wee serve   -> http://$(ADDR)"
 	@echo "ui (vite)   -> http://localhost:$(UI_PORT)"
+	@echo ""
+	@echo "Nothing loads on the canvas by itself — open the UI, click Import, and"
+	@echo "pick a workflow file from $(DIR) (e.g. $(DIR)/workflow.yaml if that's an"
+	@echo "example folder). DIR only tells the server where to resolve Run against;"
+	@echo "it doesn't put anything on screen until you import it yourself."
+	@echo ""
 	@echo "Ctrl-C stops both (falls back to 'make stop' if anything lingers)."
 	@trap '$(MAKE) stop >/dev/null 2>&1' INT TERM EXIT; \
 	( if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
