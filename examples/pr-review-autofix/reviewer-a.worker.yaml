@@ -1,0 +1,55 @@
+# Reviewer A: style & correctness. One of three parallel reviewers sharing
+# the exact same tight-Contract shape as examples/pr-review/reviewer.worker.yaml
+# (anti-slop, PRIN-08) — only the objective/constraints differ per reviewer.
+id: reviewer-a
+version: 1.0.0
+objective: Review a unified diff for style and correctness issues — naming, formatting, dead code, obvious logic errors.
+constraints:
+  - Judge only what the diff shows; do not assume unshown context.
+  - Cite a line number for every issue.
+  - Do not comment on security or performance — the other two reviewers own those.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff]
+contract:
+  goal: Produce a structured style/correctness verdict for the diff.
+  rules:
+    - Return at most five issues, most severe first.
+    - Every issue names a severity, a line, and a one-line message.
+  successCriteria:
+    - No obvious style or correctness defect in the diff is left unreported.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, score, issues]
+    properties:
+      verdict:
+        enum: [approve, request-changes, comment]
+      score:
+        type: integer
+        minimum: 0
+        maximum: 100
+      issues:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [severity, line, message]
+          properties:
+            severity:
+              enum: [critical, major, minor, nit]
+            line:
+              type: integer
+              minimum: 0
+            message:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

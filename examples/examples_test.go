@@ -52,6 +52,49 @@ func TestExamplesAreValid(t *testing.T) {
 	}
 }
 
+// TestFlagshipIsValid is the M1.14/M1.15 flagship (pulled forward so the
+// Template gallery has a real bundle) — same schema/graph validation as the
+// other examples, plus a check that the parallel-reviewer shape VISION.md
+// describes is actually present.
+func TestFlagshipIsValid(t *testing.T) {
+	v, err := validate.NewValidator()
+	if err != nil {
+		t.Fatalf("NewValidator: %v", err)
+	}
+
+	wf := readWorkflow(t, "pr-review-autofix/workflow.yaml")
+	if err := v.Validate(validate.KindWorkflow, wf, nil); err != nil {
+		t.Errorf("pr-review-autofix/workflow.yaml failed schema validation:\n%v", err)
+	}
+	if err := validate.Graph(&wf, nil); err != nil {
+		t.Errorf("pr-review-autofix/workflow.yaml failed graph validation:\n%v", err)
+	}
+
+	parallel := map[string]bool{"reviewer-a": false, "reviewer-b": false, "security-reviewer": false}
+	for _, e := range wf.Edges {
+		if e.From == "fetch-diff" {
+			if _, ok := parallel[e.To]; ok {
+				parallel[e.To] = true
+			}
+		}
+	}
+	for id, fedByDiff := range parallel {
+		if !fedByDiff {
+			t.Errorf("%s should be a direct child of fetch-diff (the parallel-reviewer shape VISION.md describes)", id)
+		}
+	}
+
+	for _, rel := range []string{"reviewer-a.worker.yaml", "reviewer-b.worker.yaml", "security-reviewer.worker.yaml", "fixer.worker.yaml"} {
+		w := readWorker(t, "pr-review-autofix/"+rel)
+		if err := v.Validate(validate.KindWorker, w, nil); err != nil {
+			t.Errorf("%s failed schema validation:\n%v", rel, err)
+		}
+		if _, err := validate.CompileSchema(w.Contract.OutputSchema); err != nil {
+			t.Errorf("%s output schema does not compile: %v", rel, err)
+		}
+	}
+}
+
 // TestExampleContractsAreTight locks in REQ-CONTRACT-04: the flagship example's
 // output schema uses bounded arrays, bounded strings, and enums — the anti-slop
 // shape templates inherit. A future example that drops these bounds fails here.

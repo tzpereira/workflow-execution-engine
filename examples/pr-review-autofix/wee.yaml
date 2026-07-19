@@ -1,0 +1,11 @@
+# Tool wiring this example needs (deny-first, PRIN-10 — nothing runs unless
+# allowlisted here). workspaceRoot must point at a real, writable git
+# checkout of the target repository for apply-fix/test/stage/commit to do
+# anything meaningful; "go test ./..." only fits a Go repo — swap it for
+# whatever this target repo's own test command is.
+workspaceRoot: .
+terminal:
+  allow: ["go"]
+  timeoutMs: 60000
+http:
+  allow: ["api.github.com"]

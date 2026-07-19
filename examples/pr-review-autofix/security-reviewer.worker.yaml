@@ -1,0 +1,57 @@
+# Security Reviewer: the third of three parallel, diff-scoped reviewers —
+# vulnerabilities only (injection, auth/authz gaps, unsafe deserialization,
+# secrets, path traversal). Same tight Contract shape as its two siblings on
+# purpose: one schema the Fixer already knows how to read from all three,
+# not three different formats to reconcile.
+id: security-reviewer
+version: 1.0.0
+objective: Review a unified diff for security vulnerabilities only — injection, auth/authz gaps, unsafe deserialization, secrets, path traversal.
+constraints:
+  - Judge only what the diff shows; do not assume unshown context.
+  - Cite a line number for every issue.
+  - Do not comment on style, naming, or performance — the other two reviewers own those.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff]
+contract:
+  goal: Produce a structured vulnerability verdict for the diff.
+  rules:
+    - Return at most five issues, most severe first.
+    - Every issue names a severity, a line, and a one-line message describing the vulnerability class.
+  successCriteria:
+    - No introduced vulnerability visible in the diff is left unreported.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, score, issues]
+    properties:
+      verdict:
+        enum: [approve, request-changes, comment]
+      score:
+        type: integer
+        minimum: 0
+        maximum: 100
+      issues:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [severity, line, message]
+          properties:
+            severity:
+              enum: [critical, major, minor, nit]
+            line:
+              type: integer
+              minimum: 0
+            message:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

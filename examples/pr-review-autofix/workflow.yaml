@@ -1,0 +1,115 @@
+# The flagship demo (VISION.md "Pull Request Review & Auto-Fix"), pulled
+# forward into M1.14 so the Template gallery has a real bundle to import
+# (EXECUTION.md M1.14/M1.15). Every differentiator the project claims, in one
+# graph: three reviewers in parallel with a scoped context policy each, an LLM
+# Fixer gated by a conditional edge, real tool-backed test/commit steps, and
+# node-cache reuse across re-runs.
+#
+# fetch-diff
+#   +-- reviewer-a        (style & correctness)
+#   +-- reviewer-b        (adversarial — assumes the diff is wrong)
+#   +-- security-reviewer (vulnerabilities)      <- all three in parallel
+#         v
+#       fixer        (reads the diff + all three reviews)
+#         v (conditional: shouldFix == true)
+#       apply-fix    (tool: filesystem, writes fixer's corrected file)
+#         v
+#       test          (tool: terminal)
+#         v
+#       stage         (tool: git add)
+#         v
+#       commit        (tool: git commit)
+#
+# Reviewer context policy: `artifacts` naming fetch-diff by id, not
+# `diff-only` by artifact TYPE — the generic `http` tool (core/tool/http)
+# never implements the optional ArtifactType() method terminal.Tool does
+# (core/engine/tool_executor.go defaults every tool's output to
+# domain.ArtifactJSON), so fetch-diff's output is tagged "json", not "diff".
+# A `diff-only` policy would filter it out entirely (REQ-CTXPOL-01's "nothing
+# more" cuts both ways) and every reviewer would see nothing. `artifacts`
+# mode filters by producing-node id instead of artifact type, so it admits
+# fetch-diff's output regardless of its type tag — same effect (each
+# reviewer sees only the diff, never a sibling's output), achieved with the
+# mechanism that actually works against today's tool wiring.
+#
+# Same whole-string-placeholder rule as github-pr-review (REQ-WORKER-06):
+# GH_PR_URL/GITHUB_AUTH_HEADER are each one precomposed env var. apply-fix's
+# path/content are two separate fields, each its own whole-string
+# placeholder — never concatenated into one string, so the rule isn't hit.
+#
+# Requires (see README.md): GH_PR_URL, GITHUB_AUTH_HEADER set; a wee.yaml
+# allowlisting the terminal command this repo's tests run with and pointing
+# WorkspaceRoot at a real git checkout of the target repo; OPENAI_API_KEY (or
+# ANTHROPIC_API_KEY, per each worker's model.provider) for the four LLM
+# Workers. Per-repo tuning (test command, timeouts, budget) is expected —
+# see M1.15's validation notes once run against real repositories.
+id: pr-review-autofix
+version: 1.0.0
+nodes:
+  - id: fetch-diff
+    tool:
+      toolName: http
+      input:
+        method: GET
+        url: "${env:GH_PR_URL}"
+        headers:
+          Accept: "application/vnd.github.diff"
+          Authorization: "${env:GITHUB_AUTH_HEADER}"
+
+  - id: reviewer-a
+    worker: reviewer-a@1.0.0
+  - id: reviewer-b
+    worker: reviewer-b@1.0.0
+  - id: security-reviewer
+    worker: security-reviewer@1.0.0
+
+  - id: fixer
+    worker: fixer@1.0.0
+
+  - id: apply-fix
+    tool:
+      toolName: filesystem
+      input:
+        op: write
+        path: "${fixer.path}"
+        content: "${fixer.content}"
+
+  - id: test
+    tool:
+      toolName: terminal
+      input:
+        command: go
+        args: ["test", "./..."]
+
+  - id: stage
+    tool:
+      toolName: git
+      input:
+        op: add
+        paths: ["${fixer.path}"]
+
+  - id: commit
+    tool:
+      toolName: git
+      input:
+        op: commit
+        message: "${fixer.commitMessage}"
+
+edges:
+  - { from: fetch-diff, to: reviewer-a }
+  - { from: fetch-diff, to: reviewer-b }
+  - { from: fetch-diff, to: security-reviewer }
+  - { from: fetch-diff, to: fixer }
+  - { from: reviewer-a, to: fixer }
+  - { from: reviewer-b, to: fixer }
+  - { from: security-reviewer, to: fixer }
+  - { from: fixer, to: apply-fix, condition: { path: shouldFix, op: truthy } }
+  - { from: apply-fix, to: test }
+  - { from: test, to: stage }
+  - { from: stage, to: commit }
+
+budget:
+  maxCostUsd: 0.50
+  maxTokens: 150000
+  maxDurationMs: 180000
+  maxRetriesPerNode: 2

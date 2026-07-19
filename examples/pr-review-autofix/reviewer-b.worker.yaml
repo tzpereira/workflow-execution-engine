@@ -1,0 +1,58 @@
+# Reviewer B: adversarial — the second of three parallel, diff-scoped
+# reviewers. Deliberately starts from "this is wrong until proven otherwise"
+# so it catches what a charitable read (Reviewer A) would let slide; each
+# reviewer's contextPolicy admits only fetch-diff's own output, never a
+# sibling's, so this adversarial framing can't bias or be biased by the
+# others (REQ-CTXPOL-01).
+id: reviewer-b
+version: 1.0.0
+objective: Review a unified diff assuming it is wrong until the diff itself proves otherwise — the adversarial second opinion.
+constraints:
+  - Judge only what the diff shows; do not assume unshown context.
+  - Cite a line number for every issue.
+  - Actively look for edge cases and assumptions the diff's author may have missed.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff]
+contract:
+  goal: Produce a structured, adversarial verdict for the diff.
+  rules:
+    - Return at most five issues, most severe first.
+    - Every issue names a severity, a line, and a one-line message.
+  successCriteria:
+    - No plausible edge case or unstated assumption in the diff is left unreported.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, score, issues]
+    properties:
+      verdict:
+        enum: [approve, request-changes, comment]
+      score:
+        type: integer
+        minimum: 0
+        maximum: 100
+      issues:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [severity, line, message]
+          properties:
+            severity:
+              enum: [critical, major, minor, nit]
+            line:
+              type: integer
+              minimum: 0
+            message:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0.3
