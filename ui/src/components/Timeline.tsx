@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { bars, type NodeStatus } from '../core/live'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
+import { EventList } from './EventList'
 
 type Tab = 'timeline' | 'artifacts' | 'logs'
 
@@ -121,15 +122,7 @@ export function Timeline() {
 
         {tab === 'logs' &&
           (live.events.length > 0 ? (
-            <ul className="space-y-0.5 font-mono">
-              {live.events.map((ev, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-neutral-400">{new Date(ev.timestamp).toLocaleTimeString()}</span>
-                  <span className="text-neutral-900">{ev.type}</span>
-                  {ev.nodeId && <span className="text-neutral-500">{ev.nodeId}</span>}
-                </li>
-              ))}
-            </ul>
+            <EventList events={live.events} nodeOptions={nodes.map((n) => n.id)} />
           ) : (
             <p className="text-neutral-400">{isWatching ? 'no events yet' : 'Event logs appear here once a run streams in.'}</p>
           ))}

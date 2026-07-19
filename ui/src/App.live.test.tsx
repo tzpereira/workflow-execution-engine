@@ -100,9 +100,10 @@ describe('live execution renders end to end', () => {
     expect(screen.getByText('json')).toBeInTheDocument()
     expect(screen.getByText('test-result')).toBeInTheDocument()
 
-    // Logs tab shows the raw event stream.
+    // Logs tab shows the raw event stream (also the type-filter <select>'s own
+    // options, hence getAllByText — the log row itself is a <span>).
     fireEvent.click(screen.getByRole('button', { name: 'logs' }))
-    expect(screen.getByText('ExecutionFinished')).toBeInTheDocument()
+    expect(screen.getAllByText('ExecutionFinished').some((el) => el.tagName === 'SPAN')).toBe(true)
   })
 
   it('marks a cache-hit node distinctly from a fresh success', () => {
