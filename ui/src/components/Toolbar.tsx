@@ -9,7 +9,7 @@ import { useWorkspace } from '../store'
 // connection state (REQ-UI-02). Import reads a Core YAML/JSON file into the
 // canvas; Export writes the canvas back out as a Core definition — the
 // round-trip REQ-UI-01 requires.
-export function Toolbar({ onOpenPalette }: { onOpenPalette: () => void }) {
+export function Toolbar({ onOpenPalette, onOpenTemplates }: { onOpenPalette: () => void; onOpenTemplates: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const meta = useWorkspace((s) => s.meta)
   const fileName = useWorkspace((s) => s.fileName)
@@ -87,6 +87,9 @@ export function Toolbar({ onOpenPalette }: { onOpenPalette: () => void }) {
         </button>
         <button type="button" className="btn" onClick={onExport}>
           Export
+        </button>
+        <button type="button" className="btn" onClick={onOpenTemplates}>
+          Templates
         </button>
         <button type="button" className="btn" onClick={onOpenPalette} title="Command palette (⌘K)">
           ⌘K
