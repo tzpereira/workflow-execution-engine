@@ -49,6 +49,18 @@ programmed to spend**:
 Closer to GitHub Actions, Temporal, Raycast, Linear, VS Code, Figma — than to LangFlow, Flowise, CrewAI
 playgrounds, or prompt builders. The product is about **engineering systems**, not chatting with AI.
 
+## What WEE is not
+
+WEE is not an integration platform like n8n or Zapier.
+
+Those systems automate APIs and business processes.
+
+WEE executes engineering processes.
+
+A pull request review, an architecture review, or a product requirements workflow is not a chain of API calls—it is a versioned, observable, replayable program whose workers may happen to include language models.
+
+Likewise, WEE is not an AI agent framework. Models are workers inside the runtime, not the runtime itself.
+
 ### Where WEE lives
 
 In the places engineering work already happens — never in a chat window:
