@@ -95,6 +95,80 @@ func TestFlagshipIsValid(t *testing.T) {
 	}
 }
 
+// TestSecondaryDemosAreValid covers the three secondary demos (VISION.md,
+// M1.14's template gallery): bug-investigation, prd-generation,
+// architecture-review — every workflow validates against schema+graph rules,
+// and every sibling Worker's Contract compiles.
+func TestSecondaryDemosAreValid(t *testing.T) {
+	v, err := validate.NewValidator()
+	if err != nil {
+		t.Fatalf("NewValidator: %v", err)
+	}
+	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review"} {
+		validateExampleDir(t, v, dir)
+	}
+}
+
+// TestBugInvestigationHasVerifierNode locks in REQ-CONTRACT-05: verify-patch
+// is a distinct Worker from patch (the producer it judges), gating a
+// conditional edge — never the producer gating itself.
+func TestBugInvestigationHasVerifierNode(t *testing.T) {
+	wf := readWorkflow(t, "bug-investigation/workflow.yaml")
+	var gate *domain.Edge
+	for i, e := range wf.Edges {
+		if e.To == "apply-patch" {
+			gate = &wf.Edges[i]
+		}
+	}
+	if gate == nil || gate.Condition == nil {
+		t.Fatal("apply-patch should be gated by a conditional edge")
+	}
+	if gate.From == "patch" {
+		t.Error("the gate should come from verify-patch (a separate judge), not from patch (the producer) itself")
+	}
+	if gate.From != "verify-patch" {
+		t.Errorf("gate.From = %q, want verify-patch", gate.From)
+	}
+}
+
+// validateExampleDir validates dir's workflow.yaml (schema + graph) plus
+// every sibling *.worker.yaml (schema + compilable output Contract) — the
+// same checks TestExamplesAreValid/TestFlagshipIsValid apply by hand, kept
+// here as a helper so a new example directory is one line to cover.
+func validateExampleDir(t *testing.T, v *validate.Validator, dir string) {
+	t.Helper()
+	wf := readWorkflow(t, filepath.Join(dir, "workflow.yaml"))
+	if err := v.Validate(validate.KindWorkflow, wf, nil); err != nil {
+		t.Errorf("%s/workflow.yaml failed schema validation:\n%v", dir, err)
+	}
+	if err := validate.Graph(&wf, nil); err != nil {
+		t.Errorf("%s/workflow.yaml failed graph validation:\n%v", dir, err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir %s: %v", dir, err)
+	}
+	found := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".worker.yaml") {
+			continue
+		}
+		found++
+		rel := filepath.Join(dir, e.Name())
+		w := readWorker(t, rel)
+		if err := v.Validate(validate.KindWorker, w, nil); err != nil {
+			t.Errorf("%s failed schema validation:\n%v", rel, err)
+		}
+		if _, err := validate.CompileSchema(w.Contract.OutputSchema); err != nil {
+			t.Errorf("%s output schema does not compile: %v", rel, err)
+		}
+	}
+	if found == 0 {
+		t.Errorf("%s: no *.worker.yaml files found", dir)
+	}
+}
+
 // TestExampleContractsAreTight locks in REQ-CONTRACT-04: the flagship example's
 // output schema uses bounded arrays, bounded strings, and enums — the anti-slop
 // shape templates inherit. A future example that drops these bounds fails here.

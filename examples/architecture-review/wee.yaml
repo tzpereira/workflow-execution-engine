@@ -1,0 +1,4 @@
+# See README.md: set ARCH_SPEC_PATH before running (a design spec text file,
+# relative to workspaceRoot). No terminal/http tools needed — read-spec is
+# the only tool-backed node.
+workspaceRoot: .

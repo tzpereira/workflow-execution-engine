@@ -1,0 +1,34 @@
+id: backend-reviewer
+version: 1.0.0
+objective: Review a design spec for backend implications — data model, API surface, service boundaries, failure modes.
+constraints:
+  - Judge only what the spec states; do not assume an implementation the spec doesn't describe.
+  - Do not comment on frontend, security, or performance — the other three reviewers own those.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [read-spec]
+contract:
+  goal: Produce a structured backend-implications verdict for the spec.
+  rules:
+    - Return at most five concerns, most severe first.
+  successCriteria:
+    - No backend implication the spec implies is left unreported.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, concerns]
+    properties:
+      verdict:
+        enum: [approve, request-changes, comment]
+      concerns:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 300 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

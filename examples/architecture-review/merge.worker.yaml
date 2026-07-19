@@ -1,0 +1,35 @@
+id: merge
+version: 1.0.0
+objective: Synthesize four independent reviews (backend, frontend, security, performance) into one merge verdict for the spec.
+constraints:
+  - request-changes if any of the four reviewers requested changes — never soften a request-changes into an approve.
+  - Attribute every mustFix item to the reviewer who raised it.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce a single merge verdict synthesizing all four reviews.
+  rules:
+    - mustFix lists only concerns from reviewers whose verdict was request-changes.
+  successCriteria:
+    - The merge verdict is never more permissive than the strictest of the four reviews.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [verdict, summary, mustFix]
+    properties:
+      verdict:
+        enum: [approve, request-changes]
+      summary:
+        type: string
+        maxLength: 500
+      mustFix:
+        type: array
+        maxItems: 10
+        items: { type: string, maxLength: 300 }
+model:
+  provider: openai
+  model: gpt-4o
+  params:
+    temperature: 0

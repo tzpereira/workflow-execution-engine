@@ -1,0 +1,45 @@
+# Secondary demo (VISION.md): "spec -> backend -> frontend -> security ->
+# performance -> merge". Same parallel-fan-out-then-merge shape as the
+# flagship (examples/pr-review-autofix) — four independent reviewers, each
+# scoped to see only the spec, feeding a merge Worker that reads all four —
+# applied here to a design spec instead of a PR diff.
+#
+# read-spec sources the document the same way the other examples' read-*
+# nodes do — an env-var-supplied path (see README.md for ARCH_SPEC_PATH).
+id: architecture-review
+version: 1.0.0
+nodes:
+  - id: read-spec
+    tool:
+      toolName: filesystem
+      input:
+        op: read
+        path: "${env:ARCH_SPEC_PATH}"
+
+  - id: backend
+    worker: backend-reviewer@1.0.0
+  - id: frontend
+    worker: frontend-reviewer@1.0.0
+  - id: security
+    worker: security-reviewer@1.0.0
+  - id: performance
+    worker: performance-reviewer@1.0.0
+
+  - id: merge
+    worker: merge@1.0.0
+
+edges:
+  - { from: read-spec, to: backend }
+  - { from: read-spec, to: frontend }
+  - { from: read-spec, to: security }
+  - { from: read-spec, to: performance }
+  - { from: backend, to: merge }
+  - { from: frontend, to: merge }
+  - { from: security, to: merge }
+  - { from: performance, to: merge }
+
+budget:
+  maxCostUsd: 0.30
+  maxTokens: 100000
+  maxDurationMs: 120000
+  maxRetriesPerNode: 2
