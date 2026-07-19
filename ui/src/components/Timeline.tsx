@@ -4,8 +4,10 @@ import { bars, type NodeStatus } from '../core/live'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 import { EventList } from './EventList'
+import { HistoryTable } from './HistoryTable'
+import { MetricsPanel } from './MetricsPanel'
 
-type Tab = 'timeline' | 'artifacts' | 'logs'
+type Tab = 'timeline' | 'artifacts' | 'logs' | 'metrics' | 'history'
 
 const barColor: Record<NodeStatus, string> = {
   pending: 'bg-neutral-200',
@@ -25,6 +27,7 @@ export function Timeline() {
   const [tab, setTab] = useState<Tab>('timeline')
   const nodes = useWorkspace((s) => s.nodes)
   const live = useLive((s) => s.live)
+  const audit = useLive((s) => s.audit)
   const isWatching = live.state !== 'idle'
 
   // A running node's bar must keep growing between events — tick a `now`
@@ -45,7 +48,7 @@ export function Timeline() {
     <section className="flex h-full flex-col border-t border-neutral-200 bg-white">
       <div className="flex items-center justify-between border-b border-neutral-200 px-2">
         <div className="flex items-center gap-1">
-          {(['timeline', 'artifacts', 'logs'] as Tab[]).map((t) => (
+          {(['timeline', 'artifacts', 'logs', 'metrics', 'history'] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -126,6 +129,10 @@ export function Timeline() {
           ) : (
             <p className="text-neutral-400">{isWatching ? 'no events yet' : 'Event logs appear here once a run streams in.'}</p>
           ))}
+
+        {tab === 'metrics' && <MetricsPanel audit={audit} />}
+
+        {tab === 'history' && <HistoryTable />}
       </div>
     </section>
   )
