@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/registry"
 )
 
 // writeSnapshot seeds a minimal snapshot so Append can chain the first event to
@@ -39,9 +42,20 @@ func appendEvent(t *testing.T, log *eventlog.Log, id string, typ domain.EventTyp
 func fastServer(t *testing.T, start StartFunc) (*Server, *eventlog.Log) {
 	t.Helper()
 	ws := t.TempDir()
-	s := New(ws, start)
+	s := New(Config{Workspace: ws, Start: start})
 	s.poll = 2 * time.Millisecond
 	return s, eventlog.New(ws)
+}
+
+// fastServerWithTemplates is fastServer plus a Dir (a fresh temp dir, for
+// handleImportTemplate's unpacked files) and the given TemplatesDir.
+func fastServerWithTemplates(t *testing.T, templatesDir string) (*Server, string) {
+	t.Helper()
+	ws := t.TempDir()
+	dir := t.TempDir()
+	s := New(Config{Workspace: ws, Dir: dir, TemplatesDir: templatesDir})
+	s.poll = 2 * time.Millisecond
+	return s, dir
 }
 
 func TestEventsReplaysThenClosesOnTerminal(t *testing.T) {
@@ -315,5 +329,145 @@ func getJSON(t *testing.T, url string, dst any) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
 		t.Fatalf("decode %s: %v", url, err)
+	}
+}
+
+// testBundle builds a minimal, real `wee export`-shaped bundle in-memory (one
+// workflow, one worker) — the M1.14 template tests' fixture, so they don't
+// depend on the repo's actual examples/templates/*.tar files.
+func testBundle(t *testing.T) []byte {
+	t.Helper()
+	reg := registry.New()
+	w := domain.Worker{
+		ID: "reviewer", Version: "1.0.0", Objective: "review",
+		Constraints: []string{}, Tools: []string{},
+		ContextPolicy: domain.ContextPolicy{Mode: domain.ContextDiffOnly},
+		Contract:      domain.Contract{Goal: "g", OutputSchema: map[string]any{"type": "object"}},
+		Model:         domain.ModelConfig{Provider: "openai", Model: "gpt-4o-mini"},
+	}
+	if err := reg.RegisterWorker(w); err != nil {
+		t.Fatalf("RegisterWorker: %v", err)
+	}
+	wf := domain.Workflow{
+		ID: "demo-template", Version: "1.0.0",
+		Nodes: []domain.Node{{ID: "review", Worker: "reviewer@1.0.0"}},
+	}
+	if err := reg.RegisterWorkflow(wf); err != nil {
+		t.Fatalf("RegisterWorkflow: %v", err)
+	}
+	bundle, err := reg.Export("demo-template", "1.0.0")
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	return bundle
+}
+
+func TestListTemplatesEmptyWhenNotConfigured(t *testing.T) {
+	s, _ := fastServer(t, nil) // TemplatesDir unset
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	var list []Template
+	getJSON(t, ts.URL+"/api/templates", &list)
+	if list == nil || len(list) != 0 {
+		t.Fatalf("templates = %+v, want an empty (not nil) list", list)
+	}
+}
+
+func TestListTemplatesReadsBundlesFromTemplatesDir(t *testing.T) {
+	templatesDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(templatesDir, "demo.tar"), testBundle(t), 0o644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	s, _ := fastServerWithTemplates(t, templatesDir)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	var list []Template
+	getJSON(t, ts.URL+"/api/templates", &list)
+	if len(list) != 1 {
+		t.Fatalf("templates = %+v, want exactly one", list)
+	}
+	got := list[0]
+	if got.Name != "demo" || got.WorkflowID != "demo-template" || got.Version != "1.0.0" || got.NodeCount != 1 {
+		t.Errorf("template = %+v, want name=demo workflowId=demo-template version=1.0.0 nodeCount=1", got)
+	}
+}
+
+func TestImportTemplateWritesRunnableFilesAndReturnsWorkflow(t *testing.T) {
+	templatesDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(templatesDir, "demo.tar"), testBundle(t), 0o644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	s, dir := fastServerWithTemplates(t, templatesDir)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/templates/demo/import", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST import = %d: %s", resp.StatusCode, b)
+	}
+	var got importTemplateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.WorkflowPath != filepath.Join("demo", "workflow.yaml") {
+		t.Errorf("WorkflowPath = %q, want demo/workflow.yaml", got.WorkflowPath)
+	}
+	if got.Workflow.ID != "demo-template" {
+		t.Errorf("Workflow.ID = %q, want demo-template", got.Workflow.ID)
+	}
+
+	// The files must actually exist under Dir, real YAML, real enough for
+	// wee run to resolve — the whole point of unpacking rather than inventing
+	// an in-memory-only execution path for templates.
+	wfBytes, err := os.ReadFile(filepath.Join(dir, "demo", "workflow.yaml"))
+	if err != nil {
+		t.Fatalf("workflow.yaml was not written: %v", err)
+	}
+	if !strings.Contains(string(wfBytes), "demo-template") {
+		t.Errorf("workflow.yaml doesn't mention the workflow id:\n%s", wfBytes)
+	}
+	workerBytes, err := os.ReadFile(filepath.Join(dir, "demo", "reviewer.worker.yaml"))
+	if err != nil {
+		t.Fatalf("reviewer.worker.yaml was not written: %v", err)
+	}
+	if !strings.Contains(string(workerBytes), "reviewer") {
+		t.Errorf("reviewer.worker.yaml doesn't mention the worker id:\n%s", workerBytes)
+	}
+}
+
+func TestImportTemplateUnknownNameIs404(t *testing.T) {
+	s, _ := fastServerWithTemplates(t, t.TempDir())
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/templates/does-not-exist/import", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestImportTemplateDisabledWithoutTemplatesDir(t *testing.T) {
+	s, _ := fastServer(t, nil) // TemplatesDir unset
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/templates/demo/import", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("status = %d, want 501", resp.StatusCode)
 	}
 }

@@ -19,13 +19,16 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/registry"
 	"github.com/tzpereira/workflow-execution-engine/core/replay"
+	"github.com/tzpereira/workflow-execution-engine/core/serialize"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
@@ -44,24 +47,51 @@ const defaultPoll = 40 * time.Millisecond
 
 // Server serves the read side of the workspace over HTTP.
 type Server struct {
-	log       *eventlog.Log
-	store     *store.Store
-	workspace string
-	start     StartFunc
-	mux       *http.ServeMux
-	poll      time.Duration
+	log          *eventlog.Log
+	store        *store.Store
+	workspace    string
+	dir          string
+	templatesDir string
+	start        StartFunc
+	mux          *http.ServeMux
+	poll         time.Duration
 }
 
-// New builds a Server rooted at the given workspace state directory (the same
-// dir the engine writes under, conventionally ".workflow"). start may be nil.
-func New(workspace string, start StartFunc) *Server {
+// Config configures a Server. Workspace and Start are the only two most
+// callers need; Dir and TemplatesDir exist for POST /api/run's workflow-path
+// resolution and M1.14's template gallery respectively — both "" leaves the
+// corresponding feature inert (Dir empty behaves as "." did before this
+// field existed; TemplatesDir empty disables GET/POST /api/templates*).
+type Config struct {
+	// Workspace is the state directory the engine writes under
+	// (conventionally ".workflow") — executions, artifacts, cache.
+	Workspace string
+	// Start begins a run; nil disables POST /api/run (501).
+	Start StartFunc
+	// Dir is the base directory POST /api/run's workflow paths — and a
+	// template import's unpacked files — resolve against.
+	Dir string
+	// TemplatesDir holds `wee export` bundles (*.tar) for GET /api/templates
+	// and POST /api/templates/{name}/import; "" means no templates configured.
+	TemplatesDir string
+}
+
+// New builds a Server per cfg. Config.Start may be nil (a read-only server
+// that still streams and audits existing executions).
+func New(cfg Config) *Server {
+	dir := cfg.Dir
+	if dir == "" {
+		dir = "."
+	}
 	s := &Server{
-		log:       eventlog.New(workspace),
-		store:     store.New(workspace),
-		workspace: workspace,
-		start:     start,
-		mux:       http.NewServeMux(),
-		poll:      defaultPoll,
+		log:          eventlog.New(cfg.Workspace),
+		store:        store.New(cfg.Workspace),
+		workspace:    cfg.Workspace,
+		dir:          dir,
+		templatesDir: cfg.TemplatesDir,
+		start:        cfg.Start,
+		mux:          http.NewServeMux(),
+		poll:         defaultPoll,
 	}
 	// Go 1.22 method+wildcard routing — no router dependency.
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
@@ -69,6 +99,8 @@ func New(workspace string, start StartFunc) *Server {
 	s.mux.HandleFunc("GET /api/executions/{id}", s.handleAudit)
 	s.mux.HandleFunc("GET /api/executions/{id}/events", s.handleEvents)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
+	s.mux.HandleFunc("GET /api/templates", s.handleListTemplates)
+	s.mux.HandleFunc("POST /api/templates/{name}/import", s.handleImportTemplate)
 	return s
 }
 
@@ -213,6 +245,126 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, runResponse{ExecutionID: execID})
+}
+
+// Template is one row of GET /api/templates — enough for the gallery card
+// (M1.14, REQ-UI-05): name, workflow identity, and node count. The bundle
+// itself is only decoded (registry.Import), never registered against
+// anything persistent — listing is read-only.
+type Template struct {
+	Name       string `json:"name"`
+	WorkflowID string `json:"workflowId"`
+	Version    string `json:"version"`
+	NodeCount  int    `json:"nodeCount"`
+}
+
+func (s *Server) handleListTemplates(w http.ResponseWriter, _ *http.Request) {
+	out := []Template{}
+	if s.templatesDir == "" {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	entries, err := os.ReadDir(s.templatesDir)
+	if err != nil {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".tar") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(s.templatesDir, e.Name()))
+		if err != nil {
+			continue // a template that fails to read just doesn't appear — no partial gallery crash
+		}
+		reg, err := registry.Import(data)
+		if err != nil {
+			continue
+		}
+		_, wf, ok := reg.SoleWorkflow()
+		if !ok {
+			continue
+		}
+		out = append(out, Template{
+			Name:       strings.TrimSuffix(e.Name(), ".tar"),
+			WorkflowID: wf.ID,
+			Version:    wf.Version,
+			NodeCount:  len(wf.Nodes),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type importTemplateResponse struct {
+	// WorkflowPath is what the UI passes back as POST /api/run's "workflow"
+	// field — a relative path (with a subdirectory, unlike a browser file
+	// input's bare basename) that resolves against this server's own Dir,
+	// since the files were just written there.
+	WorkflowPath string          `json:"workflowPath"`
+	Workflow     domain.Workflow `json:"workflow"`
+}
+
+// handleImportTemplate unpacks a template bundle (registry.Import) and writes
+// its workflow + Workers as real YAML files under <Dir>/<name>/ — reusing
+// the exact same wee run/serve file-resolution path every other workflow
+// goes through (runner.Load, POST /api/run), rather than inventing a second,
+// in-memory execution path just for templates. "No UI-only/proprietary
+// template format" (M1.14) cuts both ways: the bundle IS a real `wee export`
+// archive, and importing it re-creates real, `wee run`-able files on disk.
+func (s *Server) handleImportTemplate(w http.ResponseWriter, r *http.Request) {
+	if s.templatesDir == "" {
+		http.Error(w, "templates not configured on this server", http.StatusNotImplemented)
+		return
+	}
+	name := r.PathValue("name")
+	data, err := os.ReadFile(filepath.Join(s.templatesDir, name+".tar"))
+	if err != nil {
+		http.Error(w, "unknown template", http.StatusNotFound)
+		return
+	}
+	reg, err := registry.Import(data)
+	if err != nil {
+		http.Error(w, "corrupt template bundle: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, wf, ok := reg.SoleWorkflow()
+	if !ok {
+		http.Error(w, "template bundle does not contain exactly one workflow", http.StatusInternalServerError)
+		return
+	}
+	workers := reg.Workers(wf)
+
+	destDir := filepath.Join(s.dir, name)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		http.Error(w, "create destination directory: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	wfYAML, err := serialize.MarshalYAML(wf)
+	if err != nil {
+		http.Error(w, "marshal workflow: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(destDir, "workflow.yaml"), wfYAML, 0o644); err != nil {
+		http.Error(w, "write workflow.yaml: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for ref, worker := range workers {
+		data, err := serialize.MarshalYAML(worker)
+		if err != nil {
+			http.Error(w, "marshal worker "+ref+": "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		id, _, _ := strings.Cut(ref, "@")
+		if err := os.WriteFile(filepath.Join(destDir, id+".worker.yaml"), data, 0o644); err != nil {
+			http.Error(w, "write "+id+".worker.yaml: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, importTemplateResponse{
+		WorkflowPath: filepath.Join(name, "workflow.yaml"),
+		Workflow:     wf,
+	})
 }
 
 // listExecutionIDs returns recorded execution ids, newest first — ids are

@@ -20,7 +20,7 @@ import (
 // /api/run), resolving the workflow path under --dir with the exact same
 // assembly `wee run` uses.
 func newServeCmd() *cobra.Command {
-	var addr, workspace, dir, cache string
+	var addr, workspace, dir, cache, templates string
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Serve the live execution event stream (WebSocket) for the UI",
@@ -28,7 +28,9 @@ func newServeCmd() *cobra.Command {
 			"  GET  /api/executions            list recorded and in-flight runs\n" +
 			"  GET  /api/executions/{id}       a run's full recorded events (audit)\n" +
 			"  GET  /api/executions/{id}/events  live event stream (WebSocket)\n" +
-			"  POST /api/run                   start a run ({\"workflow\":\"<path under --dir>\"})\n\n" +
+			"  POST /api/run                   start a run ({\"workflow\":\"<path under --dir>\"})\n" +
+			"  GET  /api/templates             list `wee export` bundles under --templates\n" +
+			"  POST /api/templates/{name}/import  unpack a bundle under --dir (M1.14 gallery)\n\n" +
 			"Each frame is byte-identical to one line of `wee run --json` and is pushed,\n" +
 			"not polled (ADR 0010). The UI is a pure client of it.",
 		Args: cobra.NoArgs,
@@ -37,11 +39,19 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				return coded(ExitValidation, err)
 			}
-			srv := server.New(workspace, runStarter(dir, workspace, cacheMode))
+			srv := server.New(server.Config{
+				Workspace:    workspace,
+				Start:        runStarter(dir, workspace, cacheMode),
+				Dir:          dir,
+				TemplatesDir: templates,
+			})
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "wee serve listening on http://%s\n", addr)
 			fmt.Fprintf(out, "  workspace: %s   workflows under: %s\n", workspace, dir)
 			fmt.Fprintf(out, "  stream:    GET http://%s/api/executions/{id}/events\n", addr)
+			if templates != "" {
+				fmt.Fprintf(out, "  templates: %s\n", templates)
+			}
 			return srv.ListenAndServe(addr)
 		},
 	}
@@ -50,6 +60,7 @@ func newServeCmd() *cobra.Command {
 	fl.StringVar(&workspace, "workspace", workspaceDir, "workspace state directory")
 	fl.StringVar(&dir, "dir", ".", "base directory that POST /api/run workflow paths resolve against")
 	fl.StringVar(&cache, "cache", "on", "cache mode for started runs: on | off | readonly")
+	fl.StringVar(&templates, "templates", "", "directory of `wee export` bundles (*.tar) for the UI's template gallery; empty disables it")
 	return cmd
 }
 
