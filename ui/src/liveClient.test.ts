@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { Audit } from './core/audit'
+import type { Audit, ExecutionSummary } from './core/audit'
 import type { WFEvent } from './core/live'
-import { fetchAudit, startRun, watchExecution } from './liveClient'
+import { fetchAudit, fetchExecutions, startRun, watchExecution } from './liveClient'
 
 // A minimal fake WebSocket: just enough surface for watchExecution to drive
 // (onmessage/onclose assignment, close()) without a real network connection or
@@ -184,5 +184,32 @@ describe('fetchAudit', () => {
       vi.fn(async () => new Response('unknown execution', { status: 404 })),
     )
     await expect(fetchAudit('http://127.0.0.1:7676', 'missing')).rejects.toThrow('unknown execution')
+  })
+})
+
+describe('fetchExecutions', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('GETs the list and returns the parsed ExecutionSummary[]', async () => {
+    const list: ExecutionSummary[] = [
+      { id: 'exec-1', workflow: 'wf', version: '1.0.0', state: 'succeeded', spentCostUsd: 0.01, spentTokens: 5, durationMs: 100 },
+    ]
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/executions')
+      return new Response(JSON.stringify(list), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchExecutions('http://127.0.0.1:7676')).resolves.toEqual(list)
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('server error', { status: 500 })),
+    )
+    await expect(fetchExecutions('http://127.0.0.1:7676')).rejects.toThrow('server error')
   })
 })

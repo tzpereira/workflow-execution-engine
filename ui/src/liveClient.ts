@@ -4,7 +4,7 @@
 // and browser-API-free so the fold itself is unit-tested without a server
 // (ADR 0010, github.com/coder/websocket on the server side).
 
-import type { Audit } from './core/audit'
+import type { Audit, ExecutionSummary } from './core/audit'
 import type { WFEvent } from './core/live'
 
 export interface WatchHandlers {
@@ -87,4 +87,15 @@ export async function fetchAudit(baseUrl: string, execId: string): Promise<Audit
     throw new Error((await res.text()) || `GET /api/executions/${execId} failed: ${res.status}`)
   }
   return (await res.json()) as Audit
+}
+
+/** fetchExecutions GETs /api/executions: every recorded and in-flight
+ *  execution's summary (core/server.ExecutionSummary) — the history table's
+ *  (M1.14) source, newest first (the server's own ordering). */
+export async function fetchExecutions(baseUrl: string): Promise<ExecutionSummary[]> {
+  const res = await fetch(`${baseUrl}/api/executions`)
+  if (!res.ok) {
+    throw new Error((await res.text()) || `GET /api/executions failed: ${res.status}`)
+  }
+  return (await res.json()) as ExecutionSummary[]
 }

@@ -32,9 +32,10 @@ function fakeDeps() {
 
   const startRun = vi.fn(async (_url: string, _ref: string) => 'exec-1') as unknown as LiveDeps['startRun']
   const fetchAudit = vi.fn(async (_url: string, execId: string) => fakeAudit(execId)) as unknown as LiveDeps['fetchAudit']
+  const fetchExecutions = vi.fn(async () => []) as unknown as LiveDeps['fetchExecutions']
 
   return {
-    deps: { watchExecution, startRun, fetchAudit },
+    deps: { watchExecution, startRun, fetchAudit, fetchExecutions },
     stops,
     emit: (ev: WFEvent) => capturedOnEvent?.(ev),
     done: () => capturedOnDone?.(),
@@ -119,6 +120,7 @@ describe('liveStore', () => {
         throw new Error('workflow not found')
       }) as unknown as LiveDeps['startRun'],
       fetchAudit: vi.fn() as unknown as LiveDeps['fetchAudit'],
+      fetchExecutions: vi.fn() as unknown as LiveDeps['fetchExecutions'],
     }
     const store = createLiveStore(deps)
     await store.getState().run('missing.yaml', [])
@@ -147,6 +149,65 @@ describe('liveStore', () => {
 
     // Synchronous assertion, before the fake fetchAudit's microtask resolves.
     expect(store.getState().audit).toBe(null)
+  })
+
+  it('loadExecutions populates the history list', async () => {
+    const { deps } = fakeDeps()
+    deps.fetchExecutions = vi.fn(async () => [
+      { id: 'exec-1', workflow: 'wf', version: '1.0.0', state: 'succeeded', spentCostUsd: 0.01, spentTokens: 5, durationMs: 100 },
+    ]) as unknown as LiveDeps['fetchExecutions']
+    const store = createLiveStore(deps)
+
+    await store.getState().loadExecutions()
+    expect(store.getState().executions).toHaveLength(1)
+    expect(store.getState().executions[0].id).toBe('exec-1')
+    expect(store.getState().executionsError).toBe(null)
+  })
+
+  it('loadExecutions records the error and leaves the list untouched on failure', async () => {
+    const { deps } = fakeDeps()
+    deps.fetchExecutions = vi.fn(async () => {
+      throw new Error('server unreachable')
+    }) as unknown as LiveDeps['fetchExecutions']
+    const store = createLiveStore(deps)
+
+    await store.getState().loadExecutions()
+    expect(store.getState().executionsError).toBe('server unreachable')
+    expect(store.getState().executions).toEqual([])
+  })
+
+  it('loadHistorical disconnects any live watch and folds the past run\'s own events into `live`', async () => {
+    const { deps, stops } = fakeDeps()
+    deps.fetchAudit = vi.fn(async (_url: string, execId: string) => ({
+      ...fakeAudit(execId),
+      workflow: { id: 'wf', version: '1.0.0', nodes: [{ id: 'a' }], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+      events: [
+        { type: 'ExecutionStarted' as const, timestamp: 't', executionId: execId, prevHash: '', payload: { workflow: 'wf', version: '1.0.0' } },
+        { type: 'WorkerFinished' as const, timestamp: 't', executionId: execId, nodeId: 'a', prevHash: '', payload: { costUsd: 0.01, tokens: 5 } },
+      ],
+    })) as unknown as LiveDeps['fetchAudit']
+    const store = createLiveStore(deps)
+    store.getState().watch('exec-live', ['a']) // an active watch, to prove it gets torn down
+    expect(store.getState().connected).toBe(true)
+
+    await store.getState().loadHistorical('exec-old')
+
+    expect(stops[0]).toHaveBeenCalledTimes(1)
+    expect(store.getState().connected).toBe(false)
+    expect(store.getState().audit?.executionId).toBe('exec-old')
+    expect(store.getState().live.nodes.a.status).toBe('succeeded')
+    expect(store.getState().live.nodes.a.costUsd).toBe(0.01)
+  })
+
+  it('loadHistorical records the error when the fetch fails', async () => {
+    const { deps } = fakeDeps()
+    deps.fetchAudit = vi.fn(async () => {
+      throw new Error('unknown execution')
+    }) as unknown as LiveDeps['fetchAudit']
+    const store = createLiveStore(deps)
+
+    await store.getState().loadHistorical('exec-missing')
+    expect(store.getState().error).toBe('unknown execution')
   })
 
   it('setServerUrl changes the base url subsequent calls use', () => {

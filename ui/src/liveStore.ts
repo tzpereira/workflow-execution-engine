@@ -6,10 +6,11 @@
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
-import type { Audit } from './core/audit'
-import { emptyLive, reduce, type LiveState } from './core/live'
+import type { Audit, ExecutionSummary } from './core/audit'
+import { emptyLive, reduce, reduceAll, type LiveState } from './core/live'
 import {
   fetchAudit as defaultFetchAudit,
+  fetchExecutions as defaultFetchExecutions,
   startRun as defaultStartRun,
   watchExecution as defaultWatchExecution,
 } from './liveClient'
@@ -18,12 +19,14 @@ export interface LiveDeps {
   watchExecution: typeof defaultWatchExecution
   startRun: typeof defaultStartRun
   fetchAudit: typeof defaultFetchAudit
+  fetchExecutions: typeof defaultFetchExecutions
 }
 
 const defaultDeps: LiveDeps = {
   watchExecution: defaultWatchExecution,
   startRun: defaultStartRun,
   fetchAudit: defaultFetchAudit,
+  fetchExecutions: defaultFetchExecutions,
 }
 
 export interface LiveStoreState {
@@ -35,6 +38,9 @@ export interface LiveStoreState {
   /** The Inspector's source for Contract/resolved-context/artifact-content
    *  (REQ-UI-03/04) — null until the first successful fetch. */
   audit: Audit | null
+  /** M1.14's history table source (GET /api/executions), newest first. */
+  executions: ExecutionSummary[]
+  executionsError: string | null
 
   setServerUrl: (url: string) => void
   /** Open the WebSocket stream for execId, resetting the fold seeded with
@@ -49,6 +55,14 @@ export interface LiveStoreState {
    *  the right moments; exposed for a manual refresh or inspecting an
    *  execution outside the current live stream. */
   loadAudit: (execId: string) => Promise<void>
+  /** GET /api/executions for the history table. */
+  loadExecutions: () => Promise<void>
+  /** Load a past execution (from the History tab) into the same view the live
+   *  stream feeds — the Timeline/Inspector/Metrics panels don't know or care
+   *  whether `live` came from a WebSocket fold or a one-shot reduceAll over a
+   *  finished run's own recorded events. Disconnects any active watch first:
+   *  a historical load and a live watch are mutually exclusive views. */
+  loadHistorical: (execId: string) => Promise<void>
   disconnect: () => void
 }
 
@@ -64,6 +78,8 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
     error: null,
     stop: null,
     audit: null,
+    executions: [],
+    executionsError: null,
 
     setServerUrl: (url) => set({ serverUrl: url }),
 
@@ -92,6 +108,27 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
         // Best-effort: the WS stream (or a retry via onDone) already surfaces
         // failures for a run in progress — a transient audit-fetch error
         // (e.g. snapshot not yet flushed) is not fatal to watching it live.
+      }
+    },
+
+    loadExecutions: async () => {
+      try {
+        const executions = await deps.fetchExecutions(get().serverUrl)
+        set({ executions, executionsError: null })
+      } catch (e) {
+        set({ executionsError: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    loadHistorical: async (execId) => {
+      get().stop?.()
+      set({ stop: null, connected: false })
+      try {
+        const audit = await deps.fetchAudit(get().serverUrl, execId)
+        const nodeIds = audit.workflow.nodes.map((n) => n.id)
+        set({ audit, live: reduceAll(audit.events, nodeIds), error: null })
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
       }
     },
 

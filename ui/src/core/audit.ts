@@ -28,6 +28,20 @@ export interface NodeRecord {
   error?: string
 }
 
+/** ExecutionSummary mirrors core/server.ExecutionSummary — one row of GET
+ *  /api/executions (M1.14's history table, REQ-METRIC-01/02). Cheap: no
+ *  artifact bytes, just what the event log's ExecutionStarted/Finished and
+ *  WorkerFinished events already carry. */
+export interface ExecutionSummary {
+  id: string
+  workflow: string
+  version: string
+  state: string
+  spentCostUsd: number
+  spentTokens: number
+  durationMs: number
+}
+
 /** Audit mirrors core/server.Audit (replay.Timeline plus the derived State). */
 export interface Audit {
   executionId: string
