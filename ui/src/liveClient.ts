@@ -4,7 +4,7 @@
 // and browser-API-free so the fold itself is unit-tested without a server
 // (ADR 0010, github.com/coder/websocket on the server side).
 
-import type { Audit, ExecutionSummary } from './core/audit'
+import type { Audit, ExecutionSummary, ImportedTemplate, Template } from './core/audit'
 import type { WFEvent } from './core/live'
 
 export interface WatchHandlers {
@@ -98,4 +98,26 @@ export async function fetchExecutions(baseUrl: string): Promise<ExecutionSummary
     throw new Error((await res.text()) || `GET /api/executions failed: ${res.status}`)
   }
   return (await res.json()) as ExecutionSummary[]
+}
+
+/** fetchTemplates GETs /api/templates: every `wee export` bundle the server's
+ *  --templates directory holds (M1.14's gallery source). Empty (not an
+ *  error) when the server wasn't started with --templates. */
+export async function fetchTemplates(baseUrl: string): Promise<Template[]> {
+  const res = await fetch(`${baseUrl}/api/templates`)
+  if (!res.ok) {
+    throw new Error((await res.text()) || `GET /api/templates failed: ${res.status}`)
+  }
+  return (await res.json()) as Template[]
+}
+
+/** importTemplate POSTs /api/templates/{name}/import: unpacks the bundle
+ *  under the server's --dir and returns where it landed plus the workflow
+ *  itself, ready for the workspace store's existing (YAML/JSON) import path. */
+export async function importTemplate(baseUrl: string, name: string): Promise<ImportedTemplate> {
+  const res = await fetch(`${baseUrl}/api/templates/${encodeURIComponent(name)}/import`, { method: 'POST' })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `POST /api/templates/${name}/import failed: ${res.status}`)
+  }
+  return (await res.json()) as ImportedTemplate
 }

@@ -6,11 +6,12 @@
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
-import type { Audit, ExecutionSummary } from './core/audit'
+import type { Audit, ExecutionSummary, Template } from './core/audit'
 import { emptyLive, reduce, reduceAll, type LiveState } from './core/live'
 import {
   fetchAudit as defaultFetchAudit,
   fetchExecutions as defaultFetchExecutions,
+  fetchTemplates as defaultFetchTemplates,
   startRun as defaultStartRun,
   watchExecution as defaultWatchExecution,
 } from './liveClient'
@@ -20,6 +21,7 @@ export interface LiveDeps {
   startRun: typeof defaultStartRun
   fetchAudit: typeof defaultFetchAudit
   fetchExecutions: typeof defaultFetchExecutions
+  fetchTemplates: typeof defaultFetchTemplates
 }
 
 const defaultDeps: LiveDeps = {
@@ -27,6 +29,7 @@ const defaultDeps: LiveDeps = {
   startRun: defaultStartRun,
   fetchAudit: defaultFetchAudit,
   fetchExecutions: defaultFetchExecutions,
+  fetchTemplates: defaultFetchTemplates,
 }
 
 export interface LiveStoreState {
@@ -41,6 +44,9 @@ export interface LiveStoreState {
   /** M1.14's history table source (GET /api/executions), newest first. */
   executions: ExecutionSummary[]
   executionsError: string | null
+  /** M1.14's template gallery source (GET /api/templates). */
+  templates: Template[]
+  templatesError: string | null
 
   setServerUrl: (url: string) => void
   /** Open the WebSocket stream for execId, resetting the fold seeded with
@@ -57,6 +63,8 @@ export interface LiveStoreState {
   loadAudit: (execId: string) => Promise<void>
   /** GET /api/executions for the history table. */
   loadExecutions: () => Promise<void>
+  /** GET /api/templates for the template gallery. */
+  loadTemplates: () => Promise<void>
   /** Load a past execution (from the History tab) into the same view the live
    *  stream feeds — the Timeline/Inspector/Metrics panels don't know or care
    *  whether `live` came from a WebSocket fold or a one-shot reduceAll over a
@@ -80,6 +88,8 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
     audit: null,
     executions: [],
     executionsError: null,
+    templates: [],
+    templatesError: null,
 
     setServerUrl: (url) => set({ serverUrl: url }),
 
@@ -129,6 +139,15 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
         set({ audit, live: reduceAll(audit.events, nodeIds), error: null })
       } catch (e) {
         set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    loadTemplates: async () => {
+      try {
+        const templates = await deps.fetchTemplates(get().serverUrl)
+        set({ templates, templatesError: null })
+      } catch (e) {
+        set({ templatesError: e instanceof Error ? e.message : String(e) })
       }
     },
 

@@ -28,6 +28,25 @@ export interface NodeRecord {
   error?: string
 }
 
+/** Template mirrors core/server.Template — one row of GET /api/templates
+ *  (M1.14's gallery): a `wee export` bundle's identity, nothing more (no
+ *  UI-only/proprietary template format — the bundle IS the template). */
+export interface Template {
+  name: string
+  workflowId: string
+  version: string
+  nodeCount: number
+}
+
+/** ImportedTemplate mirrors core/server.importTemplateResponse — POST
+ *  /api/templates/{name}/import's response: where the unpacked files landed
+ *  (for POST /api/run to resolve later) and the workflow itself, ready to
+ *  hand straight to the workspace store's existing import path. */
+export interface ImportedTemplate {
+  workflowPath: string
+  workflow: Workflow
+}
+
 /** ExecutionSummary mirrors core/server.ExecutionSummary — one row of GET
  *  /api/executions (M1.14's history table, REQ-METRIC-01/02). Cheap: no
  *  artifact bytes, just what the event log's ExecutionStarted/Finished and

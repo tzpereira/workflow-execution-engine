@@ -33,9 +33,10 @@ function fakeDeps() {
   const startRun = vi.fn(async (_url: string, _ref: string) => 'exec-1') as unknown as LiveDeps['startRun']
   const fetchAudit = vi.fn(async (_url: string, execId: string) => fakeAudit(execId)) as unknown as LiveDeps['fetchAudit']
   const fetchExecutions = vi.fn(async () => []) as unknown as LiveDeps['fetchExecutions']
+  const fetchTemplates = vi.fn(async () => []) as unknown as LiveDeps['fetchTemplates']
 
   return {
-    deps: { watchExecution, startRun, fetchAudit, fetchExecutions },
+    deps: { watchExecution, startRun, fetchAudit, fetchExecutions, fetchTemplates },
     stops,
     emit: (ev: WFEvent) => capturedOnEvent?.(ev),
     done: () => capturedOnDone?.(),
@@ -121,6 +122,7 @@ describe('liveStore', () => {
       }) as unknown as LiveDeps['startRun'],
       fetchAudit: vi.fn() as unknown as LiveDeps['fetchAudit'],
       fetchExecutions: vi.fn() as unknown as LiveDeps['fetchExecutions'],
+      fetchTemplates: vi.fn() as unknown as LiveDeps['fetchTemplates'],
     }
     const store = createLiveStore(deps)
     await store.getState().run('missing.yaml', [])
@@ -208,6 +210,31 @@ describe('liveStore', () => {
 
     await store.getState().loadHistorical('exec-missing')
     expect(store.getState().error).toBe('unknown execution')
+  })
+
+  it('loadTemplates populates the gallery list', async () => {
+    const { deps } = fakeDeps()
+    deps.fetchTemplates = vi.fn(async () => [
+      { name: 'pr-review-autofix', workflowId: 'pr-review-autofix', version: '1.0.0', nodeCount: 8 },
+    ]) as unknown as LiveDeps['fetchTemplates']
+    const store = createLiveStore(deps)
+
+    await store.getState().loadTemplates()
+    expect(store.getState().templates).toHaveLength(1)
+    expect(store.getState().templates[0].name).toBe('pr-review-autofix')
+    expect(store.getState().templatesError).toBe(null)
+  })
+
+  it('loadTemplates records the error and leaves the list untouched on failure', async () => {
+    const { deps } = fakeDeps()
+    deps.fetchTemplates = vi.fn(async () => {
+      throw new Error('server unreachable')
+    }) as unknown as LiveDeps['fetchTemplates']
+    const store = createLiveStore(deps)
+
+    await store.getState().loadTemplates()
+    expect(store.getState().templatesError).toBe('server unreachable')
+    expect(store.getState().templates).toEqual([])
   })
 
   it('setServerUrl changes the base url subsequent calls use', () => {

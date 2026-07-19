@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { Audit, ExecutionSummary } from './core/audit'
+import type { Audit, ExecutionSummary, ImportedTemplate, Template } from './core/audit'
 import type { WFEvent } from './core/live'
-import { fetchAudit, fetchExecutions, startRun, watchExecution } from './liveClient'
+import { fetchAudit, fetchExecutions, fetchTemplates, importTemplate, startRun, watchExecution } from './liveClient'
 
 // A minimal fake WebSocket: just enough surface for watchExecution to drive
 // (onmessage/onclose assignment, close()) without a real network connection or
@@ -211,5 +211,59 @@ describe('fetchExecutions', () => {
       vi.fn(async () => new Response('server error', { status: 500 })),
     )
     await expect(fetchExecutions('http://127.0.0.1:7676')).rejects.toThrow('server error')
+  })
+})
+
+describe('fetchTemplates', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('GETs the list and returns the parsed Template[]', async () => {
+    const list: Template[] = [{ name: 'pr-review-autofix', workflowId: 'pr-review-autofix', version: '1.0.0', nodeCount: 8 }]
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/templates')
+      return new Response(JSON.stringify(list), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchTemplates('http://127.0.0.1:7676')).resolves.toEqual(list)
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('server error', { status: 500 })),
+    )
+    await expect(fetchTemplates('http://127.0.0.1:7676')).rejects.toThrow('server error')
+  })
+})
+
+describe('importTemplate', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('POSTs to the template name and returns the parsed ImportedTemplate', async () => {
+    const result: ImportedTemplate = {
+      workflowPath: 'pr-review-autofix/workflow.yaml',
+      workflow: { id: 'pr-review-autofix', version: '1.0.0', nodes: [], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+    }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/templates/pr-review-autofix/import')
+      expect(init?.method).toBe('POST')
+      return new Response(JSON.stringify(result), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(importTemplate('http://127.0.0.1:7676', 'pr-review-autofix')).resolves.toEqual(result)
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unknown template', { status: 404 })),
+    )
+    await expect(importTemplate('http://127.0.0.1:7676', 'missing')).rejects.toThrow('unknown template')
   })
 })
