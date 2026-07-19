@@ -1,0 +1,37 @@
+# REQ-CONTRACT-05, the verifier-node pattern: a cheap Worker judging an
+# expensive producer's artifact (patch.worker.yaml) against objective
+# criteria, gating the graph via a conditional edge (workflow.yaml:
+# verify-patch -> apply-patch, condition approved truthy). Cheap on purpose —
+# gpt-4o-mini, temperature 0, a two-field output — judging is a bounded
+# yes/no-plus-reason task; it never needs the bigger model the producer does.
+id: verify-patch
+version: 1.0.0
+objective: Judge whether a proposed patch actually addresses the stated hypothesis and stays minimal — nothing more.
+constraints:
+  - approved is true only if the patch's content plausibly fixes rootCause AND touches nothing the hypothesis didn't implicate.
+  - Never rewrite or improve the patch yourself — judge it as given.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Approve or reject a proposed patch against the hypothesis it claims to fix.
+  rules:
+    - reason must cite the specific mismatch when approved is false.
+  successCriteria:
+    - A patch that doesn't address rootCause, or that touches unrelated files, is never approved.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [approved, reason]
+    properties:
+      approved:
+        type: boolean
+      reason:
+        type: string
+        maxLength: 300
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

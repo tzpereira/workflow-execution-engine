@@ -1,0 +1,40 @@
+# The expensive producer verify-patch.worker.yaml judges (REQ-CONTRACT-05) —
+# a bigger model, since writing a correct whole-file patch is the hard step;
+# the judge only has to check it, which is cheap (see verify-patch's model).
+id: patch
+version: 1.0.0
+objective: Given a root-cause hypothesis, write the minimal patch that fixes it — the complete corrected file, nothing else touched.
+constraints:
+  - path must be exactly one of hypothesis.affectedFiles, never invented.
+  - content must be the ENTIRE corrected file, not a fragment or a diff — apply-patch (workflow.yaml) overwrites the whole file with it.
+  - Change only what the hypothesis requires; do not refactor or reformat unrelated code.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [hypothesis]
+contract:
+  goal: Produce the complete corrected file addressing the hypothesis' root cause.
+  rules:
+    - summary must name exactly what changed and why, in one sentence.
+  successCriteria:
+    - A reviewer reading only rootCause and this patch can see the fix addresses it directly.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [path, content, summary]
+    properties:
+      path:
+        type: string
+        maxLength: 500
+      content:
+        type: string
+      summary:
+        type: string
+        maxLength: 300
+model:
+  provider: openai
+  model: gpt-4o
+  params:
+    temperature: 0

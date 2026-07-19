@@ -1,0 +1,66 @@
+# Secondary demo (VISION.md): "logs -> hypothesis -> patch -> tests -> review".
+# Also the reference implementation of REQ-CONTRACT-05's verifier-node
+# pattern: verify-patch is a CHEAP, separate Worker judging the (potentially
+# more expensive) patch Worker's own artifact against objective criteria,
+# gating apply-patch via a conditional edge — the producer never gates
+# itself (contrast examples/pr-review-autofix/fixer.worker.yaml, where the
+# producer's own field gates the edge; here a second, independent Worker
+# does the judging, PRIN-08's "verification is a graph pattern, not a hope").
+#
+# read-logs sources its input the same way examples/pr-review-autofix's
+# fetch-diff does — an env-var-supplied path, since Phase 1 has no
+# workflow-level "inputs" concept (see README.md for BUG_LOG_PATH).
+id: bug-investigation
+version: 1.0.0
+nodes:
+  - id: read-logs
+    tool:
+      toolName: filesystem
+      input:
+        op: read
+        path: "${env:BUG_LOG_PATH}"
+
+  - id: hypothesis
+    worker: hypothesis@1.0.0
+
+  - id: patch
+    worker: patch@1.0.0
+
+  - id: verify-patch
+    worker: verify-patch@1.0.0
+
+  - id: apply-patch
+    tool:
+      toolName: filesystem
+      input:
+        op: write
+        path: "${patch.path}"
+        content: "${patch.content}"
+
+  - id: test
+    tool:
+      toolName: terminal
+      input:
+        command: go
+        args: ["test", "./..."]
+
+  - id: review
+    worker: review@1.0.0
+
+edges:
+  - { from: read-logs, to: hypothesis }
+  - { from: hypothesis, to: patch }
+  - { from: hypothesis, to: verify-patch }
+  - { from: patch, to: verify-patch }
+  - { from: verify-patch, to: apply-patch, condition: { path: approved, op: truthy } }
+  - { from: apply-patch, to: test }
+  - { from: hypothesis, to: review }
+  - { from: patch, to: review }
+  - { from: verify-patch, to: review }
+  - { from: test, to: review }
+
+budget:
+  maxCostUsd: 0.30
+  maxTokens: 80000
+  maxDurationMs: 120000
+  maxRetriesPerNode: 2

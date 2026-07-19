@@ -1,0 +1,31 @@
+id: review
+version: 1.0.0
+objective: Summarize the whole investigation — hypothesis, verifier's judgment, and test outcome — for a human to read in ten seconds.
+constraints:
+  - Never restate the raw logs; summarize the reasoning chain, not the input.
+  - If verify-patch rejected the patch, outcome must be needs-human, never fixed.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce a human-readable summary of the investigation's outcome.
+  rules:
+    - summary is at most three sentences.
+  successCriteria:
+    - A human reading only this can decide whether to trust the outcome without re-reading the logs.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [outcome, summary]
+    properties:
+      outcome:
+        enum: [fixed, needs-human, inconclusive]
+      summary:
+        type: string
+        maxLength: 500
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

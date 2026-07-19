@@ -1,0 +1,43 @@
+id: hypothesis
+version: 1.0.0
+objective: Read raw log output and form a single, falsifiable root-cause hypothesis.
+constraints:
+  - Judge only what the logs show; do not assume unshown context.
+  - Name every file you believe is affected; never invent a path not implied by the logs.
+  - confidence must reflect how directly the logs support the hypothesis, not how plausible it sounds.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [read-logs]
+contract:
+  goal: Produce a structured, falsifiable root-cause hypothesis from the logs.
+  rules:
+    - rootCause must be one sentence, stated as a testable claim, not a vague description.
+    - List at most five files you believe are affected.
+  successCriteria:
+    - A patch Worker given only this hypothesis could locate the right file.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [rootCause, confidence, affectedFiles, evidence]
+    properties:
+      rootCause:
+        type: string
+        maxLength: 300
+      confidence:
+        enum: [low, medium, high]
+      affectedFiles:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 300 }
+      evidence:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 300 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

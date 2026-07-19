@@ -1,0 +1,6 @@
+# See README.md: set BUG_LOG_PATH before running. "go test ./..." only fits
+# a Go repo — swap it for whatever this workspace's own test command is.
+workspaceRoot: .
+terminal:
+  allow: ["go"]
+  timeoutMs: 60000
