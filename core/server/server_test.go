@@ -14,6 +14,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
+	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 )
 
@@ -101,7 +102,9 @@ func TestListAndAudit(t *testing.T) {
 	s, log := fastServer(t, nil)
 	const done = "wf-20260718T000002-cccc"
 	const live = "wf-20260718T000003-dddd"
-	seed(t, log, done)
+	if err := log.WriteSnapshot(done, engine.Snapshot{Workflow: domain.Workflow{ID: "wf", Version: "2.0.0"}}); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
 	appendEvent(t, log, done, domain.ExecutionStarted, "", map[string]any{"workflow": "wf", "version": "2.0.0"})
 	appendEvent(t, log, done, domain.ExecutionFinished, "", map[string]any{"state": "succeeded"})
 	seed(t, log, live)
@@ -128,8 +131,64 @@ func TestListAndAudit(t *testing.T) {
 
 	var audit Audit
 	getJSON(t, ts.URL+"/api/executions/"+done, &audit)
-	if audit.Version != "2.0.0" || len(audit.Events) != 2 {
-		t.Fatalf("audit mismatch: version=%q events=%d", audit.Version, len(audit.Events))
+	if audit.Workflow.Version != "2.0.0" || len(audit.Events) != 2 {
+		t.Fatalf("audit mismatch: version=%q events=%d", audit.Workflow.Version, len(audit.Events))
+	}
+	if audit.State != "succeeded" {
+		t.Errorf("audit.State = %q, want succeeded", audit.State)
+	}
+}
+
+func TestAuditUnknownExecutionIs404(t *testing.T) {
+	s, _ := fastServer(t, nil)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/executions/does-not-exist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+// TestAuditExposesWorkflowAndWorkers is the wire-format contract the Inspector
+// (M1.13, REQ-UI-03) relies on: GET /api/executions/{id} must carry the frozen
+// Workflow (so a node's worker ref resolves) and the pinned Workers (so its
+// Contract/goal render) — not just the flat event stream M1.12 shipped.
+func TestAuditExposesWorkflowAndWorkers(t *testing.T) {
+	s, log := fastServer(t, nil)
+	const id = "wf-20260719T000004-eeee"
+
+	worker := domain.Worker{ID: "reviewer", Version: "1.0.0", Objective: "review a diff"}
+	snap := engine.Snapshot{
+		Workflow: domain.Workflow{
+			ID:      "wf",
+			Version: "1.0.0",
+			Nodes:   []domain.Node{{ID: "review", Worker: "reviewer@1.0.0"}},
+		},
+		Workers: map[string]domain.Worker{"reviewer@1.0.0": worker},
+	}
+	if err := log.WriteSnapshot(id, snap); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+	appendEvent(t, log, id, domain.ExecutionStarted, "", map[string]any{"workflow": "wf", "version": "1.0.0"})
+	appendEvent(t, log, id, domain.ExecutionFinished, "", map[string]any{"state": "succeeded"})
+
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	var audit Audit
+	getJSON(t, ts.URL+"/api/executions/"+id, &audit)
+
+	if len(audit.Workflow.Nodes) != 1 || audit.Workflow.Nodes[0].ID != "review" {
+		t.Fatalf("audit.Workflow.Nodes = %+v, want the pinned review node", audit.Workflow.Nodes)
+	}
+	got, ok := audit.Workers["reviewer@1.0.0"]
+	if !ok || got.Objective != "review a diff" {
+		t.Fatalf("audit.Workers[reviewer@1.0.0] = %+v, ok=%v, want the pinned reviewer Worker", got, ok)
 	}
 }
 

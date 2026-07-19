@@ -25,6 +25,8 @@ import (
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/replay"
+	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
 // StartFunc begins a workflow execution and returns its id immediately; the run
@@ -43,6 +45,7 @@ const defaultPoll = 40 * time.Millisecond
 // Server serves the read side of the workspace over HTTP.
 type Server struct {
 	log       *eventlog.Log
+	store     *store.Store
 	workspace string
 	start     StartFunc
 	mux       *http.ServeMux
@@ -54,6 +57,7 @@ type Server struct {
 func New(workspace string, start StartFunc) *Server {
 	s := &Server{
 		log:       eventlog.New(workspace),
+		store:     store.New(workspace),
 		workspace: workspace,
 		start:     start,
 		mux:       http.NewServeMux(),
@@ -103,22 +107,25 @@ func (s *Server) handleList(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// Audit is GET /api/executions/{id}: the full recorded event stream plus the
-// summary fields, so a finished run loads into the UI through the exact same
-// event reducer the live stream feeds (one code path, live or replayed).
+// Audit is GET /api/executions/{id}: a full reconstruction of the execution —
+// the frozen workflow (so the Inspector can show each node's Contract via
+// Workers), every recorded event (the same reducer the live stream feeds, one
+// code path for live or replayed), and each node's outcome plus its artifact's
+// actual bytes (base64 on the wire) — everything REQ-UI-03/REQ-UI-04 need,
+// reusing core/replay's reconstruction rather than re-deriving it.
 type Audit struct {
-	ExecutionSummary
-	Events []domain.Event `json:"events"`
+	replay.Timeline
+	State string `json:"state"`
 }
 
 func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	events, err := s.log.ReadAll(id)
+	tl, err := replay.NewAuditor(s.log, s.store).Audit(id)
 	if err != nil {
 		http.Error(w, "unknown execution", http.StatusNotFound)
 		return
 	}
-	writeJSON(w, http.StatusOK, Audit{ExecutionSummary: summarize(id, events), Events: events})
+	writeJSON(w, http.StatusOK, Audit{Timeline: tl, State: summarize(id, tl.Events).State})
 }
 
 // handleEvents upgrades to WebSocket and streams an execution's events,
