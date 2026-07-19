@@ -42,6 +42,45 @@ func TestRegisterAndLookup(t *testing.T) {
 	}
 }
 
+// TestWorkersResolvesEveryNodeReference covers registry.Workers(wf) (REQ-UI-03):
+// it must return the full resolved Worker for every node reference the
+// workflow makes and registry knows about, key by "id@version", and quietly
+// omit tool-backed nodes and unregistered references rather than erroring —
+// mirroring DefinitionHashes' provenance-capture, not-validation contract.
+func TestWorkersResolvesEveryNodeReference(t *testing.T) {
+	r := registry.New()
+	if err := r.RegisterWorker(worker("reviewer", "1.0.0", "review code")); err != nil {
+		t.Fatalf("RegisterWorker: %v", err)
+	}
+	wf := domain.Workflow{
+		Nodes: []domain.Node{
+			{ID: "review", Worker: "reviewer@1.0.0"},
+			{ID: "test", Tool: &domain.ToolCall{ToolName: "terminal"}},
+			{ID: "ghost", Worker: "unregistered@1.0.0"},
+		},
+	}
+
+	got := r.Workers(wf)
+	if len(got) != 1 {
+		t.Fatalf("Workers() = %+v, want exactly one resolved entry", got)
+	}
+	w, ok := got["reviewer@1.0.0"]
+	if !ok || w.Objective != "review code" {
+		t.Fatalf("Workers()[reviewer@1.0.0] = %+v, ok=%v, want the registered reviewer", w, ok)
+	}
+}
+
+// TestWorkersNilWhenNothingResolves: a workflow with no worker-backed node (or
+// none registered) yields nil, not an empty map — matching DefinitionHashes so
+// the snapshot stays byte-identical to a run that pinned nothing.
+func TestWorkersNilWhenNothingResolves(t *testing.T) {
+	r := registry.New()
+	wf := domain.Workflow{Nodes: []domain.Node{{ID: "test", Tool: &domain.ToolCall{ToolName: "terminal"}}}}
+	if got := r.Workers(wf); got != nil {
+		t.Errorf("Workers() = %+v, want nil", got)
+	}
+}
+
 // TestReRegisterIdenticalContentIsNoOp: registering byte-identical content at
 // the same version again is allowed (idempotent), not a conflict.
 func TestReRegisterIdenticalContentIsNoOp(t *testing.T) {

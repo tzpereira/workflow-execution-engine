@@ -129,3 +129,25 @@ func (r *Registry) DefinitionHashes(wf domain.Workflow) map[string]string {
 	}
 	return out
 }
+
+// Workers returns the full resolved Worker definition (goal, contract,
+// contextPolicy, tools, model) for every worker wf references that is
+// registered here, keyed by "id@version" — the record an execution pins into
+// its snapshot so the Inspector (M1.13, REQ-UI-03) can show a node's Contract
+// without re-reading the original *.worker.yaml file. Same omission rule as
+// DefinitionHashes: tool-backed nodes and unregistered references are skipped.
+func (r *Registry) Workers(wf domain.Workflow) map[string]domain.Worker {
+	out := make(map[string]domain.Worker)
+	for _, n := range wf.Nodes {
+		if n.Worker == "" {
+			continue
+		}
+		if e, ok := r.workers[n.Worker]; ok {
+			out[n.Worker] = e.def
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
