@@ -8,6 +8,7 @@ ADDR      ?= 127.0.0.1:7676
 UI_PORT   ?= 5173
 WORKSPACE ?= .workflow
 DIR       ?= .
+TEMPLATES ?= examples/templates
 
 .PHONY: dev serve ui build ui-deps stop
 
@@ -28,7 +29,7 @@ stop:
 # .env file itself (there's no dotenv dependency in go.mod, deliberately).
 serve: build stop
 	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
-	./wee serve --addr $(ADDR) --workspace $(WORKSPACE) --dir $(DIR)
+	./wee serve --addr $(ADDR) --workspace $(WORKSPACE) --dir $(DIR) --templates $(TEMPLATES)
 
 # Frontend only: the Vite dev server, pointed at ADDR by default (set in the
 # Toolbar's "wee serve address" field once it's open — this just starts it).
@@ -51,14 +52,15 @@ dev: build ui-deps stop
 	@echo "wee serve   -> http://$(ADDR)"
 	@echo "ui (vite)   -> http://localhost:$(UI_PORT)"
 	@echo ""
-	@echo "Nothing loads on the canvas by itself — open the UI, click Import, and"
-	@echo "pick a workflow file from $(DIR) (e.g. $(DIR)/workflow.yaml if that's an"
-	@echo "example folder). DIR only tells the server where to resolve Run against;"
-	@echo "it doesn't put anything on screen until you import it yourself."
+	@echo "Nothing loads on the canvas by itself — open the UI and either:"
+	@echo "  - click Templates and pick one (one-click, no file needed), or"
+	@echo "  - click Import and pick a workflow file from $(DIR) by hand."
+	@echo "DIR only tells the server where to resolve Run against; nothing lands"
+	@echo "on screen until you import it yourself, one way or the other."
 	@echo ""
 	@echo "Ctrl-C stops both (falls back to 'make stop' if anything lingers)."
 	@trap '$(MAKE) stop >/dev/null 2>&1' INT TERM EXIT; \
 	( if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
-	  ./wee serve --addr $(ADDR) --workspace $(WORKSPACE) --dir $(DIR) ) & \
+	  ./wee serve --addr $(ADDR) --workspace $(WORKSPACE) --dir $(DIR) --templates $(TEMPLATES) ) & \
 	( cd ui && pnpm dev --port $(UI_PORT) ) & \
 	wait
