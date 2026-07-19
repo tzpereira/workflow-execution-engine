@@ -24,7 +24,7 @@ governance layer that imposes engineering discipline on models built to spend.
 
 ## Status
 
-Phase 1 (MVP), milestone M1.11 of M1.15 complete. Not yet released; no stable binary or API.
+Phase 1 (MVP), milestone M1.13 of M1.15 complete. Not yet released; no stable binary or API.
 
 ## Quickstart
 

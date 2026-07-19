@@ -41,20 +41,23 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.12 — complete, locally verified. Next up: M1.13. **Milestone gate reached at
+- **Current milestone:** M1.13 — complete, locally verified. Next up: M1.14. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
-  changed. M1.9 (CLI), M1.10 (SDK), M1.11 (UI), and M1.12 (live stream) are all pure clients of core/ — none
-  added a domain or engine capability; `core/server` reads the same event log everything else reads, adding
-  no new state of its own. M1.12's one contested choice (the live transport) went through two recorded
-  rounds: [ADR 0009](adr/0009-live-event-transport.md) first picked Server-Sent Events (zero new
-  dependencies, exact fit for a server→client-only stream), then
-  [ADR 0010](adr/0010-websocket-transport.md) superseded it same-day with WebSocket via
-  `github.com/coder/websocket` (vetted per PRIN-07: ISC license, zero transitive deps, actively maintained)
-  — the project owner's deliberate choice to match REQ-UI-02's original wording literally. The UI is the
-  first TypeScript milestone; it imports the engine's `schemas/*.json` directly rather than duplicating any
-  field.
+  changed; M1.13 added a second one (`Workers`, see its own notes below), same precedent, still no domain
+  type touched. M1.9 (CLI), M1.10 (SDK), M1.11 (UI), M1.12 (live stream), and M1.13 (Inspector) are all pure
+  clients of core/'s domain model — none added a domain or engine *capability*, though M1.13 did extend the
+  engine's internal `Snapshot`/`replay.Timeline` and `core/server`'s response shape to carry data the domain
+  model already defined (a Worker's Contract) but no prior milestone had reason to persist per-execution.
+  `core/server` still reads only the same event log and artifact store everything else reads, adding no new
+  state of its own. M1.12's one contested choice (the live transport) went through two recorded rounds:
+  [ADR 0009](adr/0009-live-event-transport.md) first picked Server-Sent Events (zero new dependencies, exact
+  fit for a server→client-only stream), then [ADR 0010](adr/0010-websocket-transport.md) superseded it
+  same-day with WebSocket via `github.com/coder/websocket` (vetted per PRIN-07: ISC license, zero transitive
+  deps, actively maintained) — the project owner's deliberate choice to match REQ-UI-02's original wording
+  literally. The UI is the first TypeScript milestone; it imports the engine's `schemas/*.json` directly
+  rather than duplicating any field.
 - **Docs migrated to spec-driven format (2026-07-15):** normative laws now live in
   [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01..10); testable requirements with stable IDs in
   [spec/](spec/README.md); VISION.md is non-normative. M1.4 additionally absorbed two decisions:
@@ -234,6 +237,13 @@ Rules:
   persisted `cd ui` caused an `rm` to delete the tracked `ui/package.json`/`pnpm-lock.yaml`; both were
   restored from git (they are tracked) and node_modules reinstalled — no loss, and all `pnpm` calls now use
   explicit `--dir`.
+- **M1.13:** all tasks and acceptance criteria verified — `go test ./... -race` green, `go vet` clean; `pnpm
+  test`/`typecheck`/`build` green (77 tests); manually verified live against `examples/pr-review` with a real
+  provider key (see the milestone's own notes above for the full account, the two gaps this surfaced in the
+  M1.12 server API, and the fixes). Inspector answers "what did this Worker see, and what did it produce" in
+  one click; every `domain.ArtifactType` has a dedicated viewer (Diff/Markdown+Report/JSON+Metrics/Code/
+  TestResult/Image/File, plus a raw fallback); the event log is filterable by node and type with expandable
+  payloads, shared between the Inspector (scoped to one node) and the Timeline's Logs tab.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -1195,22 +1205,61 @@ M1.7–M1.10 done first.
 
 ### Tasks
 
-- [ ] Build the Inspector panel (opens on node click): Goal, rendered Contract (with its schema), the
+- [x] Build the Inspector panel (opens on node click): Goal, rendered Contract (with its schema), the
       contract validation result, the resolved context (literally what `core/policy/resolver.go` computed and
       logged — the context policy made visible, not just described), inputs, outputs, events, retries,
       cost/tokens/duration.
-- [ ] Build artifact viewers, one per type: Diff (side-by-side + unified, via `react-diff-view`), Markdown
+- [x] Build artifact viewers, one per type: Diff (side-by-side + unified, via `react-diff-view`), Markdown
       (rendered), JSON (tree view + raw toggle), Code (syntax-highlighted via `shiki`), File (download link),
       TestResult (pass/fail summary + raw log), Report.
-- [ ] Build the event log view: filterable by node id and event type, with raw payload expandable per row.
-- [ ] Keep all of the above as panels, not modals — no modal-based primary flow anywhere in this milestone.
+- [x] Build the event log view: filterable by node id and event type, with raw payload expandable per row.
+- [x] Keep all of the above as panels, not modals — no modal-based primary flow anywhere in this milestone.
 
 ### Acceptance criteria
 
-- [ ] Every event type from the M1.2 catalog and every artifact type from M1.1 has a non-raw (i.e. not just
+- [x] Every event type from the M1.2 catalog and every artifact type from M1.1 has a non-raw (i.e. not just
       dumped JSON) rendering somewhere in the Inspector or Artifact Viewer.
-- [ ] "What did this Worker see?" is answerable in exactly one click (node click → Inspector shows resolved
+- [x] "What did this Worker see?" is answerable in exactly one click (node click → Inspector shows resolved
       context) — verify this manually against the running flagship demo.
+
+**Verified:** `go test ./... -race` green; `go vet` clean; `golangci-lint` still blocked by the M1.6a
+environment note (unchanged, unrelated to this milestone). `pnpm test`/`pnpm typecheck`/`pnpm build` green
+(77 tests). Manually verified end-to-end in a real browser (Playwright) against `wee serve` + the Vite dev
+server, running `examples/pr-review` with a real `OPENAI_API_KEY`: clicking the `review` node shows its Goal,
+full Contract (rules/success criteria/maxRetries/outputSchema), a "valid — no contract violations" result, the
+real JSON artifact the model produced (verdict/score/issues, tree-view), cost/tokens/duration, and its own
+event history; the Logs tab's node/type filters and expandable rows work; a re-run served the reviewer from
+cache ($0, "saved $0.0001") and the downstream `commit` tool node's failure (no real git repo in the temp
+workspace) rendered correctly in red — no console errors either run. The flagship demo itself doesn't exist
+yet (M1.15's task), so this substitutes the closest real Worker+Contract example available; re-verify against
+the flagship graph once M1.15 builds it.
+
+Two gaps surfaced only once the Inspector actually needed the data, not anticipated by this milestone's task
+list (which assumed the M1.12 server API already carried enough): (1) `GET /api/executions/{id}` returned only
+the flat event stream (`core/server.Audit{ExecutionSummary, Events}`) — no Workflow, no Worker/Contract, no
+artifact bytes, and `core/server` never touched `core/store` or `core/replay` at all; (2) a Worker's resolved
+definition (goal, contract, outputSchema) was never persisted anywhere per-execution — only its content
+*hash* (`DefinitionHashes`, REQ-VERSION-02) — so `Contract` was unrecoverable from `.workflow/executions/<id>/`
+alone even via `core/replay.Auditor`. Fixed at the root rather than re-reading `*.worker.yaml` from an
+uncertain path at request time: `registry.Workers(wf)` mirrors `DefinitionHashes` to resolve every node's full
+Worker; `engine.RunOptions`/`Snapshot` gained an optional `Workers` field threaded exactly like
+`DefinitionHashes` (opaque to the engine, an engine-internal non-domain type — same M1.8 precedent, no domain
+model touched, no ADR needed); `replay.Timeline` gained `Workers` (sourced from the pinned snapshot) plus
+proper JSON tags throughout; `core/server.handleAudit` now builds its response via `replay.Auditor` instead of
+a bare event list. This makes every past execution genuinely self-contained on disk — Contract display no
+longer depends on the original workflow file's path still being valid, matching the audit-replay honesty
+`core/replay` already promised for everything else (REQ-REPLAY-01).
+
+Other decisions: (1) "resolved context" cross-references a node's `WorkerFinished.contextHashes` (REQ-CTXPOL-03)
+against the *same execution's* own `nodes` map by hash — every hash a context policy can admit is some
+upstream node's own output, produced in the same run, so no second lookup mechanism was needed; (2) Markdown/
+Report artifacts render through `marked` → `DOMPurify` before `dangerouslySetInnerHTML` — a Worker's output is
+model-produced, untrusted content, and a script tag coaxed into an artifact must not execute in the viewer's
+browser; (3) the Code viewer uses `shiki`'s fine-grained core API (`createHighlighterCore` + `@shikijs/langs`/
+`@shikijs/themes` per-language/theme subpath imports) rather than its ~100-language default bundle, confirmed
+by the production build splitting each language into its own small lazy chunk; no language hint travels on the
+wire yet (`domain.Artifact.metadata` is never actually populated at runtime), so Code highlights as plain text
+until a language field exists to key off — a disclosed scope boundary, not an oversight.
 
 ---
 

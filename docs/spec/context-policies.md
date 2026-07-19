@@ -32,5 +32,7 @@ When a context slice is resolved, the engine shall record what was actually incl
 copies) so any execution can later answer "what did this Worker see?" exactly — via events/Inspector.
 - **Rationale:** PRIN-01, PRIN-02; also the substrate for savings accounting (REQ-METRIC-03).
 - **Delivered by:** M1.4 (recording: admitted hashes in the `WorkerFinished` event payload via
-  `policy.Hashes`), M1.13 (Inspector surface). **Verified by:** M1.13 (Inspector) _pending_; recording covered
-  by `policy.TestHashes`.
+  `policy.Hashes`), M1.13 (Inspector surface). **Verified by:** recording covered by `policy.TestHashes`;
+  the Inspector surface by `ui/src/core/audit.test.ts` (`contextHashesFor`/`nodeIdForHash` — cross-referencing
+  an admitted hash back to the node that produced it) and `ui/src/components/Inspector.test.tsx`, plus manual
+  verification against a real run (`docs/EXECUTION.md`'s M1.13 notes).

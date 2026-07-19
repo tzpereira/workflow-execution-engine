@@ -23,3 +23,6 @@ ui/dist-ssr/
 # except versioned, shareable skills.
 .claude/*
 !.claude/skills/
+
+# env
+.env

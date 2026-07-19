@@ -70,12 +70,18 @@ cache hits visually distinct.
 ### REQ-UI-03 — Inspector
 When a node is selected, the UI shall show its goal, contract, validation result, resolved context (what
 the Worker actually saw — REQ-CTXPOL-03), inputs, artifacts, metrics, and cost — without modal chaos.
-- **Delivered by:** M1.13. **Verified by:** _pending_.
+- **Delivered by:** M1.13. **Verified by:** `ui/src/components/Inspector.test.tsx` (incl. the test named for
+  this requirement) plus manual verification against `examples/pr-review` with a real provider key
+  (`docs/EXECUTION.md`'s M1.13 notes). The richer `GET /api/executions/{id}` this needed is covered by
+  `core/server`'s `TestAuditExposesWorkflowAndWorkers`/`TestListAndAudit` and
+  `core/registry`'s `TestWorkersResolvesEveryNodeReference`/`TestSnapshotPinsDefinitionHashesForReplay`.
 
 ### REQ-UI-04 — Artifact viewers
 The UI shall render artifacts by type: diff, markdown, JSON, files, images, reports (REQ-ARTIFACT-03
 supplies the type).
-- **Delivered by:** M1.13. **Verified by:** _pending_.
+- **Delivered by:** M1.13. **Verified by:** `ui/src/components/ArtifactViewer.test.tsx` (one case per
+  `domain.ArtifactType`) plus the manual run in `docs/EXECUTION.md`'s M1.13 notes (a real JSON artifact
+  rendered as a tree).
 
 ### REQ-UI-05 — Metrics & templates
 The UI shall surface the metrics of REQ-METRIC-01/02 (cost, usage, value proxies, cache hit rate) and ship
