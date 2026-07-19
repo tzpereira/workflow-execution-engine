@@ -97,6 +97,16 @@ func (r *Registry) Lookup(ref string) (domain.Worker, bool) {
 	return e.def, ok
 }
 
+// Workflow resolves a workflow "id@version" reference — the same lookup
+// Lookup does for workers, exposed for callers that import a bundle
+// (registry.Import) and need the workflow itself back out, not just its
+// referenced Workers (M1.14's template gallery: core/server hands both to
+// the UI as plain JSON).
+func (r *Registry) Workflow(ref string) (domain.Workflow, bool) {
+	e, ok := r.workflows[ref]
+	return e.def, ok
+}
+
 // ContentHash returns the canonical content hash recorded for a registered
 // worker or workflow reference, or ok=false if nothing is registered there.
 func (r *Registry) ContentHash(ref string) (hash string, ok bool) {

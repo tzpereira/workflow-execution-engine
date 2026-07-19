@@ -81,6 +81,24 @@ func TestWorkersNilWhenNothingResolves(t *testing.T) {
 	}
 }
 
+// TestWorkflowResolvesRegisteredRef mirrors TestRegisterAndLookup for
+// Workflow — the accessor M1.14's template-gallery server handler uses to get
+// the workflow back out of an imported bundle's Registry.
+func TestWorkflowResolvesRegisteredRef(t *testing.T) {
+	r := registry.New()
+	wf := domain.Workflow{ID: "wf", Version: "1.0.0", Budget: domain.Budget{}}
+	if err := r.RegisterWorkflow(wf); err != nil {
+		t.Fatalf("RegisterWorkflow: %v", err)
+	}
+	got, ok := r.Workflow("wf@1.0.0")
+	if !ok || got.ID != "wf" {
+		t.Fatalf("Workflow(wf@1.0.0) = %+v, ok=%v, want the registered workflow", got, ok)
+	}
+	if _, ok := r.Workflow("wf@9.9.9"); ok {
+		t.Error("Workflow(wf@9.9.9) = found, want not found")
+	}
+}
+
 // TestReRegisterIdenticalContentIsNoOp: registering byte-identical content at
 // the same version again is allowed (idempotent), not a conflict.
 func TestReRegisterIdenticalContentIsNoOp(t *testing.T) {
