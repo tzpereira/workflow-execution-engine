@@ -24,32 +24,36 @@ import (
 // ExecutionFinished (it was never on the path taken), or StatePending
 // otherwise (the run stopped before reaching it — crash or still in flight).
 type NodeRecord struct {
-	State   engine.NodeState
-	Hash    string
-	Type    domain.ArtifactType
-	Content []byte
-	CostUSD float64
-	Tokens  int64
-	Err     string
+	State   engine.NodeState    `json:"state"`
+	Hash    string              `json:"hash,omitempty"`
+	Type    domain.ArtifactType `json:"type,omitempty"`
+	Content []byte              `json:"content,omitempty"` // base64 on the wire (encoding/json default for []byte)
+	CostUSD float64             `json:"costUsd,omitempty"`
+	Tokens  int64               `json:"tokens,omitempty"`
+	Err     string              `json:"error,omitempty"`
 }
 
 // Timeline is a fully reconstructed execution: the frozen workflow it ran,
 // every event in write order, and each node's final outcome. Nothing in a
 // Timeline is re-run — it is exactly what Audit read from disk.
 type Timeline struct {
-	ExecutionID  string
-	Workflow     domain.Workflow
-	Budget       domain.Budget
-	Events       []domain.Event
-	Nodes        map[string]NodeRecord
-	SpentCostUSD float64
-	SpentTokens  int64
+	ExecutionID  string                `json:"executionId"`
+	Workflow     domain.Workflow       `json:"workflow"`
+	Budget       domain.Budget         `json:"budget"`
+	Events       []domain.Event        `json:"events"`
+	Nodes        map[string]NodeRecord `json:"nodes"`
+	SpentCostUSD float64               `json:"spentCostUsd"`
+	SpentTokens  int64                 `json:"spentTokens"`
 	// DefinitionHashes are the content hashes of the definitions this execution
 	// pinned at start (worker "id@version" → hash), read straight from the frozen
 	// snapshot (REQ-VERSION-02). Audit never consults a registry — this is the
 	// pinned record, immune to any registry change made since the run. nil if the
 	// run pinned nothing (not registry-driven).
-	DefinitionHashes map[string]string
+	DefinitionHashes map[string]string `json:"definitionHashes,omitempty"`
+	// Workers is the full resolved Worker definition (goal, contract,
+	// contextPolicy) behind each DefinitionHashes entry, pinned the same way
+	// (REQ-UI-03) — the Inspector's source for a node's Contract.
+	Workers map[string]domain.Worker `json:"workers,omitempty"`
 }
 
 // Auditor renders past executions from their on-disk record alone (REQ-
@@ -148,5 +152,6 @@ func (a *Auditor) Audit(executionID string) (Timeline, error) {
 		SpentCostUSD:     totalCost,
 		SpentTokens:      totalTokens,
 		DefinitionHashes: snap.DefinitionHashes,
+		Workers:          snap.Workers,
 	}, nil
 }

@@ -43,9 +43,14 @@ func TestSnapshotPinsDefinitionHashesForReplay(t *testing.T) {
 	if pins["rev@1.0.0"] == "" {
 		t.Fatalf("DefinitionHashes did not pin rev@1.0.0: %v", pins)
 	}
+	workers := reg.Workers(wf)
+	if workers["rev@1.0.0"].Objective != "review v1" {
+		t.Fatalf("Workers did not pin rev@1.0.0's v1 definition: %+v", workers["rev@1.0.0"])
+	}
 
 	sched := engine.New(stubExec{}, store.New(base), eventlog.New(base), cache.New(base))
-	if _, err := sched.Run(context.Background(), &wf, engine.RunOptions{ExecutionID: "old", DefinitionHashes: pins}); err != nil {
+	opts := engine.RunOptions{ExecutionID: "old", DefinitionHashes: pins, Workers: workers}
+	if _, err := sched.Run(context.Background(), &wf, opts); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -68,5 +73,8 @@ func TestSnapshotPinsDefinitionHashesForReplay(t *testing.T) {
 	}
 	if v2, _ := reg.ContentHash("rev@2.0.0"); tl.DefinitionHashes["rev@1.0.0"] == v2 {
 		t.Error("audited pin equals the bumped version's hash — replay read current registry state, not the pinned record")
+	}
+	if got := tl.Workers["rev@1.0.0"].Objective; got != "review v1" {
+		t.Errorf("audited Worker for rev@1.0.0 has objective %q, want the v1 definition frozen at run time (registry now holds v2)", got)
 	}
 }
