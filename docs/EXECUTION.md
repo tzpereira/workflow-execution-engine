@@ -41,7 +41,9 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.13 — complete, locally verified. Next up: M1.14. **Milestone gate reached at
+- **Current milestone:** M1.14 — complete, locally verified. Next up: M1.15 (flagship validated against 3
+  real repos, docs site, README/demo video, v0.1.0 launch checklist — paused pending the repos to validate
+  against and explicit go-ahead on the public release steps). **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
@@ -244,6 +246,12 @@ Rules:
   one click; every `domain.ArtifactType` has a dedicated viewer (Diff/Markdown+Report/JSON+Metrics/Code/
   TestResult/Image/File, plus a raw fallback); the event log is filterable by node and type with expandable
   payloads, shared between the Inspector (scoped to one node) and the Timeline's Logs tab.
+- **M1.14:** all tasks and acceptance criteria verified — `go test ./... -race` green, `go vet` clean; `pnpm
+  test`/`typecheck`/`build` green (110 tests); manually verified live (Playwright) running
+  `examples/architecture-review` end to end via the Templates gallery — see the milestone's own notes above
+  for the full account, including why all four gallery templates (flagship + 3 secondary demos) got pulled
+  forward from M1.15, and the two backend additions (`ExecutionSummary` cost/duration, the
+  `/api/templates*` endpoints) this milestone needed that weren't anticipated by its own task list.
 - **Phase 1 exit criterion:** not met.
 
 (Update this section every time you finish a milestone.)
@@ -1272,18 +1280,55 @@ zero docs.
 
 ### Tasks
 
-- [ ] Build the Metrics panel per execution: total cost, per-node cost breakdown, token usage, duration,
+- [x] Build the Metrics panel per execution: total cost, per-node cost breakdown, token usage, duration,
       cache hit rate, retry count, contract violation count, failure count.
-- [ ] Build a cross-execution history table: sortable columns for cost/duration/status.
-- [ ] Build the Template gallery: the flagship demo plus the 3 secondary demos (Bug Investigation, PRD
+- [x] Build a cross-execution history table: sortable columns for cost/duration/status.
+- [x] Build the Template gallery: the flagship demo plus the 3 secondary demos (Bug Investigation, PRD
       Generation, Architecture Review — see M1.15) as one-click imports.
-- [ ] Ensure every template is a plain Core bundle produced via `wee export` (dogfood M1.8/M1.9 — no
+- [x] Ensure every template is a plain Core bundle produced via `wee export` (dogfood M1.8/M1.9 — no
       UI-only/proprietary template format).
 
 ### Acceptance criteria
 
-- [ ] Fresh user flow, timed: open UI → pick a template → set API key → run → watch it live → inspect a node
+- [x] Fresh user flow, timed: open UI → pick a template → set API key → run → watch it live → inspect a node
       — completes in under 5 minutes without consulting any documentation.
+
+**Verified:** `go test ./... -race` green, `go vet` clean (golangci-lint still blocked by the M1.6a
+environment note); `pnpm test`/`typecheck`/`build` green (110 tests). Manually verified end-to-end in a real
+browser (Playwright) against a freshly rebuilt `wee`: opened the Templates gallery, picked
+`architecture-review`, watched all 6 nodes (4 reviewers in parallel + merge) succeed live, then read real
+numbers off the Metrics tab ($0.0056, 3674 tok, 8.7s, 0% cache hit rate, per-node cost/duration/1st-pass/
+consumers) and the History tab (one row, sortable, correct cost/duration) — zero console errors.
+
+Scope note: M1.14's own task list assumed the flagship + 3 secondary demos already existed (they were
+M1.15 deliverables); rather than ship a gallery with nothing real to import, all four were pulled forward
+into this milestone (see their own `examples/` commits) — flagship graph pulled forward as designed in
+VISION.md; the 3 secondary demos designed from VISION.md's one-line sketches (a real, disclosed judgment
+call — no spec detail existed beyond the sketch — see `feedback_commit_granularity`-adjacent design notes in
+each example's own comments). M1.15 itself still owns: validating the flagship against 3 real repos, the
+docs site, the example READMEs' cost figures, the top-level README/demo video, and the v0.1.0 launch
+checklist — none of that is done here.
+
+Two backend additions this milestone needed, not anticipated by its own task list (mirrors M1.13's own
+pattern of the Inspector surfacing gaps M1.12 didn't anticipate): (1) `ExecutionSummary` (`GET
+/api/executions`) gained `spentCostUsd`/`spentTokens`/`durationMs` — cheap, derived the same way
+`workflow`/`version`/`state` already were (a plain event-log read), needed for the history table's cost/
+duration columns without fetching every execution's full artifact-bytes-included Audit just to sort a list;
+(2) `core/server` gained `GET /api/templates` and `POST /api/templates/{name}/import` — the gallery unpacks
+a `wee export` bundle (`registry.Import` + a new `Registry.SoleWorkflow()`/`Workflow(ref)` accessor pair)
+into real YAML files under the server's `--dir`, reusing the exact same `wee run`/`POST /api/run`
+file-resolution path every other workflow goes through, rather than inventing a second, in-memory-only
+execution path just for templates. `wee.yaml` (tool allowlists/workspaceRoot) is deliberately **not** part
+of the bundle — it's CLI/runner config, not a Workflow/Worker definition — so a template with non-default
+tool needs (an http domain allowlist, a terminal command allowlist) still needs one hand-written after
+import; disclosed in each example's own README, not silently swallowed.
+
+`computeMetrics` (`ui/src/core/metrics.ts`) also closes REQ-METRIC-02 (artifact value proxies: first-pass
+acceptance, downstream consumption) purely from the existing Audit response — no new instrumentation.
+REQ-METRIC-03's cache-hit savings are surfaced (already recorded per `CacheHit` event since M1.12); its
+other two categories (context-pruning and retry-avoidance savings) need a counterfactual cost model — "what
+would this have cost under a different policy" — that doesn't exist anywhere in the engine, so they're
+disclosed as out of scope rather than guessed at.
 
 ---
 

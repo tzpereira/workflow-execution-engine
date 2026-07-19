@@ -87,4 +87,7 @@ supplies the type).
 The UI shall surface the metrics of REQ-METRIC-01/02 (cost, usage, value proxies, cache hit rate) and ship
 the template gallery (flagship + Bug Investigation, PRD Generation, Architecture Review) including the
 verifier-node pattern (REQ-CONTRACT-05).
-- **Delivered by:** M1.14. **Verified by:** _pending_.
+- **Delivered by:** M1.14. **Verified by:** `ui/src/components/MetricsPanel.test.tsx`,
+  `ui/src/components/HistoryTable.test.tsx`, `ui/src/components/TemplateGallery.test.tsx`, plus manual
+  verification against a real run (`docs/EXECUTION.md`'s M1.14 notes: gallery → import → run →
+  Metrics/History, end to end, zero console errors).

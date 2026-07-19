@@ -43,4 +43,9 @@ The project shall document (and the template gallery shall include) the verifica
 verifier Worker judging an expensive producer Worker's artifact against objective criteria, gating the
 graph via a conditional edge (REQ-RUNTIME-02).
 - **Rationale:** PRIN-08 — verification is a graph shape, not a hope; composes from existing primitives.
-- **Delivered by:** M1.14 (template), docs in M1.15. **Verified by:** template runs in gallery (_pending_).
+- **Delivered by:** M1.14 (template), docs in M1.15. **Verified by:** `examples/bug-investigation` —
+  `verify-patch` (a distinct Worker, gpt-4o-mini) judges `patch` (the producer, gpt-4o) against objective
+  criteria, gating `apply-patch` via a conditional edge; locked in by
+  `examples/examples_test.go`'s `TestBugInvestigationHasVerifierNode` (asserts the gate's `From` is the
+  judge, not the producer) and manually verified runnable via the Template gallery
+  (`docs/EXECUTION.md`'s M1.14 notes). Docs prose explaining the pattern is still M1.15's task.
