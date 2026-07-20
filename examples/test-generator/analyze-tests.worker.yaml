@@ -1,0 +1,55 @@
+id: analyze-tests
+version: 1.0.0
+objective: Analyze one source file and identify the smallest useful test plan for its observable behavior.
+constraints:
+  - Read source code only from fetch-source.body.
+  - Prioritize behavior, edge cases, and regressions over implementation details.
+  - Return at most six test cases and five risks.
+  - Do not generate code in this step.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-source]
+contract:
+  goal: Produce a bounded test plan grounded in the fetched source file.
+  rules:
+    - language and framework are short identifiers.
+    - Every test case names its target and assertion.
+  successCriteria:
+    - The plan covers the most important success and failure paths visible in the file.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [language, framework, risks, testCases]
+    properties:
+      language:
+        type: string
+        maxLength: 30
+      framework:
+        type: string
+        maxLength: 40
+      risks:
+        type: array
+        maxItems: 5
+        items:
+          type: string
+          maxLength: 180
+      testCases:
+        type: array
+        maxItems: 6
+        items:
+          type: object
+          additionalProperties: false
+          required: [name, target, assertion]
+          properties:
+            name: { type: string, maxLength: 80 }
+            target: { type: string, maxLength: 100 }
+            assertion: { type: string, maxLength: 180 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 700

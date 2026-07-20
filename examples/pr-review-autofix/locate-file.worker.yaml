@@ -1,37 +1,39 @@
-# locate-file: a cheap, deterministic-in-spirit extraction step that exists
-# solely so read-original (workflow.yaml) knows which file to read. Without
-# it, fixer only ever sees the diff and never the real file it's supposed to
-# reconstruct — the root cause behind the "content is a diff fragment, not a
-# full file" rejections README.md's Real-repo validation section documents:
-# asked to produce a whole file from a diff alone, the model has nothing to
-# copy the unchanged lines from, and tends to echo back the diff shape it was
-# given instead.
+# locate-file: a cheap extraction step that gives read-original both the
+# changed path and the raw GitHub URL for the file at the PR base commit. This
+# keeps public-PR review/fix proposal remote-first; a local checkout is only
+# needed later if the workflow actually applies/tests/commits a fix.
 id: locate-file
 version: 1.0.0
-objective: Read a unified diff and report the exact path of the single file it modifies.
+objective: Read GitHub PR metadata plus a unified diff, then report the exact changed path and the raw URL for that file at the PR base commit.
 constraints:
   - path is the path from the diff's own "+++ b/" header, with the "b/" prefix stripped — never invented, never guessed.
   - If the diff touches more than one file, path is the first file's path only — this workflow handles one file per run.
+  - originalUrl must be "https://raw.githubusercontent.com/{base.repo.full_name}/{base.sha}/{path}" using base.repo.full_name and base.sha from fetch-pr's JSON body and path from the diff.
 tools: []
 contextPolicy:
   mode: artifacts
   params:
-    artifacts: [fetch-diff]
+    artifacts: [fetch-pr, fetch-diff]
 contract:
-  goal: Report the workspace-relative path of the file a diff modifies.
+  goal: Report the workspace-relative path of the file a diff modifies and the raw URL for its original base content.
   rules:
     - path never starts with "/", "a/", or "b/" — it is a plain workspace-relative path, ready for a filesystem read.
+    - originalUrl must start with "https://raw.githubusercontent.com/" and must end with "/" plus path.
   successCriteria:
     - path exactly matches the file the diff's own headers name.
+    - originalUrl points at the PR base repo and base sha, not the head branch.
   maxRetries: 2
   outputSchema:
     type: object
     additionalProperties: false
-    required: [path]
+    required: [path, originalUrl]
     properties:
       path:
         type: string
         maxLength: 500
+      originalUrl:
+        type: string
+        maxLength: 1000
 model:
   provider: openai
   model: gpt-4o-mini

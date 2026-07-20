@@ -1,0 +1,43 @@
+id: extract-signals
+version: 1.0.0
+objective: Extract factual change signals from a GitHub compare response without scoring risk yet.
+constraints:
+  - Use only fetch-changes.body.
+  - Separate observed facts from inference.
+  - Return at most eight signals and six affected areas.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-changes]
+contract:
+  goal: Compress a compare response into the facts needed for a risk assessment.
+  rules:
+    - Counts must match the compare response when present.
+    - Signals are short factual statements.
+  successCriteria:
+    - The output captures scope, tests, sensitive areas, and migration indicators visible in the response.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [summary, filesChanged, additions, deletions, areas, signals]
+    properties:
+      summary: { type: string, maxLength: 240 }
+      filesChanged: { type: integer, minimum: 0 }
+      additions: { type: integer, minimum: 0 }
+      deletions: { type: integer, minimum: 0 }
+      areas:
+        type: array
+        maxItems: 6
+        items: { type: string, maxLength: 60 }
+      signals:
+        type: array
+        maxItems: 8
+        items: { type: string, maxLength: 180 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 700

@@ -3,14 +3,15 @@
 The flagship demo ([VISION.md](../../docs/VISION.md) "Pull Request Review & Auto-Fix") — every
 differentiator the project claims, in one graph:
 
-```
+```text
+fetch-pr
 fetch-diff
   +-- reviewer-a        (style & correctness)
   +-- reviewer-b        (adversarial — assumes the diff is wrong)
   +-- security-reviewer (vulnerabilities)      <- all three in parallel
-  +-- locate-file       (extracts the path the diff modifies)
+  +-- locate-file       (extracts the path and raw base-file URL)
         v
-      read-original (tool: filesystem read — the real file locate-file named)
+      read-original (tool: http read — the real base file locate-file named)
         v
       fixer        (reads the diff + all three reviews + the real original file)
         v
@@ -28,8 +29,9 @@ fetch-diff
 Three independent reviewers, each scoped to see only the diff (`contextPolicy: {mode: artifacts,
 params: {artifacts: [fetch-diff]}}` — see [concepts/context-policy.md](../../docs/concepts/context-policy.md)
 for why `artifacts` mode, not `diff-only`, is what actually works here); a `locate-file` Worker + a
-`read-original` filesystem read that hand the Fixer the real, complete original file — not just the diff
-— to base its rewrite on (see "Disclosed, current limitation" below for the failure this closes); a Fixer
+`read-original` HTTP read that hand the Fixer the real, complete original file from the PR base commit —
+not just the diff — to base its rewrite on (see "Disclosed, current limitation" below for the failure this
+closes); a Fixer
 whose own output is judged by a separate `verify-fix` Worker before anything touches a file; real
 tool-backed apply/test/stage/commit steps; node-cache reuse across re-runs.
 
@@ -41,12 +43,11 @@ Requires:
   REQ-INPUT-01): the specific PR diff URL this run reviews. Supply it with
   `wee run workflow.yaml --input prUrl=https://api.github.com/repos/OWNER/REPO/pulls/N`, or pick it in the
   UI's Run dialog after importing the template — either way it's recorded in the run's audit trail.
-- `GITHUB_AUTH_HEADER` — an env var (`REQ-WORKER-06`), since a credential is deployment config, not a run
-  parameter, and is never recorded. An empty value works fine against a public repo's diff for a quick try
-  (GitHub allows unauthenticated reads at a lower rate limit); a real token is needed for sustained use.
-- A `wee.yaml` allowlisting the terminal command this repo's tests/build run with (`go` by default here)
-  and pointing the workspace root at a real git checkout of the target repo — `read-original` reads the
-  file under fix straight out of that checkout, not just `apply-fix`/`test`/`stage`/`commit`.
+- Public GitHub PR reads are anonymous by default. If the shared-IP quota is exhausted, set
+  `GITHUB_AUTH_HEADER` to `Bearer <token>` in Settings; it is sent but never recorded.
+- A `wee.yaml` allowlisting GitHub hosts plus the terminal command this repo's tests/build run with (`go`
+  by default here). The workspace root is only used by the local tail (`apply-fix`/`test`/`stage`/`commit`);
+  point it at a real git checkout before allowing those nodes to run.
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`, per each Worker's `model.provider`) for the six LLM Workers.
 
 Per-repo tuning (test command, timeouts, budget) is expected — this bundle's defaults are a starting point,
@@ -55,7 +56,7 @@ not a one-size-fits-all config. See "Real-repo validation" below for what tuning
 ## Expected cost
 
 Six LLM Workers per run: three `gpt-4o-mini` reviewers (parallel, cheap), one `gpt-4o-mini` `locate-file`
-(cheap — a one-field extraction), one `gpt-4o` fixer (the expensive call), and one `gpt-4o-mini` verifier.
+(cheap — path + raw URL extraction), one `gpt-4o` fixer (the expensive call), and one `gpt-4o-mini` verifier.
 A typical run costs roughly half a cent to a couple of cents — see the real figures below — comfortably
 inside the workflow's own `maxCostUsd: 0.50` ceiling; a run where `verify-fix` rejects the fix skips
 `apply-fix` onward and costs less still. The actual figure for any specific run is real accounting, not an
@@ -103,9 +104,10 @@ no source for most of that file's own content, the model had little choice but t
 diff-shaped. Across repeated runs against all three validation repos, `verify-fix` correctly rejected this
 every time (`"content is a diff fragment, not a full file."`), so **no file was ever corrupted** — but it
 also meant the auto-fix step frequently never reached an applied fix. Fixed by adding `locate-file` (a
-cheap Worker that extracts the modified path from the diff) and `read-original` (a `filesystem` read of
-that real file) upstream of `fixer`, so `fixer` now edits the actual file content instead of reconstructing
-it from a partial diff — and `verify-fix` now also sees `read-original`, so it can reject a `content` whose
+cheap Worker that extracts the modified path from the diff and builds the raw GitHub URL for the PR base
+file) and `read-original` (an `http` read of that real file) upstream of `fixer`, so `fixer` now edits the
+actual file content instead of reconstructing it from a partial diff — and `verify-fix` now also sees
+`read-original`, so it can reject a `content` whose
 unrelated lines diverge from the real file, not just pattern-match diff syntax. **Not yet re-validated
 against a real repo** (the original three validation runs predate this fix) — the review portion (three
 reviewers + the verdict) remains independently reliable regardless. This is exactly what

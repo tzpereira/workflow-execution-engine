@@ -3,6 +3,7 @@ package examples_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -27,6 +28,14 @@ func TestExamplesAreValid(t *testing.T) {
 	if err := validate.Graph(&workflow, nil); err != nil {
 		t.Errorf("workflow.yaml failed graph validation:\n%v", err)
 	}
+	if len(workflow.Nodes) != 2 || workflow.Nodes[0].Tool == nil || workflow.Nodes[1].Worker == "" {
+		t.Error("pr-review should stay a two-node, one-model-call remote review path")
+	}
+	for _, node := range workflow.Nodes {
+		if node.Tool != nil && node.Tool.ToolName != "http" {
+			t.Errorf("pr-review must be read-only; found tool %q", node.Tool.ToolName)
+		}
+	}
 
 	worker := readWorker(t, "pr-review/reviewer.worker.yaml")
 	if err := v.Validate(validate.KindWorker, worker, nil); err != nil {
@@ -49,6 +58,23 @@ func TestExamplesAreValid(t *testing.T) {
 		if n.Tool == nil {
 			t.Errorf("github-pr-review node %q should be tool-backed", n.ID)
 		}
+	}
+}
+
+func TestPublishedTemplateCatalogContainsOnlyFastWorkflows(t *testing.T) {
+	entries, err := os.ReadDir("templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tar") {
+			names = append(names, entry.Name())
+		}
+	}
+	want := []string{"change-risk.tar", "pr-review.tar", "test-generator.tar"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("published templates = %v, want %v", names, want)
 	}
 }
 
@@ -84,7 +110,7 @@ func TestFlagshipIsValid(t *testing.T) {
 		}
 	}
 
-	for _, rel := range []string{"reviewer-a.worker.yaml", "reviewer-b.worker.yaml", "security-reviewer.worker.yaml", "fixer.worker.yaml"} {
+	for _, rel := range []string{"reviewer-a.worker.yaml", "reviewer-b.worker.yaml", "security-reviewer.worker.yaml", "locate-file.worker.yaml", "fixer.worker.yaml", "verify-fix.worker.yaml"} {
 		w := readWorker(t, "pr-review-autofix/"+rel)
 		if err := v.Validate(validate.KindWorker, w, nil); err != nil {
 			t.Errorf("%s failed schema validation:\n%v", rel, err)
@@ -104,7 +130,7 @@ func TestSecondaryDemosAreValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewValidator: %v", err)
 	}
-	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review"} {
+	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk"} {
 		validateExampleDir(t, v, dir)
 	}
 }

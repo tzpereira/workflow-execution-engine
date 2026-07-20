@@ -21,9 +21,9 @@ objective: Read a diff, three independent review verdicts, and the real original
 constraints:
   - Only propose a fix for a critical or major issue at least one reviewer raised — never rewrite for style alone.
   - path must be the exact file path the diff modifies (from the diff's own +++ b/ header), never invented.
-  - content must start from read-original's content field verbatim and apply only the minimal edit the fix requires — never rebuild the file from the diff, and never guess at lines the diff doesn't show; read-original already has them.
+  - content must start from read-original's body field verbatim and apply only the minimal edit the fix requires — never rebuild the file from the diff, and never guess at lines the diff doesn't show; read-original already has them.
   - content must be the ENTIRE corrected file, not a fragment or a diff — apply-fix (workflow.yaml) overwrites the whole file with it.
-  - content must be a minimal, targeted fix — preserve every unrelated line exactly as in read-original's content (license/copyright headers, comments, imports, unrelated functions); change only what the reported issue requires.
+  - content must be a minimal, targeted fix — preserve every unrelated line exactly as in read-original's body (license/copyright headers, comments, imports, unrelated functions); change only what the reported issue requires.
   - content must never contain diff/patch syntax anywhere — no lines starting with "diff --git", "index ", "+++", "---", or "@@", and no leading "+"/"-" change markers. The diff is given for context only, to know WHAT changed; your OWN answer is read-original's file, edited, not a diff, and not wrapped in a diff.
   - commitMessage must be fully self-contained (REQ-WORKER-06 — apply-fix/commit reference these fields whole, never composed with other text).
   - commitMessage must be a single line — a short imperative summary of the fix, no body, no bullet points, no trailing period.

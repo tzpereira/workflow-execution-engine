@@ -1,0 +1,3 @@
+workspaceRoot: .
+http:
+  allow: ["api.github.com"]

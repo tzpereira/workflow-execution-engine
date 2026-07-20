@@ -1,0 +1,66 @@
+id: risk-report
+version: 1.0.0
+objective: Turn observed change signals into a concise engineering risk report with scored dimensions and actions.
+constraints:
+  - Base every score and finding on fetch-changes or extract-signals.
+  - Use the full 0 to 100 scale consistently; higher means more risk.
+  - Return at most five dimensions, five findings, and five actions.
+  - Do not claim tests passed unless the compare response proves it.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce a risk report that can be scanned as a chart and acted on before merge.
+  rules:
+    - "risk and score must agree: low 0-24, medium 25-49, high 50-74, critical 75-100."
+    - Every dimension has a short explanation.
+  successCriteria:
+    - The report distinguishes change size, behavioral risk, security exposure, and test confidence when applicable.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [risk, score, summary, dimensions, findings, actions]
+    properties:
+      risk:
+        enum: [low, medium, high, critical]
+      score:
+        type: integer
+        minimum: 0
+        maximum: 100
+      summary:
+        type: string
+        maxLength: 240
+      dimensions:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [name, score, summary]
+          properties:
+            name: { type: string, maxLength: 50 }
+            score: { type: integer, minimum: 0, maximum: 100 }
+            summary: { type: string, maxLength: 160 }
+      findings:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [severity, area, message]
+          properties:
+            severity:
+              enum: [critical, major, minor, note]
+            area: { type: string, maxLength: 60 }
+            message: { type: string, maxLength: 180 }
+      actions:
+        type: array
+        maxItems: 5
+        items: { type: string, maxLength: 180 }
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 1000

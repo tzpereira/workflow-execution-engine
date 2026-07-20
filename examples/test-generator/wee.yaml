@@ -1,0 +1,3 @@
+workspaceRoot: .
+http:
+  allow: ["raw.githubusercontent.com"]

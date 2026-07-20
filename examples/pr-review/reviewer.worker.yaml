@@ -1,30 +1,27 @@
-# A diff-scoped reviewer with a TIGHT output contract (REQ-CONTRACT-04).
-#
-# Anti-slop by construction (PRIN-08): every field the model may emit is bounded.
-#   - enums instead of free prose      -> verdict, issue.severity
-#   - bounded integers                 -> score (0..100), issue.line (>= 0)
-#   - bounded arrays (maxItems)        -> at most 5 issues
-#   - bounded strings (maxLength)      -> issue.message <= 200 chars
-# Slop needs unbounded space; the contract denies it. The reviewer also sees only
-# the diff (contextPolicy: diff-only), so a sibling's output can neither bloat nor
-# bias it (REQ-CTXPOL-01).
+# One bounded review call. The HTTP tool emits a JSON artifact, so the policy
+# admits fetch-diff by node id instead of relying on an artifact type label.
 id: reviewer
-version: 1.0.0
-objective: Review a unified diff and report a bounded, structured verdict.
+version: 1.1.0
+objective: Review a unified diff for correctness, security, and meaningful maintainability risks, then return only actionable findings.
 constraints:
-  - Judge only what the diff shows; do not assume unshown context.
-  - Cite a line number for every issue.
+  - Judge only what the diff proves; do not invent missing repository context.
+  - Prioritize bugs and regressions over style preferences.
+  - Cite a changed line for every issue.
+  - Return no issue when the evidence is weak.
 tools: []
 contextPolicy:
-  mode: diff-only
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff]
 contract:
-  goal: Produce a structured review verdict for the diff.
+  goal: Produce a concise, structured PR verdict a developer can act on immediately.
   rules:
     - Return at most five issues, most severe first.
-    - Every issue names a severity, a line, and a one-line message.
+    - Every issue names a severity, changed line, and one-line message.
   successCriteria:
-    - No critical defect in the diff is left unreported.
-  maxRetries: 2
+    - Every reported issue is grounded in the supplied diff.
+    - Critical correctness or security defects visible in the diff are not omitted.
+  maxRetries: 1
   outputSchema:
     type: object
     additionalProperties: false
@@ -57,3 +54,4 @@ model:
   model: gpt-4o-mini
   params:
     temperature: 0
+    max_tokens: 700

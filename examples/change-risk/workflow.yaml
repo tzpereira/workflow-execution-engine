@@ -1,0 +1,34 @@
+# Read-only change risk report from a public GitHub compare endpoint.
+id: change-risk
+version: 1.0.0
+inputs:
+  - name: compareUrl
+    required: true
+    description: GitHub compare API URL (https://api.github.com/repos/OWNER/REPO/compare/BASE...HEAD)
+nodes:
+  - id: fetch-changes
+    tool:
+      toolName: http
+      input:
+        method: GET
+        url: "${input:compareUrl}"
+        headers:
+          Accept: application/vnd.github+json
+          Authorization: "${env:GITHUB_AUTH_HEADER:-}"
+
+  - id: extract-signals
+    worker: extract-signals@1.0.0
+
+  - id: risk-report
+    worker: risk-report@1.0.0
+
+edges:
+  - { from: fetch-changes, to: extract-signals }
+  - { from: fetch-changes, to: risk-report }
+  - { from: extract-signals, to: risk-report }
+
+budget:
+  maxCostUsd: 0.08
+  maxTokens: 40000
+  maxDurationMs: 120000
+  maxRetriesPerNode: 1

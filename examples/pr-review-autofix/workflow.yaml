@@ -6,13 +6,14 @@
 # applied, real tool-backed test/commit steps, and node-cache reuse across
 # re-runs.
 #
+# fetch-pr
 # fetch-diff
 #   +-- reviewer-a        (style & correctness)
 #   +-- reviewer-b        (adversarial — assumes the diff is wrong)
 #   +-- security-reviewer (vulnerabilities)      <- all three in parallel
-#   +-- locate-file       (extracts the path the diff modifies)
+#   +-- locate-file       (extracts the path and raw base-file URL)
 #         v
-#       read-original (tool: filesystem read — the real file locate-file named)
+#       read-original (tool: http read — the real base file locate-file named)
 #         v
 #       fixer        (reads the diff + all three reviews + the real original file)
 #         v
@@ -28,9 +29,10 @@
 #       commit        (tool: git commit)
 #
 # read-original exists because fixer, given only the diff, has nothing to
-# copy the file's unchanged lines from — see locate-file.worker.yaml and
-# README.md's Real-repo validation section for the "content is a diff
-# fragment, not a full file" failure this closes.
+# copy the file's unchanged lines from. For public PRs, locate-file builds a
+# raw.githubusercontent.com URL from the PR base repo/sha and read-original
+# fetches it remotely; a local clone is only needed if the apply/test/commit
+# tail runs.
 #
 # Reviewer context policy: `artifacts` naming fetch-diff by id, not
 # `diff-only` by artifact TYPE — the generic `http` tool (core/tool/http)
@@ -48,19 +50,16 @@
 # UI's Run dialog, passed via `wee run --input prUrl=...`, or supplied through
 # POST /api/run — not an env var: it's the specific thing this run reviews,
 # not deployment config, so it belongs in the audit trail (unlike a secret).
-# GITHUB_AUTH_HEADER stays "${env:...}": it's a credential, not a run
-# parameter, and secrets are deliberately never recorded in the audit record
-# (REQ-WORKER-06). apply-fix's path/content are two separate fields, each its
-# own whole-string placeholder — never concatenated into one string, so the
-# rule isn't hit.
+# apply-fix's path/content are two separate fields, each its own whole-string
+# placeholder — never concatenated into one string, so the rule isn't hit.
 #
-# Requires (see README.md): GITHUB_AUTH_HEADER set; a wee.yaml allowlisting
-# the terminal command this repo's tests run with and pointing WorkspaceRoot
-# at a real git checkout of the target repo (read-original reads from it, not
-# just apply-fix/test/stage/commit); OPENAI_API_KEY (or ANTHROPIC_API_KEY, per
-# each worker's model.provider) for the six LLM Workers. Per-repo tuning (test
-# command, timeouts, budget) is expected — see M1.15's validation notes once
-# run against real repositories.
+# Requires (see README.md): OPENAI_API_KEY (or ANTHROPIC_API_KEY, per each
+# worker's model.provider) for the six LLM Workers. GitHub public PR reads are
+# anonymous by default, with optional GITHUB_AUTH_HEADER when the public API's
+# shared-IP quota is exhausted. A local checkout is only required for the
+# apply-fix/test/stage/commit tail; per-repo tuning (test command, timeouts,
+# budget) is expected — see M1.15's validation notes once run against real
+# repositories.
 id: pr-review-autofix
 version: 1.0.0
 inputs:
@@ -68,6 +67,16 @@ inputs:
     required: true
     description: GitHub API URL of the PR diff to review (e.g. https://api.github.com/repos/OWNER/REPO/pulls/N)
 nodes:
+  - id: fetch-pr
+    tool:
+      toolName: http
+      input:
+        method: GET
+        url: "${input:prUrl}"
+        headers:
+          Accept: "application/vnd.github+json"
+          Authorization: "${env:GITHUB_AUTH_HEADER:-}"
+
   - id: fetch-diff
     tool:
       toolName: http
@@ -76,7 +85,7 @@ nodes:
         url: "${input:prUrl}"
         headers:
           Accept: "application/vnd.github.diff"
-          Authorization: "${env:GITHUB_AUTH_HEADER}"
+          Authorization: "${env:GITHUB_AUTH_HEADER:-}"
 
   - id: reviewer-a
     worker: reviewer-a@1.0.0
@@ -90,10 +99,12 @@ nodes:
 
   - id: read-original
     tool:
-      toolName: filesystem
+      toolName: http
       input:
-        op: read
-        path: "${locate-file.path}"
+        method: GET
+        url: "${locate-file.originalUrl}"
+        headers:
+          Accept: "text/plain"
 
   - id: fixer
     worker: fixer@1.0.0
@@ -131,6 +142,7 @@ nodes:
         message: "${fixer.commitMessage}"
 
 edges:
+  - { from: fetch-pr, to: locate-file }
   - { from: fetch-diff, to: reviewer-a }
   - { from: fetch-diff, to: reviewer-b }
   - { from: fetch-diff, to: security-reviewer }

@@ -1,0 +1,42 @@
+id: generate-tests
+version: 1.0.0
+objective: Generate a focused test file from the fetched source and the approved test plan.
+constraints:
+  - Use the language and testing framework selected by analyze-tests.
+  - Generate only tests that the source file and test plan support.
+  - Do not rewrite production code.
+  - code must contain a complete test file without Markdown fences.
+  - path must be a plausible repository-relative test filename.
+tools: []
+contextPolicy:
+  mode: parent-only
+contract:
+  goal: Produce one complete, syntax-valid test file that implements the bounded test plan.
+  rules:
+    - summary is one short sentence.
+    - language is suitable for syntax highlighting.
+  successCriteria:
+    - Every generated test maps to a test case from analyze-tests.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [language, path, code, summary]
+    properties:
+      language:
+        type: string
+        maxLength: 30
+      path:
+        type: string
+        maxLength: 300
+      code:
+        type: string
+      summary:
+        type: string
+        maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 1200

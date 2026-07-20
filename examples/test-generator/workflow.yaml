@@ -1,0 +1,33 @@
+# Read-only test generation from a public source file: fetch, analyze, generate.
+id: test-generator
+version: 1.0.0
+inputs:
+  - name: sourceUrl
+    required: true
+    description: Raw GitHub URL for the source file to analyze
+nodes:
+  - id: fetch-source
+    tool:
+      toolName: http
+      input:
+        method: GET
+        url: "${input:sourceUrl}"
+        headers:
+          Accept: text/plain
+
+  - id: analyze-tests
+    worker: analyze-tests@1.0.0
+
+  - id: generate-tests
+    worker: generate-tests@1.0.0
+
+edges:
+  - { from: fetch-source, to: analyze-tests }
+  - { from: fetch-source, to: generate-tests }
+  - { from: analyze-tests, to: generate-tests }
+
+budget:
+  maxCostUsd: 0.08
+  maxTokens: 40000
+  maxDurationMs: 120000
+  maxRetriesPerNode: 1
