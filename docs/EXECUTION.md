@@ -1525,19 +1525,27 @@ Contract or a Context Policy before.
 
 ### Tasks
 
-- [ ] Empty states carry a next-step hint instead of a blank area (e.g. "no node selected — click a node to
-      see its Goal, Artifact, and cost").
-- [ ] A first-encounter, dismissible tooltip on domain-jargon labels (Contract, Context Policy, Artifact,
-      Node Cache) explaining the term in one sentence, linking to its `docs/concepts/*.md` page — dismissed
-      once, never shown again (localStorage), never a modal that blocks interaction.
-- [ ] Every disabled control states why in a `title` attribute (Toolbar's Run button already does this for
-      "import a workflow first" — extend the same pattern to Export/Templates-empty/etc.).
+- [x] Empty states carry a next-step hint instead of a blank area. **Delivered:** the Canvas (the one that
+      was actually blank — nothing pointed at Templates/Import; the exact confusion behind an earlier
+      "nada apareceu na UI" report). Inspector's no-node-selected and Timeline's no-nodes-yet states already
+      had fallback text before this milestone.
+- [x] A first-encounter, dismissible tooltip on domain-jargon labels — **Contract, Context Policy, Artifact**
+      (Node Cache not wrapped: no existing single-label spot to attach it to without restructuring
+      MetricsPanel's `Stat`, judged not worth it for a fourth term). Explains the term in one sentence;
+      dismissed once (localStorage), never shown again, never a modal. **Not delivered:** linking to
+      `docs/concepts/*.md` — this tool has no docs-serving mechanism the running UI could link to; shipped
+      as explanation-text-only rather than link to something that would 404. **Verified by:** `Term.test.tsx`.
+- [x] Every disabled control states why in a `title` attribute. **Delivered:** Export (disabled + titled
+      when nothing meaningful is loaded yet) alongside the existing Run pattern. Templates/other controls
+      already explain empty states via inline text, not a disabled-button title.
 
 ### Acceptance criteria
 
-- [ ] A person with zero prior exposure to this project's vocabulary can, unprompted, correctly explain what
-      a Contract and a Context Policy are after five minutes in the UI alone (mirrors M1.15's own
-      acceptance criterion, but for the UI specifically rather than the README).
+- [~] A person with zero prior exposure to this project's vocabulary can, unprompted, correctly explain what
+      a Contract and a Context Policy are after five minutes in the UI alone. Not independently verified
+      with an actual first-time user in this pass — verified mechanically instead (Playwright: tooltip text
+      renders correctly on first encounter, dismissal persists, empty-canvas hint renders when nothing is
+      loaded, zero console errors). Real first-time-user validation remains open.
 
 ---
 
