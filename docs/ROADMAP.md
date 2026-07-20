@@ -2,7 +2,7 @@
 
 Two phases only.
 
-* **Phase 1 — MVP**: everything needed for the flagship demo and portfolio credibility. Core open source + minimal commercial interface.
+* **Phase 1 — MVP**: everything needed for practical, trustworthy local workflows and portfolio credibility. Core open source + minimal commercial interface.
 * **Phase 2 — Final Product**: everything needed for teams to pay. Hosted execution, collaboration, hardening.
 
 Each milestone lists: deliverables, acceptance criteria, dependencies, and a `Delivers:` line naming the
@@ -15,9 +15,13 @@ Sequencing rule: **nothing in the Interface starts before the Core event/artifac
 
 ## PHASE 1 — MVP
 
-Goal: a stranger can `brew install workflow` (or download a single static binary), run the flagship demo on a real repo, watch it live in the UI, replay it for free, and read the code without embarrassment.
+Goal: a stranger can `brew install workflow` (or download a single static binary), run a useful workflow
+against public source in minutes, understand its result in the UI, replay it for free, and read the code
+without embarrassment.
 
-Exit criterion for the whole phase: **the 3-minute flagship demo (PR Review & Auto-Fix) runs end-to-end, cached re-runs included, recorded in a single unedited video.**
+Exit criterion for the whole phase: **three practical read-only templates run end-to-end, code and analysis
+outputs are legible without opening raw JSON, and every workflow that can modify a repository pauses for
+explicit human approval before the first mutation.**
 
 ---
 
@@ -263,7 +267,7 @@ Delivers: REQ-UI-01 · `serve` command of REQ-CLI-01.
 
 Deliverables:
 
-* Single-workspace layout: Canvas (center), Inspector (right), Timeline (bottom), Artifacts/Logs (tabbed in Timeline area). No page navigation.
+* Single-workspace layout: Canvas (center), Inspector (right), Timeline/Logs/Metrics/History (bottom). No page navigation.
 * Visual builder: drag-and-drop nodes, edge drawing, node config forms generated from the JSON Schemas in `schemas/` (contracts, policies, budgets) — the same schemas the Go engine validates against, zero drift
 * Import/export: reads and writes the Core YAML/JSON directly — byte-stable round-trip, no proprietary format
 * Keyboard-first: command palette (⌘K), shortcuts for run/validate/zoom/select
@@ -319,7 +323,7 @@ Deliverables:
 
 * Metrics panel per execution: total cost, per-node cost breakdown, tokens, duration, cache hit rate, retries, contract violations, failures
 * Cross-execution list view: history table with cost/duration/status columns, sortable
-* Template gallery: flagship + 3 secondary demos (Bug Investigation, PRD, Architecture Review) as one-click imports
+* Curated template gallery: PR Review, Test Generator, and Change Risk Analysis as one-click imports
 * Template = plain Core bundle from `workflow export` (dogfooding M1.8)
 
 Acceptance:
@@ -328,22 +332,63 @@ Acceptance:
 
 ---
 
-### M1.15 — Flagship Demo, Docs & Launch
+### M1.15 — Product Proof & Practical Workflows
 
-Delivers: NFR-SEC-04 · REQ-REPLAY-03 (honesty page) · Phase 1 exit criterion.
+Delivers: NFR-SEC-04 · REQ-REPLAY-03 (honesty page) · REQ-UI-04/05 (product refinement).
 
 Deliverables:
 
-* Flagship workflow (PR Review & Auto-Fix) polished against 3 real public repos of different sizes
+* Three curated, read-only workflows with bounded spend: PR Review, Test Generator, Change Risk Analysis
+* Semantic result viewers for review reports, generated code, HTTP responses, and risk analysis; raw JSON remains an explicit fallback
+* Cost and token charts by node, plus output-first Inspector disclosure and a reduced workspace tab set
+* Advanced mutating workflows remain in `examples/` as source references but are not published in the beginner gallery
 * Docs site: quickstart, concepts (one page per domain object), CLI reference, SDK reference, replay-honesty page, cache deep-dive, writing-contracts guide
 * Example gallery in repo (`examples/`), each with README + expected cost
-* README with the unedited 3-minute demo video/GIF
-* Launch checklist: tagged v0.1.0, binaries released (goreleaser: GitHub Releases + Homebrew tap), Go module published, Show HN / Reddit / X post drafts
+
+Acceptance:
+
+* A first-time user can import and start any published template without cloning the target repository or editing YAML.
+* Every published template has at least two visible nodes and no more than two model calls on its main path;
+  the analysis and generation templates each have three visible steps.
+* Generated code is syntax-highlighted, analysis is charted, and large/raw artifacts stay within bounded scroll regions.
+
+---
+
+### M1.16 — Human-Controlled Mutations
+
+Delivers: REQ-RUNTIME-07 · REQ-UI-06.
+
+Deliverables:
+
+* ADR defining persistent approval checkpoints, event semantics, CLI behavior, and which tool operations count as mutations
+* Runtime pause/resume checkpoint before the first filesystem write, terminal mutation, Git mutation, or non-GET HTTP call
+* Proposed-change view with formatted diff, affected paths, estimated remaining cost, and explicit Approve/Reject actions
+* Approval is the default for mutating workflows; unattended mode requires an explicit workflow or run-level opt-in
+* Retry/resume continues from the checkpoint without repeating completed model calls
+
+Acceptance:
+
+* Closing the UI or restarting `wee serve` while approval is pending cannot turn the pause into approval or lose the execution.
+* No mutating tool call is emitted before approval; rejection records a terminal, auditable outcome.
+* A PR Auto-Fix run can review and propose a patch, pause, show the diff, and continue only after a human approves it.
+
+---
+
+### M1.17 — Release Readiness
+
+Delivers: Phase 1 exit criterion.
+
+Deliverables:
+
+* Top-level README centered on the reliable read-only path, with an unedited product walkthrough
+* First-time-user usability pass across install, provider setup, template import, run, inspect, retry, and replay
+* Tagged v0.1.0, release binaries, Homebrew tap, published Go module, and launch-post drafts
 
 Acceptance (Phase 1 exit):
 
-* Unedited video: clone → install → run flagship on real repo → live UI → change one contract → re-run showing cache → audit replay. Under 10 minutes total, flagship under 3.
-* A senior engineer reading only the README + one example can explain Contracts, Context Policies and Node Cache correctly.
+* One unedited recording: install → import PR Review → run against a public PR → inspect the semantic result and metrics → replay. Under 5 minutes.
+* One unedited mutating-workflow recording demonstrates the persisted human approval checkpoint and contains no unapproved write.
+* A senior engineer reading only the README and one example can explain Contracts, Context Policies, Node Cache, and approval checkpoints correctly.
 
 ---
 
@@ -521,7 +566,7 @@ Acceptance (Phase 2 exit):
 Phase 1:
 M1.0 → M1.1 → M1.2 → M1.3 → M1.4 → M1.5 → M1.6 → M1.7 → M1.8 → M1.9 → M1.10
                                             │
-                                            └── (freeze) → M1.11 → M1.12 → M1.13 → M1.14 → M1.15
+                                            └── (freeze) → M1.11 → M1.12 → M1.13 → M1.14 → M1.15 → M1.16 → M1.17
 
 Phase 2:
 M2.0 → M2.1 → M2.2 ─┐

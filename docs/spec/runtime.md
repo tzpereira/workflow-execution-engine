@@ -1,6 +1,6 @@
 # Spec — Workflow Runtime
 
-**Prefix:** `REQ-RUNTIME` · **Status:** DELIVERED (M1.3) except resume-budget note ·
+**Prefix:** `REQ-RUNTIME` · **Status:** DELIVERED (M1.3) except resume-budget note; M1.16 pending ·
 **Principles:** PRIN-01, PRIN-02, PRIN-05 · **Implementation:** `core/engine/`
 
 The runtime executes a workflow graph deterministically: goroutine-native scheduling, dependency-driven
@@ -51,3 +51,11 @@ execute only the remainder, appending to the same log.
 - **Known limitation (accepted, MVP):** budget accounting restarts from zero on resume — prior spend is not
   recounted. Revisit in M2.0.
 - **Delivered by:** M1.3. **Verified by:** `TestResumeSkipsFinishedNodes`.
+
+### REQ-RUNTIME-07 — Persistent human approval before mutation
+When a workflow reaches its first mutating tool operation, the runtime shall pause before dispatch, persist
+an approval checkpoint in the execution record, and continue only after an explicit approval tied to that
+execution and checkpoint; rejection shall terminate the path without invoking the tool.
+- **Rationale:** a model may propose a change, but control of repository mutation remains with the human by
+  default (PRIN-05). Persistence prevents a server restart or disconnected UI from changing the decision.
+- **Delivered by:** M1.16. **Verified by:** _pending_.

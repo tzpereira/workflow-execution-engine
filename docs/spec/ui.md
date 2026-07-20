@@ -1,6 +1,6 @@
 # Spec — Interface (Commercial Client)
 
-**Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.14) · **Principles:** PRIN-02, PRIN-06 ·
+**Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.16) · **Principles:** PRIN-02, PRIN-06 ·
 **Implementation:** `ui/` (React + TypeScript)
 
 The interface is **not** the product — it is the best client of the Core. It consumes the same event
@@ -11,7 +11,7 @@ the UI exports to the canonical format and runs unmodified via `wee run`, and vi
 
 - **Precision, not excitement.** No AI aesthetics, glowing gradients, glassmorphism, or decorative
   animation. Reference points: Linear, Arc, Raycast, GitHub, Figma.
-- **One workspace.** Canvas, inspector, timeline, artifacts, logs — no page navigation.
+- **One workspace.** Canvas, inspector, timeline, logs, metrics, and history — no page navigation.
 - **Every click answers a question.** No decorative panels; every panel reduces uncertainty.
 - **Fast.** Keyboard-first, instant interactions, minimal loading.
 - **Progressive disclosure.** A beginner runs a template immediately; an advanced user customizes every
@@ -78,16 +78,26 @@ the Worker actually saw — REQ-CTXPOL-03), inputs, artifacts, metrics, and cost
 
 ### REQ-UI-04 — Artifact viewers
 The UI shall render artifacts by type: diff, markdown, JSON, files, images, reports (REQ-ARTIFACT-03
-supplies the type).
-- **Delivered by:** M1.13. **Verified by:** `ui/src/components/ArtifactViewer.test.tsx` (one case per
-  `domain.ArtifactType`) plus the manual run in `docs/EXECUTION.md`'s M1.13 notes (a real JSON artifact
-  rendered as a tree).
+supplies the type). Known structured outputs shall use semantic views: generated source as highlighted
+code, review results as findings, and scored analysis as charts; bounded raw and tree views remain
+available as fallbacks.
+- **Delivered by:** M1.13; refined in M1.15. **Verified by:**
+  `ui/src/components/ArtifactViewer.test.tsx` (one case per `domain.ArtifactType`, plus generated-code and
+  risk-report cases) and the manual run in `docs/EXECUTION.md`'s M1.13 notes.
 
 ### REQ-UI-05 — Metrics & templates
 The UI shall surface the metrics of REQ-METRIC-01/02 (cost, usage, value proxies, cache hit rate) and ship
-the template gallery (flagship + Bug Investigation, PRD Generation, Architecture Review) including the
-verifier-node pattern (REQ-CONTRACT-05).
-- **Delivered by:** M1.14. **Verified by:** `ui/src/components/MetricsPanel.test.tsx`,
+a curated gallery of ready-to-run, read-only workflows: PR Review, Test Generator, and Change Risk
+Analysis. Advanced examples may remain in source without being advertised as beginner-ready templates.
+- **Delivered by:** M1.14; curated and refined in M1.15. **Verified by:** `ui/src/components/MetricsPanel.test.tsx`,
   `ui/src/components/HistoryTable.test.tsx`, `ui/src/components/TemplateGallery.test.tsx`, plus manual
   verification against a real run (`docs/EXECUTION.md`'s M1.14 notes: gallery → import → run →
   Metrics/History, end to end, zero console errors).
+
+### REQ-UI-06 — Human approval checkpoint
+While an execution is waiting at a mutation checkpoint, the UI shall show the proposed diff, affected
+paths, checkpoint status, and remaining budget, and shall require an explicit Approve or Reject command;
+closing or reconnecting the client shall preserve the pending state and shall never imply approval.
+- **Rationale:** review and proposal can be automated, but repository writes need informed human control
+  until a user deliberately opts into unattended execution.
+- **Delivered by:** M1.16. **Verified by:** _pending_.

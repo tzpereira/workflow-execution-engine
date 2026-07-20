@@ -39,13 +39,13 @@ strings (`maxLength`), enums over free prose — and the flagship templates shal
   (_pending_).
 
 ### REQ-CONTRACT-05 — Verifier-node pattern
-The project shall document (and the template gallery shall include) the verification pattern: a cheap
-verifier Worker judging an expensive producer Worker's artifact against objective criteria, gating the
-graph via a conditional edge (REQ-RUNTIME-02).
+The project shall document and include in its source examples the verification pattern: a cheap verifier
+Worker judging an expensive producer Worker's artifact against objective criteria, gating the graph via a
+conditional edge (REQ-RUNTIME-02). A mutating verifier workflow shall enter the published gallery only
+after REQ-RUNTIME-07 and REQ-UI-06 are delivered.
 - **Rationale:** PRIN-08 — verification is a graph shape, not a hope; composes from existing primitives.
 - **Delivered by:** M1.14 (template), docs in M1.15. **Verified by:** `examples/bug-investigation` —
   `verify-patch` (a distinct Worker, gpt-4o-mini) judges `patch` (the producer, gpt-4o) against objective
   criteria, gating `apply-patch` via a conditional edge; locked in by
   `examples/examples_test.go`'s `TestBugInvestigationHasVerifierNode` (asserts the gate's `From` is the
-  judge, not the producer) and manually verified runnable via the Template gallery
-  (`docs/EXECUTION.md`'s M1.14 notes). Docs prose explaining the pattern is still M1.15's task.
+  judge, not the producer). It remains a source example until the human-approval requirements land.
