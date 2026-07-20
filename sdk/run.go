@@ -36,6 +36,9 @@ type RunOptions struct {
 	Concurrency int
 	// Cache selects the node cache mode ("" = on).
 	Cache engine.CacheMode
+	// Inputs supplies values for the Workflow's declared Inputs (REQ-INPUT-01) —
+	// same mechanism `wee run --input` and the HTTP API use.
+	Inputs map[string]string
 }
 
 // Run assembles the engine over the workflow's in-code Workers and starts it,
@@ -81,6 +84,7 @@ func (w *Workflow) Run(ctx context.Context, opts RunOptions) (*Execution, error)
 		Budget:           w.def.Budget,
 		Cache:            opts.Cache,
 		DefinitionHashes: reg.DefinitionHashes(w.def),
+		Inputs:           opts.Inputs,
 	}
 
 	e := &Execution{

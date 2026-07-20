@@ -23,16 +23,17 @@ type runFlags struct {
 	resume      string
 	budget      float64
 	workspace   string
+	inputs      map[string]string
 }
 
 // newRunCmd implements `wee run <workflow.yaml>` (REQ-CLI-01/03/04). It assembles
 // the full engine, runs (or resumes) the workflow, streams events live to the
 // terminal or as line-delimited JSON, and exits with the REQ-CLI-04 code.
 //
-// Note: there is deliberately no --input flag. The engine has no external-input
-// seam in Phase 1 — a workflow is self-contained (a root Worker runs from its
-// own objective/contract; secrets reach tools via ${env:} references). Adding
-// runtime input is an engine capability, not something the CLI should fake.
+// --input supplies values for a workflow's declared Inputs (REQ-INPUT-01,
+// M1.14a) — the engine capability the original M1.9 gap was waiting on.
+// Secrets still never go here: "${env:NAME}" (an OS environment variable) is
+// the only door for anything that shouldn't be recorded in the audit trail.
 func newRunCmd() *cobra.Command {
 	var f runFlags
 	cmd := &cobra.Command{
@@ -54,6 +55,7 @@ func newRunCmd() *cobra.Command {
 	fl.StringVar(&f.resume, "resume", "", "resume a prior execution by id instead of starting fresh")
 	fl.Float64Var(&f.budget, "budget", 0, "override the workflow's max cost in USD (0 = use the workflow's)")
 	fl.StringVar(&f.workspace, "workspace", workspaceDir, "workspace state directory")
+	fl.StringToStringVarP(&f.inputs, "input", "i", nil, "workflow input KEY=VALUE (repeatable)")
 	return cmd
 }
 
@@ -96,6 +98,7 @@ func runRun(cmd *cobra.Command, path string, f runFlags) error {
 		Cache:            cacheMode,
 		DefinitionHashes: asm.Registry.DefinitionHashes(*asm.Workflow),
 		Workers:          asm.Registry.Workers(*asm.Workflow),
+		Inputs:           f.inputs,
 	}
 
 	type outcome struct {
@@ -154,6 +157,10 @@ func exitForRun(res *engine.Result, err error) error {
 		return coded(ExitBudget, err)
 	case errors.Is(err, engine.ErrCancelled) || errors.Is(err, context.Canceled):
 		return coded(ExitCancelled, err)
+	case errors.Is(err, engine.ErrMissingInput):
+		// Same class as a schema/graph validation failure: a malformed
+		// invocation caught before any node dispatched, not a run outcome.
+		return coded(ExitValidation, err)
 	case err != nil:
 		// Node failure or an unresolved graph — a generic run failure.
 		return coded(ExitNodeFailure, err)

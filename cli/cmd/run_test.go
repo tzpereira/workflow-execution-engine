@@ -88,6 +88,50 @@ func TestRunToolWorkflowSucceeds(t *testing.T) {
 	}
 }
 
+// inputWorkflow declares one required input and references it from a
+// terminal tool call — REQ-INPUT-01's end-to-end CLI path.
+const inputWorkflow = `id: inputflow
+version: 1.0.0
+nodes:
+  - id: echo
+    tool:
+      toolName: terminal
+      input:
+        command: echo
+        args: ["${input:msg}"]
+edges: []
+inputs:
+  - name: msg
+    required: true
+budget:
+  maxCostUsd: 1.0
+  maxTokens: 1000
+  maxDurationMs: 30000
+  maxRetriesPerNode: 0
+`
+
+// TestRunInputFlagResolvesPlaceholder is REQ-INPUT-01's CLI path: --input
+// supplies the value a "${input:NAME}" placeholder resolves to.
+func TestRunInputFlagResolvesPlaceholder(t *testing.T) {
+	wf := setupToolRun(t, inputWorkflow)
+	out, err := execCLI(t, "run", wf, "--json", "--input", "msg=hello from input")
+	if err != nil {
+		t.Fatalf("run returned: %v\noutput:\n%s", err, out)
+	}
+	if !strings.Contains(out, `"state":"succeeded"`) {
+		t.Errorf("run did not succeed, output:\n%s", out)
+	}
+}
+
+// TestRunMissingRequiredInputExits3 is REQ-INPUT-01's fail-fast half: a
+// required input with no --input and no default is a validation-class
+// failure (exit 3), not a node failure.
+func TestRunMissingRequiredInputExits3(t *testing.T) {
+	wf := setupToolRun(t, inputWorkflow)
+	_, err := execCLI(t, "run", wf)
+	assertExit(t, err, ExitValidation)
+}
+
 // TestRunUnregisteredWorkerExits1 forces a node failure (REQ-CLI-04 exit 1): a
 // worker-backed node whose Worker file is absent fails to resolve at execution.
 func TestRunUnregisteredWorkerExits1(t *testing.T) {
