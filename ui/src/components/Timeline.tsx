@@ -23,7 +23,13 @@ const barColor: Record<NodeStatus, string> = {
 // the artifacts/log lines as their events arrive. With no execution watched it
 // falls back to the M1.11 static shape of the current workflow, so the panel
 // is never empty chrome either way.
-export function Timeline() {
+export function Timeline({
+  maximized = false,
+  onToggleMaximize,
+}: {
+  maximized?: boolean
+  onToggleMaximize?: () => void
+}) {
   const [tab, setTab] = useState<Tab>('timeline')
   const nodes = useWorkspace((s) => s.nodes)
   const live = useLive((s) => s.live)
@@ -61,14 +67,26 @@ export function Timeline() {
             </button>
           ))}
         </div>
-        {isWatching && (
-          <div className="flex items-center gap-2 py-1 font-mono text-[11px] text-neutral-600">
-            <span className="uppercase tracking-wide text-neutral-400">{live.state}</span>
-            <span>${live.totalCostUsd.toFixed(4)}</span>
-            <span>{live.totalTokens} tok</span>
-            {live.savedCostUsd > 0 && <span className="text-amber-600">saved ${live.savedCostUsd.toFixed(4)}</span>}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {isWatching && (
+            <div className="flex items-center gap-2 py-1 font-mono text-[11px] text-neutral-600">
+              <span className="uppercase tracking-wide text-neutral-400">{live.state}</span>
+              <span>${live.totalCostUsd.toFixed(4)}</span>
+              <span>{live.totalTokens} tok</span>
+              {live.savedCostUsd > 0 && <span className="text-amber-600">saved ${live.savedCostUsd.toFixed(4)}</span>}
+            </div>
+          )}
+          {onToggleMaximize && (
+            <button
+              type="button"
+              className="btn"
+              onClick={onToggleMaximize}
+              title={maximized ? 'Restore panel height' : 'Maximize this panel'}
+            >
+              {maximized ? 'restore' : 'maximize'}
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 overflow-auto p-2 text-xs text-neutral-600">
         {tab === 'timeline' &&
