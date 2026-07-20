@@ -1494,6 +1494,25 @@ a real repository, recorded in one unedited take.
 
 ---
 
+## Backlog — found during M1.15's real-repo validation, deferred to a future milestone
+
+Two real gaps surfaced watching the flagship run live (not from spec review) — explicitly deferred by the
+owner (2026-07-20), not scheduled to a specific milestone yet:
+
+- **No human approval gate before an auto-fix commits.** Today, `verify-fix.approved == true` is
+  sufficient for `apply-fix -> test -> stage -> commit` to run fully automatically — no human ever looks
+  at the diff first. Owner's direction: a future milestone should let the user choose per-workflow (or
+  per-run) between **auto** (today's behavior) and **approve** (pause after `verify-fix`, surface the
+  proposed diff in the UI, require an explicit human click before `apply-fix` runs).
+- **Template-import-to-first-run friction.** `POST /api/templates/{name}/import` writes files under
+  `<dir>/<template-name>/`, a detail the UI doesn't surface; `wee.yaml`'s `workspaceRoot` resolves relative
+  to wherever `wee serve` was started, not relative to `wee.yaml`'s own location — the combination means a
+  template needing non-default tool config (like `pr-review-autofix`) requires knowing both of these
+  undocumented-in-the-UI facts to get right. A future milestone should either surface tool config as a UI
+  step after import, or give a clearer error pointing at exactly what to fix and where.
+
+---
+
 ## Definition of "Phase 1 done"
 
 All 16 milestones above (M1.0–M1.15) checked off, both acceptance-criteria checklists and the recording
