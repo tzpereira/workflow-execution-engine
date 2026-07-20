@@ -2,7 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Audit, ExecutionSummary, ImportedTemplate, Template } from './core/audit'
 import type { WFEvent } from './core/live'
-import { fetchAudit, fetchExecutions, fetchTemplates, importTemplate, startRun, watchExecution } from './liveClient'
+import type { Worker } from './core/model'
+import {
+  fetchAudit,
+  fetchExecutions,
+  fetchTemplates,
+  fetchWorkerVersions,
+  importTemplate,
+  saveWorker,
+  startRun,
+  watchExecution,
+} from './liveClient'
 
 // A minimal fake WebSocket: just enough surface for watchExecution to drive
 // (onmessage/onclose assignment, close()) without a real network connection or
@@ -278,5 +288,62 @@ describe('importTemplate', () => {
       vi.fn(async () => new Response('unknown template', { status: 404 })),
     )
     await expect(importTemplate('http://127.0.0.1:7676', 'missing')).rejects.toThrow('unknown template')
+  })
+})
+
+const demoWorker: Worker = {
+  id: 'reviewer',
+  version: '1.0.0',
+  objective: 'review code',
+  constraints: [],
+  tools: [],
+  contextPolicy: { mode: 'diff-only' },
+  contract: { goal: 'produce a verdict', rules: [], outputSchema: { type: 'object' }, successCriteria: [], maxRetries: 2 },
+  model: { provider: 'openai', model: 'gpt-4o-mini' },
+}
+
+describe('fetchWorkerVersions', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('GETs /api/workers/{id} with the dir query param and returns the versions array', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/workers/reviewer?dir=pr-review-autofix')
+      return new Response(JSON.stringify({ versions: [demoWorker] }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchWorkerVersions('http://127.0.0.1:7676', 'reviewer', 'pr-review-autofix')).resolves.toEqual([
+      demoWorker,
+    ])
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('boom', { status: 500 })))
+    await expect(fetchWorkerVersions('http://127.0.0.1:7676', 'reviewer', '')).rejects.toThrow('boom')
+  })
+})
+
+describe('saveWorker', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('POSTs the worker and dir, returns the server-saved copy', async () => {
+    const saved = { ...demoWorker, version: '1.0.1' }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/workers')
+      expect(JSON.parse(String(init?.body))).toEqual({ worker: demoWorker, dir: 'pr-review-autofix' })
+      return new Response(JSON.stringify({ worker: saved }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(saveWorker('http://127.0.0.1:7676', demoWorker, 'pr-review-autofix')).resolves.toEqual(saved)
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('worker.id is required', { status: 400 })))
+    await expect(saveWorker('http://127.0.0.1:7676', demoWorker, '')).rejects.toThrow('worker.id is required')
   })
 })

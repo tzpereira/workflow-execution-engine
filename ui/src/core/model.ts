@@ -12,10 +12,12 @@ export interface ModelConfig {
   params?: Record<string, unknown>
 }
 
+// ContextPolicy mirrors core/domain.ContextPolicy (schemas/context-policy.schema.json)
+// exactly: mode plus, for "artifacts" mode only, the upstream node ids to
+// admit by producing-node identity (concepts/context-policy.md).
 export interface ContextPolicy {
   mode: string
-  maxItems?: number
-  artifactTypes?: string[]
+  params?: { artifacts?: string[] }
 }
 
 export interface Contract {

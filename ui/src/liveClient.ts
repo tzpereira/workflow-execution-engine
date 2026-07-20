@@ -6,6 +6,7 @@
 
 import type { Audit, ExecutionSummary, ImportedTemplate, Template } from './core/audit'
 import type { WFEvent } from './core/live'
+import type { Worker } from './core/model'
 
 export interface WatchHandlers {
   onEvent: (ev: WFEvent) => void
@@ -126,4 +127,36 @@ export async function importTemplate(baseUrl: string, name: string): Promise<Imp
     throw new Error((await res.text()) || `POST /api/templates/${name}/import failed: ${res.status}`)
   }
   return (await res.json()) as ImportedTemplate
+}
+
+/** fetchWorkerVersions GETs /api/workers/{id}: every version of that Worker
+ *  found on disk, oldest first (M1.14c) — the in-UI editor's source for both
+ *  "what does this node's own version look like right now" and the
+ *  version-history picker. dir scopes the scan to wherever the currently
+ *  open workflow's sibling *.worker.yaml files actually live (a template
+ *  import nests them under a subdirectory; a plain file import doesn't). */
+export async function fetchWorkerVersions(baseUrl: string, id: string, dir: string): Promise<Worker[]> {
+  const res = await fetch(`${baseUrl}/api/workers/${encodeURIComponent(id)}?dir=${encodeURIComponent(dir)}`)
+  if (!res.ok) {
+    throw new Error((await res.text()) || `GET /api/workers/${id} failed: ${res.status}`)
+  }
+  const data = (await res.json()) as { versions: Worker[] }
+  return data.versions
+}
+
+/** saveWorker POSTs /api/workers: writes the edited Worker as a new version
+ *  (the server ignores whatever Version is on `worker` and computes the next
+ *  patch bump itself) and returns the saved copy, version included — the
+ *  caller re-points the editing node's `worker` ref at it. */
+export async function saveWorker(baseUrl: string, worker: Worker, dir: string): Promise<Worker> {
+  const res = await fetch(`${baseUrl}/api/workers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ worker, dir }),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `POST /api/workers failed: ${res.status}`)
+  }
+  const data = (await res.json()) as { worker: Worker }
+  return data.worker
 }
