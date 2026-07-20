@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Audit } from '../core/audit'
 import { emptyLive } from '../core/live'
+import * as liveClient from '../liveClient'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 import { Inspector } from './Inspector'
@@ -79,6 +80,11 @@ function selectReviewNode() {
 
 describe('Inspector', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
+    // WorkerEditor (M1.14c) fetches a node's Worker independently of the
+    // audit response (so editing works before any run) — mock it to return
+    // the same Worker this file's `audit.workers` fixture already carries.
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([audit.workers!['reviewer@1.0.0']])
     useWorkspace.setState({
       meta: { id: 'untitled', version: '0.1.0', budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
       nodes: [],
@@ -108,17 +114,17 @@ describe('Inspector', () => {
     expect(screen.queryByText('Inputs (this run)')).not.toBeInTheDocument()
   })
 
-  it("answers \"what did this Worker see, and what did it produce\" in one click (REQ-UI-03/04)", () => {
+  it("answers \"what did this Worker see, and what did it produce\" in one click (REQ-UI-03/04)", async () => {
     selectReviewNode()
     useLive.setState((s) => ({ live: { ...s.live, nodes: { review: { id: 'review', status: 'succeeded', costUsd: 0.02, tokens: 10, cached: false, retries: 0, startedAt: 1000, endedAt: 3000 } } }, audit }))
 
     render(<Inspector />)
 
-    // Goal (Worker.objective).
-    expect(screen.getByText(/Review a unified diff and report a bounded/)).toBeInTheDocument()
-    // Contract, rendered with its schema.
-    expect(screen.getByText('Produce a structured review verdict for the diff.')).toBeInTheDocument()
-    expect(screen.getByText('Return at most five issues.')).toBeInTheDocument()
+    // Goal (Worker.objective) and Contract are now an editable WorkerEditor
+    // (M1.14c) — its fields are populated once the (mocked) fetch resolves.
+    await waitFor(() => expect(screen.getByDisplayValue(/Review a unified diff and report a bounded/)).toBeInTheDocument())
+    expect(screen.getByDisplayValue('Produce a structured review verdict for the diff.')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Return at most five issues.')).toBeInTheDocument()
     expect(screen.getByText(/"verdict"/)).toBeInTheDocument()
     // Validation result: succeeded, no ContractViolation events recorded.
     expect(screen.getByText('valid — no contract violations')).toBeInTheDocument()
@@ -132,6 +138,11 @@ describe('Inspector', () => {
     expect(screen.getByText('verdict:')).toBeInTheDocument()
     // The node's own event history.
     expect(screen.getByText('WorkerFinished')).toBeInTheDocument()
+    // Context Policy editor (M1.14c): this node has no override, so it shows
+    // the Worker's own default (diff-only) read-only rather than presenting
+    // a misleading "parent-only" as if it were an active override.
+    expect(screen.getByText('diff-only')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Context policy mode')).not.toBeInTheDocument()
   })
 
   it('shows a contract-violation summary when the node retried', () => {

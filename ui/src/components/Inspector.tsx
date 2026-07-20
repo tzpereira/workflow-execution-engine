@@ -1,13 +1,28 @@
+import { useState } from 'react'
+
 import type { Audit } from '../core/audit'
 import { contextHashesFor, nodeIdForHash } from '../core/audit'
 import type { LiveState } from '../core/live'
-import { nodeKind, type Contract, type Node as WFNode } from '../core/model'
+import { nodeKind, type ContextPolicy, type Node as WFNode } from '../core/model'
 import { useLive } from '../liveStore'
 import { budget as budgetSchema } from '../schemas'
 import { useWorkspace } from '../store'
 import { ArtifactViewer } from './ArtifactViewer'
+import { ContextPolicyEditor } from './ContextPolicyEditor'
 import { EventList } from './EventList'
 import { SchemaForm } from './SchemaForm'
+import { WorkerEditor } from './WorkerEditor'
+
+/** dirOf returns the directory portion of a workspace fileName ("" for a
+ *  bare basename — a plain browser-imported file always resolves against the
+ *  server's own --dir root; a template import nests under <dir>/<name>/,
+ *  M1.14's handleImportTemplate). Mirrors the server's own filepath.Join(dir,
+ *  "") no-op for the root case. */
+function dirOf(fileName: string | null): string {
+  if (!fileName) return ''
+  const i = fileName.lastIndexOf('/')
+  return i === -1 ? '' : fileName.slice(0, i)
+}
 
 // Inspector is the right pane: the selected node's full picture — Goal,
 // Contract, validation result, resolved context, artifact, cost/tokens/
@@ -17,12 +32,16 @@ import { SchemaForm } from './SchemaForm'
 export function Inspector({ width = 320 }: { width?: number }) {
   const selectedId = useWorkspace((s) => s.selectedNodeId)
   const nodes = useWorkspace((s) => s.nodes)
+  const fileName = useWorkspace((s) => s.fileName)
+  const updateNodeBody = useWorkspace((s) => s.updateNodeBody)
   const meta = useWorkspace((s) => s.meta)
   const setMeta = useWorkspace((s) => s.setMeta)
   const live = useLive((s) => s.live)
   const audit = useLive((s) => s.audit)
+  const serverUrl = useLive((s) => s.serverUrl)
 
   const selected = nodes.find((n) => n.id === selectedId)?.data.node
+  const otherNodeIds = nodes.map((n) => n.id).filter((id) => id !== selectedId)
 
   return (
     <aside className="flex h-full shrink-0 flex-col border-l border-neutral-200 bg-white" style={{ width }}>
@@ -31,7 +50,16 @@ export function Inspector({ width = 320 }: { width?: number }) {
       </div>
       <div className="flex-1 overflow-auto p-3 text-sm">
         {selected ? (
-          <NodeInspector node={selected} live={live} audit={audit} />
+          <NodeInspector
+            key={selected.id}
+            node={selected}
+            live={live}
+            audit={audit}
+            dir={dirOf(fileName)}
+            serverUrl={serverUrl}
+            otherNodeIds={otherNodeIds}
+            onNodeChange={(next) => updateNodeBody(selected.id, next)}
+          />
         ) : (
           <div className="space-y-3">
             <dl className="space-y-2">
@@ -68,11 +96,27 @@ export function Inspector({ width = 320 }: { width?: number }) {
   )
 }
 
-function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; audit: Audit | null }) {
+function NodeInspector({
+  node,
+  live,
+  audit,
+  dir,
+  serverUrl,
+  otherNodeIds,
+  onNodeChange,
+}: {
+  node: WFNode
+  live: LiveState
+  audit: Audit | null
+  dir: string
+  serverUrl: string
+  otherNodeIds: string[]
+  onNodeChange: (next: WFNode) => void
+}) {
   const kind = nodeKind(node)
   const liveNode = live.nodes[node.id]
   const record = audit?.nodes[node.id]
-  const worker = kind === 'worker' && node.worker && audit?.workers ? audit.workers[node.worker] : undefined
+  const [workerDefaultPolicy, setWorkerDefaultPolicy] = useState<ContextPolicy | undefined>(undefined)
 
   // Prefer the audit's recorded events (available as soon as the snapshot is
   // fetched, incl. for a run started before this page loaded); fall back to
@@ -101,9 +145,31 @@ function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; a
         <Field label={kind === 'tool' ? 'tool' : 'worker'} value={kind === 'tool' ? (node.tool?.toolName ?? '—') : (node.worker ?? '—')} />
       </dl>
 
+      {kind === 'worker' && node.worker && (
+        <Section title="Worker & Contract">
+          <WorkerEditor
+            workerRef={node.worker}
+            dir={dir}
+            serverUrl={serverUrl}
+            onWorkerRefChange={(newRef) => onNodeChange({ ...node, worker: newRef })}
+            onWorkerLoaded={(w) => setWorkerDefaultPolicy(w.contextPolicy)}
+          />
+        </Section>
+      )}
+
       {kind === 'worker' && (
-        <Section title="Goal">
-          <p className="text-neutral-800">{worker?.objective ?? 'available once this execution loads'}</p>
+        <Section title="Context policy">
+          <ContextPolicyEditor
+            policy={node.contextPolicy}
+            workerDefault={workerDefaultPolicy}
+            availableNodeIds={otherNodeIds}
+            onChange={(policy) => {
+              const next = { ...node }
+              if (policy) next.contextPolicy = policy
+              else delete next.contextPolicy
+              onNodeChange(next)
+            }}
+          />
         </Section>
       )}
 
@@ -165,61 +231,10 @@ function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; a
         )}
       </Section>
 
-      {kind === 'worker' && worker && <ContractSection contract={worker.contract} />}
-
       <Section title="Events">
         <EventList events={nodeEvents} fixedNodeId={node.id} />
       </Section>
     </div>
-  )
-}
-
-function ContractSection({ contract }: { contract: Contract }) {
-  return (
-    <Section title="Contract">
-      <dl className="space-y-1.5 text-xs">
-        <div>
-          <dt className="text-neutral-500">goal</dt>
-          <dd className="text-neutral-800">{contract.goal}</dd>
-        </div>
-        {contract.rules.length > 0 && (
-          <div>
-            <dt className="text-neutral-500">rules</dt>
-            <dd>
-              <ul className="list-inside list-disc text-neutral-800">
-                {contract.rules.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
-            </dd>
-          </div>
-        )}
-        {contract.successCriteria.length > 0 && (
-          <div>
-            <dt className="text-neutral-500">success criteria</dt>
-            <dd>
-              <ul className="list-inside list-disc text-neutral-800">
-                {contract.successCriteria.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt className="text-neutral-500">maxRetries</dt>
-          <dd className="font-mono text-neutral-800">{contract.maxRetries}</dd>
-        </div>
-        <div>
-          <dt className="mb-1 text-neutral-500">outputSchema</dt>
-          <dd>
-            <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-[11px] text-neutral-700">
-              {JSON.stringify(contract.outputSchema, null, 2)}
-            </pre>
-          </dd>
-        </div>
-      </dl>
-    </Section>
   )
 }
 
