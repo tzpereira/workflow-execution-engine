@@ -3,7 +3,11 @@ import { useState } from 'react'
 import type { Audit } from '../core/audit'
 import { contextHashesFor, nodeIdForHash } from '../core/audit'
 import type { LiveState } from '../core/live'
-import { nodeKind, type ContextPolicy, type Node as WFNode } from '../core/model'
+import {
+  nodeKind,
+  type ContextPolicy,
+  type Node as WFNode,
+} from '../core/model'
 import { useLive } from '../liveStore'
 import { budget as budgetSchema } from '../schemas'
 import { useWorkspace } from '../store'
@@ -30,7 +34,7 @@ function dirOf(fileName: string | null): string {
 // duration, and its own event history (REQ-UI-03) — or the workflow's own
 // metadata and Budget form when nothing is selected. Everything here is a
 // panel, never a modal (M1.13's one hard rule).
-export function Inspector({ width = 320 }: { width?: number }) {
+export function Inspector({ width = 320 }: { width?: number | string }) {
   const selectedId = useWorkspace((s) => s.selectedNodeId)
   const nodes = useWorkspace((s) => s.nodes)
   const fileName = useWorkspace((s) => s.fileName)
@@ -45,7 +49,10 @@ export function Inspector({ width = 320 }: { width?: number }) {
   const otherNodeIds = nodes.map((n) => n.id).filter((id) => id !== selectedId)
 
   return (
-    <aside className="flex h-full shrink-0 flex-col border-l border-neutral-200 bg-white" style={{ width }}>
+    <aside
+      className="flex h-full shrink-0 flex-col border-l border-neutral-200 bg-white"
+      style={{ width }}
+    >
       <div className="border-b border-neutral-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
         {selected ? 'Node' : 'Workflow'}
       </div>
@@ -68,10 +75,16 @@ export function Inspector({ width = 320 }: { width?: number }) {
               <Field label="version" value={meta.version} />
             </dl>
             <div>
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">Budget</div>
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Budget
+              </div>
               {/* Generated from schemas/budget.schema.json — the exact file the
                   engine validates against, never hand-copied fields. */}
-              <SchemaForm schema={budgetSchema} formData={meta.budget} onChange={(b) => setMeta({ ...meta, budget: b })} />
+              <SchemaForm
+                schema={budgetSchema}
+                formData={meta.budget}
+                onChange={(b) => setMeta({ ...meta, budget: b })}
+              />
             </div>
             {audit?.inputs && Object.keys(audit.inputs).length > 0 && (
               <div>
@@ -80,7 +93,10 @@ export function Inspector({ width = 320 }: { width?: number }) {
                 </div>
                 <dl className="space-y-1">
                   {Object.entries(audit.inputs).map(([name, value]) => (
-                    <div key={name} className="flex items-baseline gap-1.5 font-mono text-xs">
+                    <div
+                      key={name}
+                      className="flex items-baseline gap-1.5 font-mono text-xs"
+                    >
                       <dt className="text-neutral-500">{name}</dt>
                       <dd className="truncate text-neutral-800" title={value}>
                         {value}
@@ -117,14 +133,20 @@ function NodeInspector({
   const kind = nodeKind(node)
   const liveNode = live.nodes[node.id]
   const record = audit?.nodes[node.id]
-  const [workerDefaultPolicy, setWorkerDefaultPolicy] = useState<ContextPolicy | undefined>(undefined)
+  const [workerDefaultPolicy, setWorkerDefaultPolicy] = useState<
+    ContextPolicy | undefined
+  >(undefined)
 
   // Prefer the audit's recorded events (available as soon as the snapshot is
   // fetched, incl. for a run started before this page loaded); fall back to
   // the live stream's own event buffer so a just-connected watch still shows
   // something before the first audit fetch resolves.
-  const nodeEvents = (audit?.events ?? live.events).filter((e) => e.nodeId === node.id)
-  const violations = nodeEvents.filter((e) => e.type === 'ContractViolation').length
+  const nodeEvents = (audit?.events ?? live.events).filter(
+    (e) => e.nodeId === node.id,
+  )
+  const violations = nodeEvents.filter(
+    (e) => e.type === 'ContractViolation',
+  ).length
   const ran = liveNode?.status === 'succeeded' || liveNode?.status === 'cached'
   const contextHashes = audit ? contextHashesFor(audit, node.id) : []
 
@@ -143,51 +165,18 @@ function NodeInspector({
       <dl className="space-y-2">
         <Field label="id" value={node.id} />
         <Field label="kind" value={kind} />
-        <Field label={kind === 'tool' ? 'tool' : 'worker'} value={kind === 'tool' ? (node.tool?.toolName ?? '—') : (node.worker ?? '—')} />
+        <Field
+          label={kind === 'tool' ? 'tool' : 'worker'}
+          value={
+            kind === 'tool'
+              ? (node.tool?.toolName ?? '—')
+              : (node.worker ?? '—')
+          }
+        />
       </dl>
 
-      {kind === 'worker' && node.worker && (
-        <Section title="Worker & Contract" term="Contract">
-          <WorkerEditor
-            workerRef={node.worker}
-            dir={dir}
-            serverUrl={serverUrl}
-            onWorkerRefChange={(newRef) => onNodeChange({ ...node, worker: newRef })}
-            onWorkerLoaded={(w) => setWorkerDefaultPolicy(w.contextPolicy)}
-          />
-        </Section>
-      )}
-
-      {kind === 'worker' && (
-        <Section title="Context policy" term="Context policy">
-          <ContextPolicyEditor
-            policy={node.contextPolicy}
-            workerDefault={workerDefaultPolicy}
-            availableNodeIds={otherNodeIds}
-            onChange={(policy) => {
-              const next = { ...node }
-              if (policy) next.contextPolicy = policy
-              else delete next.contextPolicy
-              onNodeChange(next)
-            }}
-          />
-        </Section>
-      )}
-
-      {kind === 'tool' && (
-        <Section title="Tool input">
-          <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
-            {JSON.stringify(node.tool?.input ?? {}, null, 2)}
-          </pre>
-        </Section>
-      )}
-
-      {/* What this node actually produced — the single most commonly needed
-          answer when inspecting a node — comes right after Goal, ahead of
-          the Contract's full schema dump (reference material, checked far
-          less often). Previously Artifact sat below Contract/Validation/
-          Resolved context/Cost, forcing a scroll past a JSON schema dump to
-          see a node's own output. */}
+      {/* Output is the primary inspection task. Definition editing and raw
+          execution detail remain available below, collapsed by default. */}
       <Section title="Artifact" term="Artifact">
         <ArtifactViewer record={record} />
       </Section>
@@ -197,10 +186,13 @@ function NodeInspector({
           <p className="text-xs text-red-700">{liveNode.error}</p>
         ) : violations > 0 ? (
           <p className="text-xs text-amber-700">
-            {violations} contract violation{violations === 1 ? '' : 's'}, retried
+            {violations} contract violation{violations === 1 ? '' : 's'},
+            retried
           </p>
         ) : ran ? (
-          <p className="text-xs text-emerald-700">valid — no contract violations</p>
+          <p className="text-xs text-emerald-700">
+            valid — no contract violations
+          </p>
         ) : (
           <p className="text-xs text-neutral-400">not run yet</p>
         )}
@@ -219,7 +211,7 @@ function NodeInspector({
         </div>
       </Section>
 
-      <Section title="Resolved context">
+      <Collapsible title="Resolved context">
         {contextHashes.length > 0 ? (
           <ul className="space-y-0.5 font-mono text-xs text-neutral-700">
             {contextHashes.map((h) => {
@@ -228,13 +220,53 @@ function NodeInspector({
             })}
           </ul>
         ) : (
-          <p className="text-xs text-neutral-400">{ran ? 'none admitted' : 'not resolved yet'}</p>
+          <p className="text-xs text-neutral-400">
+            {ran ? 'none admitted' : 'not resolved yet'}
+          </p>
         )}
-      </Section>
+      </Collapsible>
 
-      <Section title="Events">
+      {kind === 'worker' && node.worker && (
+        <Collapsible title="Worker & Contract">
+          <WorkerEditor
+            workerRef={node.worker}
+            dir={dir}
+            serverUrl={serverUrl}
+            onWorkerRefChange={(newRef) =>
+              onNodeChange({ ...node, worker: newRef })
+            }
+            onWorkerLoaded={(w) => setWorkerDefaultPolicy(w.contextPolicy)}
+          />
+        </Collapsible>
+      )}
+
+      {kind === 'worker' && (
+        <Collapsible title="Context policy">
+          <ContextPolicyEditor
+            policy={node.contextPolicy}
+            workerDefault={workerDefaultPolicy}
+            availableNodeIds={otherNodeIds}
+            onChange={(policy) => {
+              const next = { ...node }
+              if (policy) next.contextPolicy = policy
+              else delete next.contextPolicy
+              onNodeChange(next)
+            }}
+          />
+        </Collapsible>
+      )}
+
+      {kind === 'tool' && (
+        <Collapsible title="Tool input">
+          <pre className="max-h-64 overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+            {JSON.stringify(node.tool?.input ?? {}, null, 2)}
+          </pre>
+        </Collapsible>
+      )}
+
+      <Collapsible title="Events">
         <EventList events={nodeEvents} fixedNodeId={node.id} />
-      </Section>
+      </Collapsible>
     </div>
   )
 }
@@ -258,6 +290,23 @@ function Section({
       </div>
       {children}
     </div>
+  )
+}
+
+function Collapsible({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <details className="border-t border-neutral-200 pt-2">
+      <summary className="cursor-pointer select-none text-xs font-semibold uppercase text-neutral-500 hover:text-neutral-800">
+        {title}
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
   )
 }
 

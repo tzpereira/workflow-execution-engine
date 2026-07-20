@@ -32,7 +32,8 @@ const statusLabel: Record<Exclude<NodeStatus, 'pending'>, string> = {
 export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const node = data.node
   const kind = nodeKind(node)
-  const detail = kind === 'tool' ? (node.tool?.toolName ?? '—') : (node.worker ?? '—')
+  const detail =
+    kind === 'tool' ? (node.tool?.toolName ?? '—') : (node.worker ?? '—')
 
   const live = useLive((s) => s.live)
   const audit = useLive((s) => s.audit)
@@ -47,11 +48,19 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
       // content (the artifact preview's expand button, M1.14b) above React
       // Flow's edge SVG layer — an edge's invisible, wider click-hit stroke
       // can otherwise sit on top of a card its bezier path passes close to.
-      className={`relative z-10 min-w-40 rounded-md border bg-white px-3 py-2 text-sm shadow-sm ${
-        selected ? 'border-neutral-900' : isWatching ? statusBorder[status] : 'border-neutral-300'
+      className={`relative z-10 w-64 rounded-md border bg-white px-3 py-2 text-sm shadow-sm ${
+        selected
+          ? 'border-neutral-900'
+          : isWatching
+            ? statusBorder[status]
+            : 'border-neutral-300'
       } ${status === 'running' ? 'animate-pulse' : ''}`}
     >
-      <Handle type="target" position={Position.Left} className="!bg-neutral-400" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!bg-neutral-400"
+      />
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-neutral-900">{node.id}</span>
         <span
@@ -66,7 +75,9 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
           {kind}
         </span>
       </div>
-      <div className="mt-0.5 truncate font-mono text-xs text-neutral-500">{detail}</div>
+      <div className="mt-0.5 truncate font-mono text-xs text-neutral-500">
+        {detail}
+      </div>
       {showStatus && (
         <div
           className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
@@ -83,7 +94,11 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
         </div>
       )}
       <NodeArtifactPreview record={record} />
-      <Handle type="source" position={Position.Right} className="!bg-neutral-400" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-neutral-400"
+      />
     </div>
   )
 }

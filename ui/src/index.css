@@ -21,6 +21,55 @@ body {
   background: #fafafa; /* neutral-50 */
 }
 
+.app-shell {
+  width: 100vw;
+  max-width: 100vw;
+  overflow: hidden;
+}
+
+.app-toolbar {
+  width: 100%;
+  max-width: 100%;
+}
+
+.toolbar-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+}
+
+.toolbar-controls > * {
+  min-width: 0;
+}
+
+.toolbar-controls .server-address {
+  grid-column: span 3;
+}
+
+.toolbar-controls .btn {
+  width: 100%;
+}
+
+.empty-canvas-hint {
+  width: calc(100% - 24px);
+  max-width: 600px;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .toolbar-controls {
+    display: flex;
+    width: auto;
+    flex-wrap: nowrap;
+  }
+
+  .toolbar-controls .server-address,
+  .toolbar-controls .btn {
+    width: auto;
+  }
+}
+
 .btn {
   border-radius: 4px;
   border: 1px solid #d4d4d4; /* neutral-300 */

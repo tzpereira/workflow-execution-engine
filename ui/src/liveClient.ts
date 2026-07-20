@@ -160,3 +160,37 @@ export async function saveWorker(baseUrl: string, worker: Worker, dir: string): 
   const data = (await res.json()) as { worker: Worker }
   return data.worker
 }
+
+/** fetchSecretsStatus GETs /api/secrets: which of the named env vars are
+ *  currently set on the server process — never the values themselves (M1.14e).
+ *  The Settings panel uses this to render "● set" / "○ not set" per field. */
+export async function fetchSecretsStatus(baseUrl: string, names: string[]): Promise<Record<string, boolean>> {
+  const res = await fetch(`${baseUrl}/api/secrets?names=${encodeURIComponent(names.join(','))}`)
+  if (!res.ok) {
+    throw new Error((await res.text()) || `GET /api/secrets failed: ${res.status}`)
+  }
+  return (await res.json()) as Record<string, boolean>
+}
+
+/** setSecret POSTs /api/secrets: applies name=value to the server process's
+ *  own environment, in memory only — never written to disk (owner-confirmed
+ *  2026-07-20). Takes effect starting with the next run; nothing already
+ *  running is affected. */
+export async function setSecret(baseUrl: string, name: string, value: string): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/secrets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, value }),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `POST /api/secrets failed: ${res.status}`)
+  }
+}
+
+/** unsetSecret DELETEs /api/secrets?name=...: clears a previously set env var. */
+export async function unsetSecret(baseUrl: string, name: string): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/secrets?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `DELETE /api/secrets failed: ${res.status}`)
+  }
+}

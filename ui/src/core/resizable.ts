@@ -3,7 +3,7 @@
 // canonical Workflow). Persisted in localStorage, keyed per panel, so a
 // resize survives a reload without needing a backend.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -22,8 +22,15 @@ export function writePersistedSize(key: string, value: number): void {
 
 /** usePersistedSize backs a resizable panel's dimension: reads localStorage
  *  once on mount, clamps every write to [min, max], and persists on change. */
-export function usePersistedSize(key: string, fallback: number, min: number, max: number): [number, (v: number) => void] {
-  const [size, setSizeState] = useState(() => clamp(readPersistedSize(key, fallback), min, max))
+export function usePersistedSize(
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+): [number, (v: number) => void] {
+  const [size, setSizeState] = useState(() =>
+    clamp(readPersistedSize(key, fallback), min, max),
+  )
 
   function setSize(v: number) {
     const clamped = clamp(v, min, max)
@@ -31,11 +38,7 @@ export function usePersistedSize(key: string, fallback: number, min: number, max
     writePersistedSize(key, clamped)
   }
 
-  // Re-clamp if min/max change (e.g. viewport shrinks) without re-reading
-  // localStorage — the user's chosen size stays the source of truth.
-  useEffect(() => {
-    setSizeState((s) => clamp(s, min, max))
-  }, [min, max])
-
-  return [size, setSize]
+  // Derive the visible value when bounds change; the next user write persists
+  // the new clamped value without an effect-driven state update.
+  return [clamp(size, min, max), setSize]
 }

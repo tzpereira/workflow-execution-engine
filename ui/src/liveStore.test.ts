@@ -7,8 +7,24 @@ import { createLiveStore, type LiveDeps } from './liveStore'
 function fakeAudit(executionId: string): Audit {
   return {
     executionId,
-    workflow: { id: 'wf', version: '1.0.0', nodes: [], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
-    budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 },
+    workflow: {
+      id: 'wf',
+      version: '1.0.0',
+      nodes: [],
+      edges: [],
+      budget: {
+        maxCostUsd: 0,
+        maxTokens: 0,
+        maxDurationMs: 0,
+        maxRetriesPerNode: 0,
+      },
+    },
+    budget: {
+      maxCostUsd: 0,
+      maxTokens: 0,
+      maxDurationMs: 0,
+      maxRetriesPerNode: 0,
+    },
     events: [],
     nodes: {},
     spentCostUsd: 0,
@@ -22,21 +38,40 @@ function fakeDeps() {
   let capturedOnEvent: ((ev: WFEvent) => void) | null = null
   let capturedOnDone: (() => void) | null = null
 
-  const watchExecution = vi.fn((_execId: string, handlers: { onEvent: (ev: WFEvent) => void; onDone: () => void }) => {
-    capturedOnEvent = handlers.onEvent
-    capturedOnDone = handlers.onDone
-    const stop = vi.fn()
-    stops.push(stop)
-    return stop
-  }) as unknown as LiveDeps['watchExecution']
+  const watchExecution = vi.fn(
+    (
+      _execId: string,
+      handlers: { onEvent: (ev: WFEvent) => void; onDone: () => void },
+    ) => {
+      capturedOnEvent = handlers.onEvent
+      capturedOnDone = handlers.onDone
+      const stop = vi.fn()
+      stops.push(stop)
+      return stop
+    },
+  ) as unknown as LiveDeps['watchExecution']
 
-  const startRun = vi.fn(async (_url: string, _ref: string) => 'exec-1') as unknown as LiveDeps['startRun']
-  const fetchAudit = vi.fn(async (_url: string, execId: string) => fakeAudit(execId)) as unknown as LiveDeps['fetchAudit']
-  const fetchExecutions = vi.fn(async () => []) as unknown as LiveDeps['fetchExecutions']
-  const fetchTemplates = vi.fn(async () => []) as unknown as LiveDeps['fetchTemplates']
+  const startRun = vi.fn(
+    async () => 'exec-1',
+  ) as unknown as LiveDeps['startRun']
+  const fetchAudit = vi.fn(async (_url: string, execId: string) =>
+    fakeAudit(execId),
+  ) as unknown as LiveDeps['fetchAudit']
+  const fetchExecutions = vi.fn(
+    async () => [],
+  ) as unknown as LiveDeps['fetchExecutions']
+  const fetchTemplates = vi.fn(
+    async () => [],
+  ) as unknown as LiveDeps['fetchTemplates']
 
   return {
-    deps: { watchExecution, startRun, fetchAudit, fetchExecutions, fetchTemplates },
+    deps: {
+      watchExecution,
+      startRun,
+      fetchAudit,
+      fetchExecutions,
+      fetchTemplates,
+    },
     stops,
     emit: (ev: WFEvent) => capturedOnEvent?.(ev),
     done: () => capturedOnDone?.(),
@@ -56,7 +91,10 @@ describe('liveStore', () => {
     expect(s.live.nodes.b.status).toBe('pending')
     expect(deps.watchExecution).toHaveBeenCalledWith(
       'exec-1',
-      expect.objectContaining({ onEvent: expect.any(Function), onDone: expect.any(Function) }),
+      expect.objectContaining({
+        onEvent: expect.any(Function),
+        onDone: expect.any(Function),
+      }),
       { baseUrl: 'http://127.0.0.1:7676' },
     )
   })
@@ -66,8 +104,20 @@ describe('liveStore', () => {
     const store = createLiveStore(deps)
     store.getState().watch('exec-1', ['a'])
 
-    emit({ type: 'ExecutionStarted', timestamp: 't', executionId: 'exec-1', prevHash: 'x', payload: { workflow: 'wf', version: '1.0.0' } })
-    emit({ type: 'WorkerStarted', timestamp: 't', executionId: 'exec-1', nodeId: 'a', prevHash: 'y' })
+    emit({
+      type: 'ExecutionStarted',
+      timestamp: 't',
+      executionId: 'exec-1',
+      prevHash: 'x',
+      payload: { workflow: 'wf', version: '1.0.0' },
+    })
+    emit({
+      type: 'WorkerStarted',
+      timestamp: 't',
+      executionId: 'exec-1',
+      nodeId: 'a',
+      prevHash: 'y',
+    })
 
     const s = store.getState()
     expect(s.live.executionId).toBe('exec-1')
@@ -109,17 +159,31 @@ describe('liveStore', () => {
     const store = createLiveStore(deps)
     await store.getState().run('check.yaml', ['a'])
 
-    expect(deps.startRun).toHaveBeenCalledWith('http://127.0.0.1:7676', 'check.yaml', undefined)
-    expect(deps.watchExecution).toHaveBeenCalledWith('exec-1', expect.anything(), expect.anything())
+    expect(deps.startRun).toHaveBeenCalledWith(
+      'http://127.0.0.1:7676',
+      'check.yaml',
+      undefined,
+    )
+    expect(deps.watchExecution).toHaveBeenCalledWith(
+      'exec-1',
+      expect.anything(),
+      expect.anything(),
+    )
     expect(store.getState().connected).toBe(true)
   })
 
   it('run forwards supplied inputs to startRun', async () => {
     const { deps } = fakeDeps()
     const store = createLiveStore(deps)
-    await store.getState().run('check.yaml', ['a'], { prUrl: 'https://example.com/42' })
+    await store
+      .getState()
+      .run('check.yaml', ['a'], { prUrl: 'https://example.com/42' })
 
-    expect(deps.startRun).toHaveBeenCalledWith('http://127.0.0.1:7676', 'check.yaml', { prUrl: 'https://example.com/42' })
+    expect(deps.startRun).toHaveBeenCalledWith(
+      'http://127.0.0.1:7676',
+      'check.yaml',
+      { prUrl: 'https://example.com/42' },
+    )
   })
 
   it('run records the error and never calls watch when startRun rejects', async () => {
@@ -144,7 +208,9 @@ describe('liveStore', () => {
     const { deps, done } = fakeDeps()
     const store = createLiveStore(deps)
     store.getState().watch('exec-1', ['a'])
-    await vi.waitFor(() => expect(store.getState().audit?.executionId).toBe('exec-1'))
+    await vi.waitFor(() =>
+      expect(store.getState().audit?.executionId).toBe('exec-1'),
+    )
     expect(deps.fetchAudit).toHaveBeenCalledTimes(1)
 
     done()
@@ -164,7 +230,15 @@ describe('liveStore', () => {
   it('loadExecutions populates the history list', async () => {
     const { deps } = fakeDeps()
     deps.fetchExecutions = vi.fn(async () => [
-      { id: 'exec-1', workflow: 'wf', version: '1.0.0', state: 'succeeded', spentCostUsd: 0.01, spentTokens: 5, durationMs: 100 },
+      {
+        id: 'exec-1',
+        workflow: 'wf',
+        version: '1.0.0',
+        state: 'succeeded',
+        spentCostUsd: 0.01,
+        spentTokens: 5,
+        durationMs: 100,
+      },
     ]) as unknown as LiveDeps['fetchExecutions']
     const store = createLiveStore(deps)
 
@@ -186,14 +260,38 @@ describe('liveStore', () => {
     expect(store.getState().executions).toEqual([])
   })
 
-  it('loadHistorical disconnects any live watch and folds the past run\'s own events into `live`', async () => {
+  it("loadHistorical disconnects any live watch and folds the past run's own events into `live`", async () => {
     const { deps, stops } = fakeDeps()
     deps.fetchAudit = vi.fn(async (_url: string, execId: string) => ({
       ...fakeAudit(execId),
-      workflow: { id: 'wf', version: '1.0.0', nodes: [{ id: 'a' }], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+      workflow: {
+        id: 'wf',
+        version: '1.0.0',
+        nodes: [{ id: 'a' }],
+        edges: [],
+        budget: {
+          maxCostUsd: 0,
+          maxTokens: 0,
+          maxDurationMs: 0,
+          maxRetriesPerNode: 0,
+        },
+      },
       events: [
-        { type: 'ExecutionStarted' as const, timestamp: 't', executionId: execId, prevHash: '', payload: { workflow: 'wf', version: '1.0.0' } },
-        { type: 'WorkerFinished' as const, timestamp: 't', executionId: execId, nodeId: 'a', prevHash: '', payload: { costUsd: 0.01, tokens: 5 } },
+        {
+          type: 'ExecutionStarted' as const,
+          timestamp: 't',
+          executionId: execId,
+          prevHash: '',
+          payload: { workflow: 'wf', version: '1.0.0' },
+        },
+        {
+          type: 'WorkerFinished' as const,
+          timestamp: 't',
+          executionId: execId,
+          nodeId: 'a',
+          prevHash: '',
+          payload: { costUsd: 0.01, tokens: 5 },
+        },
       ],
     })) as unknown as LiveDeps['fetchAudit']
     const store = createLiveStore(deps)
@@ -223,7 +321,12 @@ describe('liveStore', () => {
   it('loadTemplates populates the gallery list', async () => {
     const { deps } = fakeDeps()
     deps.fetchTemplates = vi.fn(async () => [
-      { name: 'pr-review-autofix', workflowId: 'pr-review-autofix', version: '1.0.0', nodeCount: 8 },
+      {
+        name: 'pr-review-autofix',
+        workflowId: 'pr-review-autofix',
+        version: '1.0.0',
+        nodeCount: 8,
+      },
     ]) as unknown as LiveDeps['fetchTemplates']
     const store = createLiveStore(deps)
 
@@ -251,6 +354,10 @@ describe('liveStore', () => {
     store.getState().setServerUrl('http://example.test:9000')
     store.getState().watch('exec-1', [])
 
-    expect(deps.watchExecution).toHaveBeenCalledWith('exec-1', expect.anything(), { baseUrl: 'http://example.test:9000' })
+    expect(deps.watchExecution).toHaveBeenCalledWith(
+      'exec-1',
+      expect.anything(),
+      { baseUrl: 'http://example.test:9000' },
+    )
   })
 })

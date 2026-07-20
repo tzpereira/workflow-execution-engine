@@ -7,6 +7,18 @@ import type { HighlighterCore } from 'shiki'
 
 import type { NodeRecord } from '../core/audit'
 import { contentDataURL, contentText } from '../core/audit'
+import {
+  formatBytes,
+  generatedCodeResult,
+  httpResult,
+  lineCount,
+  parsedJSON,
+  reviewResult,
+  riskReport,
+  type GeneratedCodeResult,
+  type ReviewResult,
+  type RiskReport,
+} from '../core/artifactPresentation'
 
 // ArtifactViewer renders a node's recorded artifact by type (REQ-UI-04): Diff,
 // Markdown, JSON, Code, TestResult, Report, Image, and a generic File download
@@ -43,7 +55,9 @@ export function ArtifactViewer({ record }: { record: NodeRecord | undefined }) {
 function Meta({ record }: { record: NodeRecord }) {
   return (
     <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-neutral-400">
-      <span className="uppercase tracking-wide">{record.type ?? 'unknown'}</span>
+      <span className="uppercase tracking-wide">
+        {record.type ?? 'unknown'}
+      </span>
       <span className="truncate">{record.hash}</span>
     </div>
   )
@@ -54,7 +68,9 @@ function RawView({ record }: { record: NodeRecord }) {
   return (
     <div>
       <Meta record={record} />
-      <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">{text}</pre>
+      <pre className="max-h-[52vh] overflow-auto whitespace-pre-wrap break-words rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+        {text}
+      </pre>
     </div>
   )
 }
@@ -63,13 +79,21 @@ function JSONView({ record }: { record: NodeRecord }) {
   const text = contentText(record)
   const [raw, setRaw] = useState(false)
   let pretty = text
-  let parsed: unknown
+  const parsed = parsedJSON(record)
   try {
-    parsed = text != null ? JSON.parse(text) : undefined
     pretty = JSON.stringify(parsed, null, 2)
   } catch {
     // Not valid JSON despite the type tag — fall through to the raw text.
   }
+  const review = reviewResult(parsed)
+  if (review) return <ReviewView result={review} />
+  const response = httpResult(parsed)
+  if (response)
+    return <HTTPResponseView status={response.status} body={response.body} />
+  const generated = generatedCodeResult(parsed)
+  if (generated) return <GeneratedCodeView result={generated} />
+  const risk = riskReport(parsed)
+  if (risk) return <RiskReportView report={risk} />
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
@@ -79,9 +103,239 @@ function JSONView({ record }: { record: NodeRecord }) {
         </button>
       </div>
       {raw || parsed === undefined ? (
-        <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">{pretty}</pre>
+        <pre className="max-h-[52vh] overflow-auto whitespace-pre-wrap break-words rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+          {pretty}
+        </pre>
       ) : (
-        <JSONTree value={parsed} />
+        <div className="max-h-[52vh] overflow-auto">
+          <JSONTree value={parsed} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GeneratedCodeView({ result }: { result: GeneratedCodeResult }) {
+  return (
+    <div>
+      <div className="mb-2 border-b border-neutral-200 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-neutral-900 px-2 py-1 text-xs font-semibold text-white">
+            {result.language}
+          </span>
+          <span
+            className="truncate font-mono text-xs text-neutral-700"
+            title={result.path}
+          >
+            {result.path}
+          </span>
+        </div>
+        <p className="mt-1.5 text-sm text-neutral-700">{result.summary}</p>
+      </div>
+      <HighlightedCode text={result.code} language={result.language} />
+    </div>
+  )
+}
+
+function RiskReportView({ report }: { report: RiskReport }) {
+  const tone = scoreTone(report.score)
+  return (
+    <div>
+      <div className="flex items-start gap-3 border-b border-neutral-200 pb-3">
+        <div
+          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded text-lg font-semibold ${tone.badge}`}
+        >
+          {report.score}
+        </div>
+        <div className="min-w-0">
+          <div className={`text-sm font-semibold ${tone.text}`}>
+            {report.risk} risk
+          </div>
+          <p className="mt-0.5 text-sm text-neutral-700">{report.summary}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2.5" aria-label="Risk dimensions">
+        {report.dimensions.map((dimension) => {
+          const dimensionTone = scoreTone(dimension.score)
+          return (
+            <div key={dimension.name}>
+              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                <span className="font-medium text-neutral-800">
+                  {dimension.name}
+                </span>
+                <span className="font-mono text-neutral-500">
+                  {dimension.score}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded bg-neutral-100">
+                <div
+                  className={`h-full ${dimensionTone.bar}`}
+                  style={{ width: `${clampScore(dimension.score)}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">
+                {dimension.summary}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      {report.findings.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold uppercase text-neutral-500">
+            Findings
+          </div>
+          <ul className="mt-1 divide-y divide-neutral-200">
+            {report.findings.map((finding, index) => (
+              <li
+                key={`${finding.area}-${index}`}
+                className="grid grid-cols-[auto_1fr] gap-2 py-2 text-sm"
+              >
+                <span className="text-xs font-semibold text-neutral-500">
+                  {finding.area}
+                </span>
+                <span className="text-neutral-800">{finding.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.actions.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold uppercase text-neutral-500">
+            Actions
+          </div>
+          <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-neutral-800">
+            {report.actions.map((action, index) => (
+              <li key={index}>{action}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function clampScore(score: number): number {
+  return Math.max(0, Math.min(100, score))
+}
+
+function scoreTone(score: number): {
+  badge: string
+  text: string
+  bar: string
+} {
+  if (score >= 75)
+    return {
+      badge: 'bg-red-100 text-red-800',
+      text: 'text-red-700',
+      bar: 'bg-red-500',
+    }
+  if (score >= 50)
+    return {
+      badge: 'bg-orange-100 text-orange-800',
+      text: 'text-orange-700',
+      bar: 'bg-orange-500',
+    }
+  if (score >= 25)
+    return {
+      badge: 'bg-amber-100 text-amber-800',
+      text: 'text-amber-700',
+      bar: 'bg-amber-500',
+    }
+  return {
+    badge: 'bg-emerald-100 text-emerald-800',
+    text: 'text-emerald-700',
+    bar: 'bg-emerald-500',
+  }
+}
+
+function ReviewView({ result }: { result: ReviewResult }) {
+  const verdictTone =
+    result.verdict === 'approve'
+      ? 'bg-emerald-100 text-emerald-800'
+      : result.verdict === 'request-changes'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-amber-100 text-amber-800'
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 pb-2">
+        <span
+          className={`rounded px-2 py-1 text-xs font-semibold ${verdictTone}`}
+        >
+          {result.verdict}
+        </span>
+        <span className="font-mono text-sm font-semibold text-neutral-900">
+          {result.score}/100
+        </span>
+        <span className="text-xs text-neutral-500">
+          {result.issues.length} finding{result.issues.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      {result.issues.length === 0 ? (
+        <p className="py-3 text-sm text-neutral-600">No actionable findings.</p>
+      ) : (
+        <ol className="max-h-[52vh] divide-y divide-neutral-200 overflow-auto">
+          {result.issues.map((issue, index) => (
+            <li
+              key={`${issue.line}-${index}`}
+              className="grid grid-cols-[auto_auto_1fr] gap-2 py-2.5 text-sm"
+            >
+              <span
+                className={`mt-0.5 text-[11px] font-semibold uppercase ${issue.severity === 'critical' || issue.severity === 'major' ? 'text-red-700' : issue.severity === 'minor' ? 'text-amber-700' : 'text-neutral-500'}`}
+              >
+                {issue.severity}
+              </span>
+              <span className="mt-0.5 font-mono text-xs text-neutral-500">
+                L{issue.line}
+              </span>
+              <span className="min-w-0 break-words text-neutral-800">
+                {issue.message}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+function HTTPResponseView({ status, body }: { status: number; body: string }) {
+  const [showBody, setShowBody] = useState(false)
+  const successful = status >= 200 && status < 300
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 pb-2">
+        <span
+          className={`rounded px-2 py-1 text-xs font-semibold ${successful ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}
+        >
+          HTTP {status}
+        </span>
+        <span className="text-xs text-neutral-500">{formatBytes(body)}</span>
+        <span className="text-xs text-neutral-500">
+          {lineCount(body)} lines
+        </span>
+        <button
+          type="button"
+          className="btn ml-auto"
+          onClick={() => setShowBody((shown) => !shown)}
+        >
+          {showBody ? 'Hide body' : 'View body'}
+        </button>
+      </div>
+      {showBody && (
+        <div className="mt-2">
+          {looksLikeDiff(body) ? (
+            <DiffContent text={body} />
+          ) : (
+            <pre className="max-h-[52vh] overflow-auto whitespace-pre-wrap break-words rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+              {body}
+            </pre>
+          )}
+        </div>
       )}
     </div>
   )
@@ -102,16 +356,26 @@ function JSONTree({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value === null || typeof value !== 'object') {
     return <span className="text-neutral-700">{JSON.stringify(value)}</span>
   }
-  const entries = Array.isArray(value) ? value.map((v, i) => [String(i), v] as const) : Object.entries(value)
+  const entries = Array.isArray(value)
+    ? value.map((v, i) => [String(i), v] as const)
+    : Object.entries(value)
   return (
     <ul className="space-y-0.5" style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
       {entries.map(([k, v]) => (
         <li key={k} className="font-mono text-xs">
           <span className="text-neutral-500">{k}: </span>
-          {v !== null && typeof v === 'object' ? <JSONTree value={v} depth={depth + 1} /> : <JSONTree value={v} depth={depth + 1} />}
+          {v !== null && typeof v === 'object' ? (
+            <JSONTree value={v} depth={depth + 1} />
+          ) : (
+            <JSONTree value={v} depth={depth + 1} />
+          )}
         </li>
       ))}
-      {entries.length === 0 && <li className="font-mono text-xs text-neutral-400">{Array.isArray(value) ? '[]' : '{}'}</li>}
+      {entries.length === 0 && (
+        <li className="font-mono text-xs text-neutral-400">
+          {Array.isArray(value) ? '[]' : '{}'}
+        </li>
+      )}
     </ul>
   )
 }
@@ -136,6 +400,19 @@ function MarkdownView({ record }: { record: NodeRecord }) {
 
 function DiffView({ record }: { record: NodeRecord }) {
   const text = contentText(record) ?? ''
+  return (
+    <div>
+      <Meta record={record} />
+      <DiffContent text={text} />
+    </div>
+  )
+}
+
+function looksLikeDiff(text: string): boolean {
+  return text.startsWith('diff --git ') || text.includes('\n@@ ')
+}
+
+function DiffContent({ text }: { text: string }) {
   const [viewType, setViewType] = useState<'unified' | 'split'>('unified')
   let files: ReturnType<typeof parseDiff>
   try {
@@ -144,21 +421,43 @@ function DiffView({ record }: { record: NodeRecord }) {
     files = []
   }
   if (files.length === 0) {
-    return <RawView record={record} />
+    return (
+      <pre className="max-h-[52vh] overflow-auto whitespace-pre-wrap break-words rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+        {text}
+      </pre>
+    )
   }
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <Meta record={record} />
-        <button type="button" className="btn" onClick={() => setViewType((v) => (v === 'unified' ? 'split' : 'unified'))}>
+        <span className="text-xs text-neutral-500">
+          {files.length} file{files.length === 1 ? '' : 's'}
+        </span>
+        <button
+          type="button"
+          className="btn"
+          onClick={() =>
+            setViewType((v) => (v === 'unified' ? 'split' : 'unified'))
+          }
+        >
           {viewType === 'unified' ? 'split' : 'unified'}
         </button>
       </div>
-      {files.map((file, i) => (
-        <Diff key={i} viewType={viewType} diffType={file.type} hunks={file.hunks} className="text-xs">
-          {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
-        </Diff>
-      ))}
+      <div className="max-h-[52vh] overflow-auto">
+        {files.map((file, i) => (
+          <Diff
+            key={i}
+            viewType={viewType}
+            diffType={file.type}
+            hunks={file.hunks}
+            className="text-xs"
+          >
+            {(hunks) =>
+              hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)
+            }
+          </Diff>
+        ))}
+      </div>
     </div>
   )
 }
@@ -194,20 +493,32 @@ function loadHighlighter(): Promise<HighlighterCore> {
   return highlighterPromise
 }
 
-// No language hint travels on the wire today (domain.Artifact.metadata is
-// never actually populated at runtime — core/domain/artifact.go) — 'text'
-// (no grammar, still monospaced with the theme's colors) is the honest
-// default until a language field exists to key off.
 function CodeView({ record }: { record: NodeRecord }) {
   const text = contentText(record) ?? ''
+  return (
+    <div>
+      <Meta record={record} />
+      <HighlightedCode text={text} language="text" />
+    </div>
+  )
+}
+
+function HighlightedCode({
+  text,
+  language,
+}: {
+  text: string
+  language: string
+}) {
   const [html, setHtml] = useState<string | null>(null)
+  const lang = supportedLanguage(language)
 
   useEffect(() => {
     let cancelled = false
     loadHighlighter()
       .then((hl) => {
         if (cancelled) return
-        setHtml(hl.codeToHtml(text, { lang: 'text', theme: CODE_THEME }))
+        setHtml(hl.codeToHtml(text, { lang, theme: CODE_THEME }))
       })
       .catch(() => {
         if (!cancelled) setHtml(null)
@@ -215,23 +526,51 @@ function CodeView({ record }: { record: NodeRecord }) {
     return () => {
       cancelled = true
     }
-  }, [text])
+  }, [lang, text])
 
-  return (
-    <div>
-      <Meta record={record} />
-      {html ? (
-        <div className="overflow-auto rounded text-xs [&_pre]:p-2" dangerouslySetInnerHTML={{ __html: html }} />
-      ) : (
-        <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">{text}</pre>
-      )}
-    </div>
+  return html ? (
+    <div
+      className="max-h-[52vh] overflow-auto rounded text-xs [&_pre]:p-3"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  ) : (
+    <pre className="max-h-[52vh] overflow-auto rounded bg-neutral-50 p-3 font-mono text-xs text-neutral-700">
+      {text}
+    </pre>
   )
+}
+
+function supportedLanguage(language: string): string {
+  const normalized = language.toLowerCase()
+  const aliases: Record<string, string> = {
+    ts: 'typescript',
+    tsx: 'typescript',
+    js: 'javascript',
+    jsx: 'javascript',
+    shell: 'bash',
+    sh: 'bash',
+    md: 'markdown',
+    yml: 'yaml',
+    golang: 'go',
+  }
+  const lang = aliases[normalized] ?? normalized
+  return [
+    'go',
+    'typescript',
+    'javascript',
+    'json',
+    'yaml',
+    'bash',
+    'markdown',
+  ].includes(lang)
+    ? lang
+    : 'text'
 }
 
 function TestResultView({ record }: { record: NodeRecord }) {
   const text = contentText(record) ?? ''
-  let parsed: { passed?: boolean; summary?: string; output?: string } | undefined
+  let parsed:
+    { passed?: boolean; summary?: string; output?: string } | undefined
   try {
     parsed = JSON.parse(text)
   } catch {
@@ -242,12 +581,18 @@ function TestResultView({ record }: { record: NodeRecord }) {
     <div>
       <Meta record={record} />
       {passed != null && (
-        <div className={`mb-1.5 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+        <div
+          className={`mb-1.5 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}
+        >
           {passed ? 'pass' : 'fail'}
         </div>
       )}
-      {parsed?.summary && <p className="mb-1.5 text-xs text-neutral-700">{parsed.summary}</p>}
-      <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">{parsed?.output ?? text}</pre>
+      {parsed?.summary && (
+        <p className="mb-1.5 text-xs text-neutral-700">{parsed.summary}</p>
+      )}
+      <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+        {parsed?.output ?? text}
+      </pre>
     </div>
   )
 }
@@ -257,7 +602,13 @@ function ImageView({ record }: { record: NodeRecord }) {
   return (
     <div>
       <Meta record={record} />
-      {url && <img src={url} alt={`artifact ${record.hash}`} className="max-w-full rounded border border-neutral-200" />}
+      {url && (
+        <img
+          src={url}
+          alt={`artifact ${record.hash}`}
+          className="max-w-full rounded border border-neutral-200"
+        />
+      )}
     </div>
   )
 }

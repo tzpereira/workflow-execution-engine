@@ -66,7 +66,7 @@ export function TemplateGallery({ open, onOpenChange }: { open: boolean; onOpenC
               directory of `wee export` bundles.
             </p>
           )}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {templates.map((t) => (
               <button
                 key={t.name}

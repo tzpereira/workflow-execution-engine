@@ -1,16 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { Audit, ExecutionSummary, ImportedTemplate, Template } from './core/audit'
+import type {
+  Audit,
+  ExecutionSummary,
+  ImportedTemplate,
+  Template,
+} from './core/audit'
 import type { WFEvent } from './core/live'
 import type { Worker } from './core/model'
 import {
   fetchAudit,
   fetchExecutions,
+  fetchSecretsStatus,
   fetchTemplates,
   fetchWorkerVersions,
   importTemplate,
   saveWorker,
+  setSecret,
   startRun,
+  unsetSecret,
   watchExecution,
 } from './liveClient'
 
@@ -42,48 +50,69 @@ class FakeWebSocket {
   }
 }
 
+function fakeWebSocketImpl(
+  onCreate: (socket: FakeWebSocket) => void,
+): typeof WebSocket {
+  return class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      onCreate(this)
+    }
+  } as unknown as typeof WebSocket
+}
+
 describe('watchExecution', () => {
   it('rewrites an http(s) baseUrl to ws(s) and builds the URL from the execution id', () => {
     let created: FakeWebSocket | undefined
-    const WSImpl = class extends FakeWebSocket {
-      constructor(url: string) {
-        super(url)
-        created = this
-      }
-    } as unknown as typeof WebSocket
+    const WSImpl = fakeWebSocketImpl((socket) => {
+      created = socket
+    })
 
-    watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { baseUrl: 'http://127.0.0.1:7676', WebSocketImpl: WSImpl })
+    watchExecution(
+      'wf-123',
+      { onEvent: () => {}, onDone: () => {} },
+      { baseUrl: 'http://127.0.0.1:7676', WebSocketImpl: WSImpl },
+    )
 
-    expect(created?.url).toBe('ws://127.0.0.1:7676/api/executions/wf-123/events')
+    expect(created?.url).toBe(
+      'ws://127.0.0.1:7676/api/executions/wf-123/events',
+    )
   })
 
   it('rewrites an https baseUrl to wss', () => {
     let created: FakeWebSocket | undefined
-    const WSImpl = class extends FakeWebSocket {
-      constructor(url: string) {
-        super(url)
-        created = this
-      }
-    } as unknown as typeof WebSocket
+    const WSImpl = fakeWebSocketImpl((socket) => {
+      created = socket
+    })
 
-    watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { baseUrl: 'https://example.test', WebSocketImpl: WSImpl })
+    watchExecution(
+      'wf-123',
+      { onEvent: () => {}, onDone: () => {} },
+      { baseUrl: 'https://example.test', WebSocketImpl: WSImpl },
+    )
 
     expect(created?.url).toBe('wss://example.test/api/executions/wf-123/events')
   })
 
   it('parses each message frame and forwards it as a WFEvent', () => {
     let fake: FakeWebSocket | undefined
-    const WSImpl = class extends FakeWebSocket {
-      constructor(url: string) {
-        super(url)
-        fake = this
-      }
-    } as unknown as typeof WebSocket
+    const WSImpl = fakeWebSocketImpl((socket) => {
+      fake = socket
+    })
 
     const onEvent = vi.fn()
-    watchExecution('wf-123', { onEvent, onDone: () => {} }, { WebSocketImpl: WSImpl })
+    watchExecution(
+      'wf-123',
+      { onEvent, onDone: () => {} },
+      { WebSocketImpl: WSImpl },
+    )
 
-    const ev: WFEvent = { type: 'ExecutionStarted', timestamp: 't', executionId: 'wf-123', prevHash: 'x' }
+    const ev: WFEvent = {
+      type: 'ExecutionStarted',
+      timestamp: 't',
+      executionId: 'wf-123',
+      prevHash: 'x',
+    }
     fake!.emit(ev)
 
     expect(onEvent).toHaveBeenCalledWith(ev)
@@ -91,31 +120,35 @@ describe('watchExecution', () => {
 
   it('drops a malformed frame without calling onEvent or throwing', () => {
     let fake: FakeWebSocket | undefined
-    const WSImpl = class extends FakeWebSocket {
-      constructor(url: string) {
-        super(url)
-        fake = this
-      }
-    } as unknown as typeof WebSocket
+    const WSImpl = fakeWebSocketImpl((socket) => {
+      fake = socket
+    })
 
     const onEvent = vi.fn()
-    watchExecution('wf-123', { onEvent, onDone: () => {} }, { WebSocketImpl: WSImpl })
+    watchExecution(
+      'wf-123',
+      { onEvent, onDone: () => {} },
+      { WebSocketImpl: WSImpl },
+    )
 
-    expect(() => fake!.onmessage?.({ data: 'not json' } as MessageEvent<string>)).not.toThrow()
+    expect(() =>
+      fake!.onmessage?.({ data: 'not json' } as MessageEvent<string>),
+    ).not.toThrow()
     expect(onEvent).not.toHaveBeenCalled()
   })
 
   it('calls onDone once when the connection closes (no auto-reconnect, unlike EventSource)', () => {
     let fake: FakeWebSocket | undefined
-    const WSImpl = class extends FakeWebSocket {
-      constructor(url: string) {
-        super(url)
-        fake = this
-      }
-    } as unknown as typeof WebSocket
+    const WSImpl = fakeWebSocketImpl((socket) => {
+      fake = socket
+    })
 
     const onDone = vi.fn()
-    watchExecution('wf-123', { onEvent: () => {}, onDone }, { WebSocketImpl: WSImpl })
+    watchExecution(
+      'wf-123',
+      { onEvent: () => {}, onDone },
+      { WebSocketImpl: WSImpl },
+    )
 
     expect(onDone).not.toHaveBeenCalled()
     fake!.serverClose() // the server closes cleanly after ExecutionFinished
@@ -124,14 +157,15 @@ describe('watchExecution', () => {
 
   it('the returned disposer closes the connection', () => {
     let fake: FakeWebSocket | undefined
-    const WSImpl = class extends FakeWebSocket {
-      constructor(url: string) {
-        super(url)
-        fake = this
-      }
-    } as unknown as typeof WebSocket
+    const WSImpl = fakeWebSocketImpl((socket) => {
+      fake = socket
+    })
 
-    const stop = watchExecution('wf-123', { onEvent: () => {}, onDone: () => {} }, { WebSocketImpl: WSImpl })
+    const stop = watchExecution(
+      'wf-123',
+      { onEvent: () => {}, onDone: () => {} },
+      { WebSocketImpl: WSImpl },
+    )
     stop()
     expect(fake?.closed).toBe(true)
   })
@@ -146,7 +180,9 @@ describe('startRun', () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toBe('http://127.0.0.1:7676/api/run')
       expect(JSON.parse(String(init?.body))).toEqual({ workflow: 'check.yaml' })
-      return new Response(JSON.stringify({ executionId: 'exec-1' }), { status: 200 })
+      return new Response(JSON.stringify({ executionId: 'exec-1' }), {
+        status: 200,
+      })
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -160,11 +196,15 @@ describe('startRun', () => {
         workflow: 'check.yaml',
         inputs: { prUrl: 'https://example.com/42' },
       })
-      return new Response(JSON.stringify({ executionId: 'exec-1' }), { status: 200 })
+      return new Response(JSON.stringify({ executionId: 'exec-1' }), {
+        status: 200,
+      })
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await startRun('http://127.0.0.1:7676', 'check.yaml', { prUrl: 'https://example.com/42' })
+    await startRun('http://127.0.0.1:7676', 'check.yaml', {
+      prUrl: 'https://example.com/42',
+    })
   })
 
   it('throws with the server error body on a non-OK response', async () => {
@@ -172,7 +212,9 @@ describe('startRun', () => {
       'fetch',
       vi.fn(async () => new Response('workflow not found', { status: 400 })),
     )
-    await expect(startRun('http://127.0.0.1:7676', 'missing.yaml')).rejects.toThrow('workflow not found')
+    await expect(
+      startRun('http://127.0.0.1:7676', 'missing.yaml'),
+    ).rejects.toThrow('workflow not found')
   })
 })
 
@@ -184,8 +226,24 @@ describe('fetchAudit', () => {
   it('GETs the execution and returns the parsed Audit', async () => {
     const audit: Audit = {
       executionId: 'exec-1',
-      workflow: { id: 'wf', version: '1.0.0', nodes: [], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
-      budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 },
+      workflow: {
+        id: 'wf',
+        version: '1.0.0',
+        nodes: [],
+        edges: [],
+        budget: {
+          maxCostUsd: 0,
+          maxTokens: 0,
+          maxDurationMs: 0,
+          maxRetriesPerNode: 0,
+        },
+      },
+      budget: {
+        maxCostUsd: 0,
+        maxTokens: 0,
+        maxDurationMs: 0,
+        maxRetriesPerNode: 0,
+      },
       events: [],
       nodes: {},
       spentCostUsd: 0,
@@ -198,7 +256,9 @@ describe('fetchAudit', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(fetchAudit('http://127.0.0.1:7676', 'exec-1')).resolves.toEqual(audit)
+    await expect(
+      fetchAudit('http://127.0.0.1:7676', 'exec-1'),
+    ).resolves.toEqual(audit)
   })
 
   it('throws with the server error body on a non-OK response', async () => {
@@ -206,7 +266,9 @@ describe('fetchAudit', () => {
       'fetch',
       vi.fn(async () => new Response('unknown execution', { status: 404 })),
     )
-    await expect(fetchAudit('http://127.0.0.1:7676', 'missing')).rejects.toThrow('unknown execution')
+    await expect(
+      fetchAudit('http://127.0.0.1:7676', 'missing'),
+    ).rejects.toThrow('unknown execution')
   })
 })
 
@@ -217,7 +279,15 @@ describe('fetchExecutions', () => {
 
   it('GETs the list and returns the parsed ExecutionSummary[]', async () => {
     const list: ExecutionSummary[] = [
-      { id: 'exec-1', workflow: 'wf', version: '1.0.0', state: 'succeeded', spentCostUsd: 0.01, spentTokens: 5, durationMs: 100 },
+      {
+        id: 'exec-1',
+        workflow: 'wf',
+        version: '1.0.0',
+        state: 'succeeded',
+        spentCostUsd: 0.01,
+        spentTokens: 5,
+        durationMs: 100,
+      },
     ]
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toBe('http://127.0.0.1:7676/api/executions')
@@ -225,7 +295,9 @@ describe('fetchExecutions', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(fetchExecutions('http://127.0.0.1:7676')).resolves.toEqual(list)
+    await expect(fetchExecutions('http://127.0.0.1:7676')).resolves.toEqual(
+      list,
+    )
   })
 
   it('throws with the server error body on a non-OK response', async () => {
@@ -233,7 +305,9 @@ describe('fetchExecutions', () => {
       'fetch',
       vi.fn(async () => new Response('server error', { status: 500 })),
     )
-    await expect(fetchExecutions('http://127.0.0.1:7676')).rejects.toThrow('server error')
+    await expect(fetchExecutions('http://127.0.0.1:7676')).rejects.toThrow(
+      'server error',
+    )
   })
 })
 
@@ -243,7 +317,14 @@ describe('fetchTemplates', () => {
   })
 
   it('GETs the list and returns the parsed Template[]', async () => {
-    const list: Template[] = [{ name: 'pr-review-autofix', workflowId: 'pr-review-autofix', version: '1.0.0', nodeCount: 8 }]
+    const list: Template[] = [
+      {
+        name: 'pr-review-autofix',
+        workflowId: 'pr-review-autofix',
+        version: '1.0.0',
+        nodeCount: 8,
+      },
+    ]
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toBe('http://127.0.0.1:7676/api/templates')
       return new Response(JSON.stringify(list), { status: 200 })
@@ -258,7 +339,9 @@ describe('fetchTemplates', () => {
       'fetch',
       vi.fn(async () => new Response('server error', { status: 500 })),
     )
-    await expect(fetchTemplates('http://127.0.0.1:7676')).rejects.toThrow('server error')
+    await expect(fetchTemplates('http://127.0.0.1:7676')).rejects.toThrow(
+      'server error',
+    )
   })
 })
 
@@ -270,16 +353,31 @@ describe('importTemplate', () => {
   it('POSTs to the template name and returns the parsed ImportedTemplate', async () => {
     const result: ImportedTemplate = {
       workflowPath: 'pr-review-autofix/workflow.yaml',
-      workflow: { id: 'pr-review-autofix', version: '1.0.0', nodes: [], edges: [], budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+      workflow: {
+        id: 'pr-review-autofix',
+        version: '1.0.0',
+        nodes: [],
+        edges: [],
+        budget: {
+          maxCostUsd: 0,
+          maxTokens: 0,
+          maxDurationMs: 0,
+          maxRetriesPerNode: 0,
+        },
+      },
     }
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe('http://127.0.0.1:7676/api/templates/pr-review-autofix/import')
+      expect(url).toBe(
+        'http://127.0.0.1:7676/api/templates/pr-review-autofix/import',
+      )
       expect(init?.method).toBe('POST')
       return new Response(JSON.stringify(result), { status: 200 })
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(importTemplate('http://127.0.0.1:7676', 'pr-review-autofix')).resolves.toEqual(result)
+    await expect(
+      importTemplate('http://127.0.0.1:7676', 'pr-review-autofix'),
+    ).resolves.toEqual(result)
   })
 
   it('throws with the server error body on a non-OK response', async () => {
@@ -287,7 +385,9 @@ describe('importTemplate', () => {
       'fetch',
       vi.fn(async () => new Response('unknown template', { status: 404 })),
     )
-    await expect(importTemplate('http://127.0.0.1:7676', 'missing')).rejects.toThrow('unknown template')
+    await expect(
+      importTemplate('http://127.0.0.1:7676', 'missing'),
+    ).rejects.toThrow('unknown template')
   })
 })
 
@@ -298,7 +398,13 @@ const demoWorker: Worker = {
   constraints: [],
   tools: [],
   contextPolicy: { mode: 'diff-only' },
-  contract: { goal: 'produce a verdict', rules: [], outputSchema: { type: 'object' }, successCriteria: [], maxRetries: 2 },
+  contract: {
+    goal: 'produce a verdict',
+    rules: [],
+    outputSchema: { type: 'object' },
+    successCriteria: [],
+    maxRetries: 2,
+  },
   model: { provider: 'openai', model: 'gpt-4o-mini' },
 }
 
@@ -309,19 +415,32 @@ describe('fetchWorkerVersions', () => {
 
   it('GETs /api/workers/{id} with the dir query param and returns the versions array', async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      expect(url).toBe('http://127.0.0.1:7676/api/workers/reviewer?dir=pr-review-autofix')
-      return new Response(JSON.stringify({ versions: [demoWorker] }), { status: 200 })
+      expect(url).toBe(
+        'http://127.0.0.1:7676/api/workers/reviewer?dir=pr-review-autofix',
+      )
+      return new Response(JSON.stringify({ versions: [demoWorker] }), {
+        status: 200,
+      })
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(fetchWorkerVersions('http://127.0.0.1:7676', 'reviewer', 'pr-review-autofix')).resolves.toEqual([
-      demoWorker,
-    ])
+    await expect(
+      fetchWorkerVersions(
+        'http://127.0.0.1:7676',
+        'reviewer',
+        'pr-review-autofix',
+      ),
+    ).resolves.toEqual([demoWorker])
   })
 
   it('throws with the server error body on a non-OK response', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('boom', { status: 500 })))
-    await expect(fetchWorkerVersions('http://127.0.0.1:7676', 'reviewer', '')).rejects.toThrow('boom')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('boom', { status: 500 })),
+    )
+    await expect(
+      fetchWorkerVersions('http://127.0.0.1:7676', 'reviewer', ''),
+    ).rejects.toThrow('boom')
   })
 })
 
@@ -334,16 +453,126 @@ describe('saveWorker', () => {
     const saved = { ...demoWorker, version: '1.0.1' }
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toBe('http://127.0.0.1:7676/api/workers')
-      expect(JSON.parse(String(init?.body))).toEqual({ worker: demoWorker, dir: 'pr-review-autofix' })
+      expect(JSON.parse(String(init?.body))).toEqual({
+        worker: demoWorker,
+        dir: 'pr-review-autofix',
+      })
       return new Response(JSON.stringify({ worker: saved }), { status: 200 })
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(saveWorker('http://127.0.0.1:7676', demoWorker, 'pr-review-autofix')).resolves.toEqual(saved)
+    await expect(
+      saveWorker('http://127.0.0.1:7676', demoWorker, 'pr-review-autofix'),
+    ).resolves.toEqual(saved)
   })
 
   it('throws with the server error body on a non-OK response', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('worker.id is required', { status: 400 })))
-    await expect(saveWorker('http://127.0.0.1:7676', demoWorker, '')).rejects.toThrow('worker.id is required')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('worker.id is required', { status: 400 })),
+    )
+    await expect(
+      saveWorker('http://127.0.0.1:7676', demoWorker, ''),
+    ).rejects.toThrow('worker.id is required')
+  })
+})
+
+describe('fetchSecretsStatus', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('GETs /api/secrets with a comma-joined names query and returns the presence map', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe(
+        'http://127.0.0.1:7676/api/secrets?names=OPENAI_API_KEY%2CGITHUB_AUTH_HEADER',
+      )
+      return new Response(
+        JSON.stringify({ OPENAI_API_KEY: true, GITHUB_AUTH_HEADER: false }),
+        { status: 200 },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      fetchSecretsStatus('http://127.0.0.1:7676', [
+        'OPENAI_API_KEY',
+        'GITHUB_AUTH_HEADER',
+      ]),
+    ).resolves.toEqual({
+      OPENAI_API_KEY: true,
+      GITHUB_AUTH_HEADER: false,
+    })
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('boom', { status: 500 })),
+    )
+    await expect(
+      fetchSecretsStatus('http://127.0.0.1:7676', ['X']),
+    ).rejects.toThrow('boom')
+  })
+})
+
+describe('setSecret', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('POSTs name and value', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/secrets')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        name: 'OPENAI_API_KEY',
+        value: 'sk-live-example',
+      })
+      return new Response(null, { status: 204 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      setSecret('http://127.0.0.1:7676', 'OPENAI_API_KEY', 'sk-live-example'),
+    ).resolves.toBeUndefined()
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('name is required', { status: 400 })),
+    )
+    await expect(setSecret('http://127.0.0.1:7676', '', 'v')).rejects.toThrow(
+      'name is required',
+    )
+  })
+})
+
+describe('unsetSecret', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('DELETEs with the name query param', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('http://127.0.0.1:7676/api/secrets?name=OPENAI_API_KEY')
+      expect(init?.method).toBe('DELETE')
+      return new Response(null, { status: 204 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      unsetSecret('http://127.0.0.1:7676', 'OPENAI_API_KEY'),
+    ).resolves.toBeUndefined()
+  })
+
+  it('throws with the server error body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('name is required', { status: 400 })),
+    )
+    await expect(unsetSecret('http://127.0.0.1:7676', '')).rejects.toThrow(
+      'name is required',
+    )
   })
 })

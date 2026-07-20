@@ -17,7 +17,12 @@ const workflow = {
   version: '1.0.0',
   nodes: [{ id: 'review', worker: 'reviewer@1.0.0' }],
   edges: [],
-  budget: { maxCostUsd: 1, maxTokens: 100, maxDurationMs: 1000, maxRetriesPerNode: 2 },
+  budget: {
+    maxCostUsd: 1,
+    maxTokens: 100,
+    maxDurationMs: 1000,
+    maxRetriesPerNode: 2,
+  },
 }
 
 const audit: Audit = {
@@ -35,8 +40,20 @@ const audit: Audit = {
     },
   ],
   nodes: {
-    review: { state: 'succeeded', hash: 'h-review', type: 'json', content: b64('{"verdict":"approve","score":95,"issues":[]}'), costUsd: 0.02, tokens: 10 },
-    diff: { state: 'succeeded', hash: 'h-diff', type: 'diff', content: b64('') },
+    review: {
+      state: 'succeeded',
+      hash: 'h-review',
+      type: 'json',
+      content: b64('{"verdict":"approve","score":95,"issues":[]}'),
+      costUsd: 0.02,
+      tokens: 10,
+    },
+    diff: {
+      state: 'succeeded',
+      hash: 'h-diff',
+      type: 'diff',
+      content: b64(''),
+    },
   },
   spentCostUsd: 0.02,
   spentTokens: 10,
@@ -45,14 +62,18 @@ const audit: Audit = {
     'reviewer@1.0.0': {
       id: 'reviewer',
       version: '1.0.0',
-      objective: 'Review a unified diff and report a bounded, structured verdict.',
+      objective:
+        'Review a unified diff and report a bounded, structured verdict.',
       constraints: ['Judge only what the diff shows.'],
       tools: [],
       contextPolicy: { mode: 'diff-only' },
       contract: {
         goal: 'Produce a structured review verdict for the diff.',
         rules: ['Return at most five issues.'],
-        outputSchema: { type: 'object', properties: { verdict: { enum: ['approve', 'request-changes'] } } },
+        outputSchema: {
+          type: 'object',
+          properties: { verdict: { enum: ['approve', 'request-changes'] } },
+        },
         successCriteria: ['No critical defect is left unreported.'],
         maxRetries: 2,
       },
@@ -70,7 +91,13 @@ const audit: Audit = {
 function selectReviewNode() {
   useWorkspace.setState({
     meta: { id: 'demo', version: '1.0.0', budget: workflow.budget },
-    nodes: [{ id: 'review', position: { x: 0, y: 0 }, data: { node: workflow.nodes[0] } }],
+    nodes: [
+      {
+        id: 'review',
+        position: { x: 0, y: 0 },
+        data: { node: workflow.nodes[0] },
+      },
+    ],
     edges: [],
     selectedNodeId: 'review',
     fileName: 'demo.yaml',
@@ -84,16 +111,32 @@ describe('Inspector', () => {
     // WorkerEditor (M1.14c) fetches a node's Worker independently of the
     // audit response (so editing works before any run) — mock it to return
     // the same Worker this file's `audit.workers` fixture already carries.
-    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([audit.workers!['reviewer@1.0.0']])
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([
+      audit.workers!['reviewer@1.0.0'],
+    ])
     useWorkspace.setState({
-      meta: { id: 'untitled', version: '0.1.0', budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } },
+      meta: {
+        id: 'untitled',
+        version: '0.1.0',
+        budget: {
+          maxCostUsd: 0,
+          maxTokens: 0,
+          maxDurationMs: 0,
+          maxRetriesPerNode: 0,
+        },
+      },
       nodes: [],
       edges: [],
       selectedNodeId: null,
       fileName: null,
       error: null,
     })
-    useLive.setState({ live: emptyLive(), audit: null, connected: false, error: null })
+    useLive.setState({
+      live: emptyLive(),
+      audit: null,
+      connected: false,
+      error: null,
+    })
   })
 
   it('shows workflow metadata and the Budget form when no node is selected', () => {
@@ -102,7 +145,9 @@ describe('Inspector', () => {
   })
 
   it("shows the run's resolved Inputs (REQ-INPUT-01) when the loaded audit has any", () => {
-    useLive.setState({ audit: { ...audit, inputs: { prUrl: 'https://example.com/42' } } })
+    useLive.setState({
+      audit: { ...audit, inputs: { prUrl: 'https://example.com/42' } },
+    })
     render(<Inspector />)
     expect(screen.getByText('Inputs (this run)')).toBeInTheDocument()
     expect(screen.getByText('prUrl')).toBeInTheDocument()
@@ -114,51 +159,106 @@ describe('Inspector', () => {
     expect(screen.queryByText('Inputs (this run)')).not.toBeInTheDocument()
   })
 
-  it("answers \"what did this Worker see, and what did it produce\" in one click (REQ-UI-03/04)", async () => {
+  it('answers "what did this Worker see, and what did it produce" in one click (REQ-UI-03/04)', async () => {
     selectReviewNode()
-    useLive.setState((s) => ({ live: { ...s.live, nodes: { review: { id: 'review', status: 'succeeded', costUsd: 0.02, tokens: 10, cached: false, retries: 0, startedAt: 1000, endedAt: 3000 } } }, audit }))
+    useLive.setState((s) => ({
+      live: {
+        ...s.live,
+        nodes: {
+          review: {
+            id: 'review',
+            status: 'succeeded',
+            costUsd: 0.02,
+            tokens: 10,
+            cached: false,
+            retries: 0,
+            startedAt: 1000,
+            endedAt: 3000,
+          },
+        },
+      },
+      audit,
+    }))
 
     render(<Inspector />)
 
     // Goal (Worker.objective) and Contract are now an editable WorkerEditor
     // (M1.14c) — its fields are populated once the (mocked) fetch resolves.
-    await waitFor(() => expect(screen.getByDisplayValue(/Review a unified diff and report a bounded/)).toBeInTheDocument())
-    expect(screen.getByDisplayValue('Produce a structured review verdict for the diff.')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Return at most five issues.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue(/Review a unified diff and report a bounded/),
+      ).toBeInTheDocument(),
+    )
+    expect(
+      screen.getByDisplayValue(
+        'Produce a structured review verdict for the diff.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByDisplayValue('Return at most five issues.'),
+    ).toBeInTheDocument()
     expect(screen.getByText(/"verdict"/)).toBeInTheDocument()
     // Validation result: succeeded, no ContractViolation events recorded.
-    expect(screen.getByText('valid — no contract violations')).toBeInTheDocument()
+    expect(
+      screen.getByText('valid — no contract violations'),
+    ).toBeInTheDocument()
     // Resolved context: the admitted hash resolves back to the 'diff' node.
     expect(screen.getByText('diff')).toBeInTheDocument()
     // Cost/tokens/duration.
     expect(screen.getByText('$0.0200')).toBeInTheDocument()
     expect(screen.getByText('10 tok')).toBeInTheDocument()
     expect(screen.getByText('2.0s')).toBeInTheDocument()
-    // Artifact viewer renders the node's own JSON output.
-    expect(screen.getByText('verdict:')).toBeInTheDocument()
+    // Artifact viewer presents the review semantically, not as raw JSON.
+    expect(screen.getByText('approve')).toBeInTheDocument()
+    expect(screen.getByText('95/100')).toBeInTheDocument()
+    expect(screen.getByText('No actionable findings.')).toBeInTheDocument()
+    expect(screen.queryByText('verdict:')).not.toBeInTheDocument()
     // The node's own event history.
     expect(screen.getByText('WorkerFinished')).toBeInTheDocument()
     // Context Policy editor (M1.14c): this node has no override, so it shows
     // the Worker's own default (diff-only) read-only rather than presenting
     // a misleading "parent-only" as if it were an active override.
     expect(screen.getByText('diff-only')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Context policy mode')).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Context policy mode'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows a contract-violation summary when the node retried', () => {
     selectReviewNode()
     useLive.setState((s) => ({
-      live: { ...s.live, nodes: { review: { id: 'review', status: 'succeeded', costUsd: 0.02, tokens: 10, cached: false, retries: 1 } } },
+      live: {
+        ...s.live,
+        nodes: {
+          review: {
+            id: 'review',
+            status: 'succeeded',
+            costUsd: 0.02,
+            tokens: 10,
+            cached: false,
+            retries: 1,
+          },
+        },
+      },
       audit: {
         ...audit,
         events: [
-          { type: 'ContractViolation', timestamp: 't', executionId: 'x', nodeId: 'review', prevHash: '', payload: { error: 'missing field verdict' } },
+          {
+            type: 'ContractViolation',
+            timestamp: 't',
+            executionId: 'x',
+            nodeId: 'review',
+            prevHash: '',
+            payload: { error: 'missing field verdict' },
+          },
           ...audit.events,
         ],
       },
     }))
 
     render(<Inspector />)
-    expect(screen.getByText('1 contract violation, retried')).toBeInTheDocument()
+    expect(
+      screen.getByText('1 contract violation, retried'),
+    ).toBeInTheDocument()
   })
 })

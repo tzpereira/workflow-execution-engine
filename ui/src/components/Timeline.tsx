@@ -7,7 +7,7 @@ import { EventList } from './EventList'
 import { HistoryTable } from './HistoryTable'
 import { MetricsPanel } from './MetricsPanel'
 
-type Tab = 'timeline' | 'artifacts' | 'logs' | 'metrics' | 'history'
+type Tab = 'timeline' | 'logs' | 'metrics' | 'history'
 
 const barColor: Record<NodeStatus, string> = {
   pending: 'bg-neutral-200',
@@ -17,7 +17,7 @@ const barColor: Record<NodeStatus, string> = {
   failed: 'bg-red-500',
 }
 
-// Timeline is the bottom panel with Timeline / Artifacts / Logs tabs. While a
+// Timeline is the bottom panel with Timeline / Logs / Metrics / History tabs. While a
 // wee serve execution is being watched (liveStore), it renders a live Gantt
 // (parallel lanes, cache hits visually distinct), a running cost ticker, and
 // the artifacts/log lines as their events arrive. With no execution watched it
@@ -32,9 +32,13 @@ export function Timeline({
 }) {
   const [tab, setTab] = useState<Tab>('timeline')
   const nodes = useWorkspace((s) => s.nodes)
+  const fileName = useWorkspace((s) => s.fileName)
   const live = useLive((s) => s.live)
   const audit = useLive((s) => s.audit)
+  const connected = useLive((s) => s.connected)
+  const run = useLive((s) => s.run)
   const isWatching = live.state !== 'idle'
+  const canRetry = live.state === 'failed' && !connected && fileName !== null
 
   // A running node's bar must keep growing between events — tick a `now`
   // while the run is in flight so its width stays live, not frozen at the
@@ -54,13 +58,15 @@ export function Timeline({
     <section className="flex h-full flex-col border-t border-neutral-200 bg-white">
       <div className="flex items-center justify-between border-b border-neutral-200 px-2">
         <div className="flex items-center gap-1">
-          {(['timeline', 'artifacts', 'logs', 'metrics', 'history'] as Tab[]).map((t) => (
+          {(['timeline', 'logs', 'metrics', 'history'] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={`px-2 py-1.5 text-xs capitalize ${
-                tab === t ? 'border-b-2 border-neutral-900 font-medium text-neutral-900' : 'text-neutral-500'
+                tab === t
+                  ? 'border-b-2 border-neutral-900 font-medium text-neutral-900'
+                  : 'text-neutral-500'
               }`}
             >
               {t}
@@ -70,11 +76,33 @@ export function Timeline({
         <div className="flex items-center gap-2">
           {isWatching && (
             <div className="flex items-center gap-2 py-1 font-mono text-[11px] text-neutral-600">
-              <span className="uppercase tracking-wide text-neutral-400">{live.state}</span>
+              <span className="uppercase tracking-wide text-neutral-400">
+                {live.state}
+              </span>
               <span>${live.totalCostUsd.toFixed(4)}</span>
               <span>{live.totalTokens} tok</span>
-              {live.savedCostUsd > 0 && <span className="text-amber-600">saved ${live.savedCostUsd.toFixed(4)}</span>}
+              {live.savedCostUsd > 0 && (
+                <span className="text-amber-600">
+                  saved ${live.savedCostUsd.toFixed(4)}
+                </span>
+              )}
             </div>
+          )}
+          {canRetry && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() =>
+                void run(
+                  fileName,
+                  nodes.map((n) => n.id),
+                  audit?.inputs,
+                )
+              }
+              title="Start a new execution with the same inputs; completed model nodes are reused from cache"
+            >
+              Retry failed
+            </button>
           )}
           {onToggleMaximize && (
             <button
@@ -97,12 +125,17 @@ export function Timeline({
                 const status = live.nodes[n.id]?.status ?? 'pending'
                 return (
                   <div key={n.id} className="flex items-center gap-2">
-                    <span className="w-24 shrink-0 truncate font-mono text-neutral-700">{n.id}</span>
+                    <span className="w-24 shrink-0 truncate font-mono text-neutral-700">
+                      {n.id}
+                    </span>
                     <div className="relative h-4 flex-1 rounded bg-neutral-100">
                       {bar && (
                         <div
                           className={`absolute inset-y-0 rounded ${barColor[status]}`}
-                          style={{ left: `${bar.left * 100}%`, width: `${Math.max(bar.width * 100, 1.5)}%` }}
+                          style={{
+                            left: `${bar.left * 100}%`,
+                            width: `${Math.max(bar.width * 100, 1.5)}%`,
+                          }}
                           title={status}
                         />
                       )}
@@ -110,7 +143,9 @@ export function Timeline({
                   </div>
                 )
               })}
-              {nodes.length === 0 && <p className="text-neutral-400">no nodes in this workflow</p>}
+              {nodes.length === 0 && (
+                <p className="text-neutral-400">no nodes in this workflow</p>
+              )}
             </div>
           ) : (
             <ol className="space-y-0.5">
@@ -119,33 +154,24 @@ export function Timeline({
                   {n.id}
                 </li>
               ))}
-              {nodes.length === 0 && <li className="text-neutral-400">no nodes yet</li>}
+              {nodes.length === 0 && (
+                <li className="text-neutral-400">no nodes yet</li>
+              )}
             </ol>
-          ))}
-
-        {tab === 'artifacts' &&
-          (live.artifacts.length > 0 ? (
-            <ul className="space-y-1 font-mono">
-              {[...live.artifacts].reverse().map((a, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-neutral-400">{new Date(a.at).toLocaleTimeString()}</span>
-                  <span className="text-neutral-900">{a.nodeId}</span>
-                  <span className="text-neutral-500">{a.type}</span>
-                  <span className="truncate text-neutral-400">{a.hash.slice(0, 12)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-neutral-400">
-              {isWatching ? 'no artifacts yet' : 'Artifacts appear here once a run streams in.'}
-            </p>
           ))}
 
         {tab === 'logs' &&
           (live.events.length > 0 ? (
-            <EventList events={live.events} nodeOptions={nodes.map((n) => n.id)} />
+            <EventList
+              events={live.events}
+              nodeOptions={nodes.map((n) => n.id)}
+            />
           ) : (
-            <p className="text-neutral-400">{isWatching ? 'no events yet' : 'Event logs appear here once a run streams in.'}</p>
+            <p className="text-neutral-400">
+              {isWatching
+                ? 'no events yet'
+                : 'Event logs appear here once a run streams in.'}
+            </p>
           ))}
 
         {tab === 'metrics' && <MetricsPanel audit={audit} />}

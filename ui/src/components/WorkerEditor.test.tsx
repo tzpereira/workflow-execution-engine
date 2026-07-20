@@ -68,6 +68,26 @@ describe('WorkerEditor', () => {
     expect(onWorkerRefChange).toHaveBeenCalledWith('reviewer@1.0.1')
   })
 
+  it('edits model provider, model name, and temperature, then saves them (M1.14e)', async () => {
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([demoWorker('1.0.0')])
+    const saveWorkerSpy = vi.spyOn(liveClient, 'saveWorker').mockResolvedValue(demoWorker('1.0.1'))
+    render(<WorkerEditor workerRef="reviewer@1.0.0" dir="" serverUrl="http://x" onWorkerRefChange={() => {}} />)
+    await waitFor(() => expect(screen.getByDisplayValue('review code')).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText('Model provider'), { target: { value: 'anthropic' } })
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'claude-sonnet-4-5' } })
+    fireEvent.change(screen.getByLabelText('Temperature'), { target: { value: '0.7' } })
+    fireEvent.click(screen.getByRole('button', { name: 'save as new version' }))
+
+    await waitFor(() =>
+      expect(saveWorkerSpy).toHaveBeenCalledWith(
+        'http://x',
+        expect.objectContaining({ model: { provider: 'anthropic', model: 'claude-sonnet-4-5', params: { temperature: 0.7 } } }),
+        '',
+      ),
+    )
+  })
+
   it('blocks save and shows an error when the output schema is invalid JSON', async () => {
     vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([demoWorker('1.0.0')])
     const saveWorkerSpy = vi.spyOn(liveClient, 'saveWorker')

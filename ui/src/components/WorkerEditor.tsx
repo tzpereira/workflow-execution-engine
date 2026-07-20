@@ -43,15 +43,21 @@ export function WorkerEditor({
 
   useEffect(() => {
     let cancelled = false
-    setLoadError(null)
     fetchWorkerVersions(serverUrl, id, dir)
       .then((vs) => {
         if (cancelled) return
+        setLoadError(null)
         setVersions(vs)
-        const current = vs.find((v) => `${v.id}@${v.version}` === workerRef) ?? vs[vs.length - 1]
+        const current =
+          vs.find((v) => `${v.id}@${v.version}` === workerRef) ??
+          vs[vs.length - 1]
         if (current) loadDraft(current)
       })
-      .catch((e) => !cancelled && setLoadError(e instanceof Error ? e.message : String(e)))
+      .catch(
+        (e) =>
+          !cancelled &&
+          setLoadError(e instanceof Error ? e.message : String(e)),
+      )
     return () => {
       cancelled = true
     }
@@ -93,7 +99,11 @@ export function WorkerEditor({
     setSaving(true)
     setSaveError(null)
     try {
-      const saved = await saveWorker(serverUrl, { ...draft, contract: { ...draft.contract, outputSchema: schema } }, dir)
+      const saved = await saveWorker(
+        serverUrl,
+        { ...draft, contract: { ...draft.contract, outputSchema: schema } },
+        dir,
+      )
       setVersions((vs) => [...(vs ?? []), saved])
       onWorkerRefChange(`${saved.id}@${saved.version}`)
       loadDraft(saved)
@@ -123,15 +133,24 @@ export function WorkerEditor({
             </option>
           ))}
         </select>
-        <button type="button" className="btn" onClick={onSave} disabled={saving}>
+        <button
+          type="button"
+          className="btn"
+          onClick={onSave}
+          disabled={saving}
+        >
           {saving ? 'saving…' : 'save as new version'}
         </button>
-        {savedNotice && <span className="text-xs text-emerald-700">{savedNotice}</span>}
+        {savedNotice && (
+          <span className="text-xs text-emerald-700">{savedNotice}</span>
+        )}
       </div>
       {saveError && <p className="text-xs text-red-600">{saveError}</p>}
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Objective</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Objective
+        </span>
         <textarea
           value={draft.objective}
           onChange={(e) => setDraft({ ...draft, objective: e.target.value })}
@@ -141,68 +160,173 @@ export function WorkerEditor({
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Constraints (one per line)</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Constraints (one per line)
+        </span>
         <textarea
           value={draft.constraints.join('\n')}
-          onChange={(e) => setDraft({ ...draft, constraints: linesOf(e.target.value) })}
+          onChange={(e) =>
+            setDraft({ ...draft, constraints: linesOf(e.target.value) })
+          }
           rows={3}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
         />
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Tools (one per line)</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Tools (one per line)
+        </span>
         <textarea
           value={draft.tools.join('\n')}
-          onChange={(e) => setDraft({ ...draft, tools: linesOf(e.target.value) })}
+          onChange={(e) =>
+            setDraft({ ...draft, tools: linesOf(e.target.value) })
+          }
           rows={2}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
         />
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Contract goal</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Contract goal
+        </span>
         <input
           type="text"
           value={draft.contract.goal}
-          onChange={(e) => setDraft({ ...draft, contract: { ...draft.contract, goal: e.target.value } })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              contract: { ...draft.contract, goal: e.target.value },
+            })
+          }
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 text-xs"
         />
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Rules (one per line)</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Rules (one per line)
+        </span>
         <textarea
           value={draft.contract.rules.join('\n')}
-          onChange={(e) => setDraft({ ...draft, contract: { ...draft.contract, rules: linesOf(e.target.value) } })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              contract: { ...draft.contract, rules: linesOf(e.target.value) },
+            })
+          }
           rows={2}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
         />
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Success criteria (one per line)</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Success criteria (one per line)
+        </span>
         <textarea
           value={draft.contract.successCriteria.join('\n')}
-          onChange={(e) => setDraft({ ...draft, contract: { ...draft.contract, successCriteria: linesOf(e.target.value) } })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              contract: {
+                ...draft.contract,
+                successCriteria: linesOf(e.target.value),
+              },
+            })
+          }
           rows={2}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
         />
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Max retries</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Max retries
+        </span>
         <input
           type="number"
           min={0}
           value={draft.contract.maxRetries}
-          onChange={(e) => setDraft({ ...draft, contract: { ...draft.contract, maxRetries: Number(e.target.value) } })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              contract: {
+                ...draft.contract,
+                maxRetries: Number(e.target.value),
+              },
+            })
+          }
           className="mt-0.5 w-20 rounded border border-neutral-300 px-1.5 py-1 text-xs"
         />
       </label>
 
+      <div className="flex items-end gap-1.5">
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+            Model provider
+          </span>
+          <select
+            value={draft.model.provider}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                model: { ...draft.model, provider: e.target.value },
+              })
+            }
+            className="mt-0.5 rounded border border-neutral-300 px-1.5 py-1 text-xs"
+          >
+            <option value="openai">openai</option>
+            <option value="anthropic">anthropic</option>
+          </select>
+        </label>
+        <label className="block flex-1">
+          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+            Model
+          </span>
+          <input
+            type="text"
+            value={draft.model.model}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                model: { ...draft.model, model: e.target.value },
+              })
+            }
+            className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+            Temperature
+          </span>
+          <input
+            type="number"
+            min={0}
+            max={2}
+            step={0.1}
+            value={
+              typeof draft.model.params?.temperature === 'number'
+                ? draft.model.params.temperature
+                : ''
+            }
+            onChange={(e) => {
+              const raw = e.target.value
+              const params: Record<string, unknown> = { ...draft.model.params }
+              if (raw === '') delete params.temperature
+              else params.temperature = Number(raw)
+              setDraft({ ...draft, model: { ...draft.model, params } })
+            }}
+            className="mt-0.5 w-16 rounded border border-neutral-300 px-1.5 py-1 text-xs"
+          />
+        </label>
+      </div>
+
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Output schema (JSON)</span>
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Output schema (JSON)
+        </span>
         <textarea
           value={schemaText}
           onChange={(e) => {
@@ -212,7 +336,9 @@ export function WorkerEditor({
           rows={6}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-[11px]"
         />
-        {schemaError && <p className="mt-0.5 text-xs text-red-600">{schemaError}</p>}
+        {schemaError && (
+          <p className="mt-0.5 text-xs text-red-600">{schemaError}</p>
+        )}
       </label>
     </div>
   )

@@ -30,7 +30,7 @@ describe('Toolbar', () => {
   it('runs immediately when the workflow declares no inputs', () => {
     const run = vi.fn()
     useLive.setState({ run })
-    render(<Toolbar onOpenPalette={() => {}} onOpenTemplates={() => {}} />)
+    render(<Toolbar onOpenPalette={() => {}} onOpenTemplates={() => {}} onOpenSettings={() => {}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Run' }))
 
@@ -42,7 +42,7 @@ describe('Toolbar', () => {
     const run = vi.fn()
     useLive.setState({ run })
     useWorkspace.setState((s) => ({ meta: { ...s.meta, inputs: [{ name: 'prUrl', required: true }] } }))
-    render(<Toolbar onOpenPalette={() => {}} onOpenTemplates={() => {}} />)
+    render(<Toolbar onOpenPalette={() => {}} onOpenTemplates={() => {}} onOpenSettings={() => {}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Run' }))
     expect(screen.getByText('Run inputs')).toBeInTheDocument()
