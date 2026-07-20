@@ -15,10 +15,12 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -103,6 +105,8 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("GET /api/templates", s.handleListTemplates)
 	s.mux.HandleFunc("POST /api/templates/{name}/import", s.handleImportTemplate)
+	s.mux.HandleFunc("GET /api/workers/{id}", s.handleListWorkerVersions)
+	s.mux.HandleFunc("POST /api/workers", s.handleSaveWorker)
 	return s
 }
 
@@ -368,6 +372,167 @@ func (s *Server) handleImportTemplate(w http.ResponseWriter, r *http.Request) {
 		WorkflowPath: filepath.Join(name, "workflow.yaml"),
 		Workflow:     wf,
 	})
+}
+
+// workerVersionsResponse is GET /api/workers/{id}'s body — every version of
+// that Worker id found on disk, oldest first, so the UI's version-history
+// picker and "current" editable copy (the last entry) both come from one
+// call. dir (a query param, "" for the server's own --dir root) lets the
+// caller scope the scan to wherever the currently-open workflow's sibling
+// Worker files actually live — the same nesting a template import creates
+// (M1.14's handleImportTemplate writes into <dir>/<name>/, not <dir>/).
+type workerVersionsResponse struct {
+	Versions []domain.Worker `json:"versions"`
+}
+
+func (s *Server) handleListWorkerVersions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	scanDir := filepath.Join(s.dir, r.URL.Query().Get("dir"))
+	versions, err := scanWorkerVersions(scanDir, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, workerVersionsResponse{Versions: versions})
+}
+
+type saveWorkerRequest struct {
+	Worker domain.Worker `json:"worker"`
+	Dir    string        `json:"dir"`
+}
+
+type saveWorkerResponse struct {
+	Worker domain.Worker `json:"worker"`
+}
+
+// handleSaveWorker is M1.14c's in-UI editing write path: the submitted
+// Worker's own Version field is never trusted as the version to write —
+// editing always mints a new version (owner-confirmed 2026-07-20: "editar
+// cria uma versão nova automaticamente, mas salva a anterior"), computed as
+// one patch bump past whatever's already on disk for that id. The file the
+// edit started from is never touched; LoadWorkers already resolves any
+// *.worker.yaml file by its internal id/version fields, not by filename, so
+// two versions of the same Worker coexisting as two files is the existing,
+// unmodified loading behavior (cli/internal/runner/assemble.go) — nothing
+// engine-side changes to make rollback possible.
+func (s *Server) handleSaveWorker(w http.ResponseWriter, r *http.Request) {
+	var req saveWorkerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "decode request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Worker.ID == "" {
+		http.Error(w, "worker.id is required", http.StatusBadRequest)
+		return
+	}
+	scanDir := filepath.Join(s.dir, req.Dir)
+	existing, err := scanWorkerVersions(scanDir, req.Worker.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	req.Worker.Version = nextPatchVersion(existing)
+
+	data, err := serialize.MarshalYAML(req.Worker)
+	if err != nil {
+		http.Error(w, "marshal worker: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.MkdirAll(scanDir, 0o755); err != nil {
+		http.Error(w, "create directory: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fileName := req.Worker.ID + "@" + req.Worker.Version + ".worker.yaml"
+	if err := os.WriteFile(filepath.Join(scanDir, fileName), data, 0o644); err != nil {
+		http.Error(w, "write "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, saveWorkerResponse{Worker: req.Worker})
+}
+
+// scanWorkerVersions reads every *.worker.yaml/*.worker.yml file directly in
+// dir and returns the ones matching id, sorted oldest-version-first. A
+// missing directory is an empty result, not an error (a workflow with no
+// Workers, or one whose dir hasn't been created yet).
+func scanWorkerVersions(dir, id string) ([]domain.Worker, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read dir %s: %w", dir, err)
+	}
+	var out []domain.Worker
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || (!strings.HasSuffix(name, ".worker.yaml") && !strings.HasSuffix(name, ".worker.yml")) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		var wk domain.Worker
+		if err := serialize.UnmarshalYAML(data, &wk); err != nil {
+			continue
+		}
+		if wk.ID == id {
+			out = append(out, wk)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return semverLess(out[i].Version, out[j].Version) })
+	return out, nil
+}
+
+// nextPatchVersion returns one patch bump past the highest version in
+// existing, or "1.0.0" if there are none yet. Only MAJOR.MINOR.PATCH is
+// understood (every version in this project is plain semver) — a version
+// string that doesn't parse as three integers is treated as lower than any
+// that does, so a save still succeeds with a sane starting point rather than
+// erroring on an unexpected format.
+func nextPatchVersion(existing []domain.Worker) string {
+	if len(existing) == 0 {
+		return "1.0.0"
+	}
+	latest := existing[len(existing)-1].Version // scanWorkerVersions returns oldest-first
+	major, minor, patch, ok := parseSemver(latest)
+	if !ok {
+		return "1.0.0"
+	}
+	return fmt.Sprintf("%d.%d.%d", major, minor, patch+1)
+}
+
+func parseSemver(v string) (major, minor, patch int, ok bool) {
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) != 3 {
+		return 0, 0, 0, false
+	}
+	var err error
+	if major, err = strconv.Atoi(parts[0]); err != nil {
+		return 0, 0, 0, false
+	}
+	if minor, err = strconv.Atoi(parts[1]); err != nil {
+		return 0, 0, 0, false
+	}
+	if patch, err = strconv.Atoi(parts[2]); err != nil {
+		return 0, 0, 0, false
+	}
+	return major, minor, patch, true
+}
+
+func semverLess(a, b string) bool {
+	aMaj, aMin, aPatch, aOK := parseSemver(a)
+	bMaj, bMin, bPatch, bOK := parseSemver(b)
+	if !aOK || !bOK {
+		return a < b // unparseable — stable, arbitrary fallback, never crashes
+	}
+	if aMaj != bMaj {
+		return aMaj < bMaj
+	}
+	if aMin != bMin {
+		return aMin < bMin
+	}
+	return aPatch < bPatch
 }
 
 // listExecutionIDs returns recorded execution ids, newest first — ids are

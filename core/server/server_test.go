@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/registry"
+	"github.com/tzpereira/workflow-execution-engine/core/serialize"
 )
 
 // writeSnapshot seeds a minimal snapshot so Append can chain the first event to
@@ -473,5 +475,164 @@ func TestImportTemplateDisabledWithoutTemplatesDir(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotImplemented {
 		t.Errorf("status = %d, want 501", resp.StatusCode)
+	}
+}
+
+func demoWorker(id, version string) domain.Worker {
+	return domain.Worker{
+		ID:        id,
+		Version:   version,
+		Objective: "review code",
+		Contract: domain.Contract{
+			Goal:         "produce a verdict",
+			OutputSchema: map[string]any{"type": "object"},
+		},
+		Model: domain.ModelConfig{Provider: "openai", Model: "gpt-4o-mini"},
+	}
+}
+
+func writeWorkerFile(t *testing.T, dir, fileName string, w domain.Worker) {
+	t.Helper()
+	data, err := serialize.MarshalYAML(w)
+	if err != nil {
+		t.Fatalf("marshal worker: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, fileName), data, 0o644); err != nil {
+		t.Fatalf("write %s: %v", fileName, err)
+	}
+}
+
+func TestListWorkerVersionsEmptyWhenNoneExist(t *testing.T) {
+	s, dir := fastServerWithTemplates(t, "")
+	_ = dir
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/workers/nonexistent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var got workerVersionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Versions) != 0 {
+		t.Errorf("Versions = %+v, want empty", got.Versions)
+	}
+}
+
+func TestListWorkerVersionsReturnsAllMatchingIDSortedOldestFirst(t *testing.T) {
+	s, dir := fastServerWithTemplates(t, "")
+	writeWorkerFile(t, dir, "reviewer@1.0.1.worker.yaml", demoWorker("reviewer", "1.0.1"))
+	writeWorkerFile(t, dir, "reviewer.worker.yaml", demoWorker("reviewer", "1.0.0"))
+	writeWorkerFile(t, dir, "other.worker.yaml", demoWorker("other", "1.0.0")) // different id, must not appear
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/workers/reviewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var got workerVersionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Versions) != 2 {
+		t.Fatalf("Versions = %+v, want 2 entries", got.Versions)
+	}
+	if got.Versions[0].Version != "1.0.0" || got.Versions[1].Version != "1.0.1" {
+		t.Errorf("Versions = [%s, %s], want [1.0.0, 1.0.1]", got.Versions[0].Version, got.Versions[1].Version)
+	}
+}
+
+func TestSaveWorkerCreatesNewVersionFileWithoutTouchingOriginal(t *testing.T) {
+	s, dir := fastServerWithTemplates(t, "")
+	writeWorkerFile(t, dir, "reviewer.worker.yaml", demoWorker("reviewer", "1.0.0"))
+	originalBytes, err := os.ReadFile(filepath.Join(dir, "reviewer.worker.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	edited := demoWorker("reviewer", "whatever-the-client-sent") // server must ignore this
+	edited.Objective = "review code more strictly"
+	body, _ := json.Marshal(saveWorkerRequest{Worker: edited})
+	resp, err := http.Post(ts.URL+"/api/workers", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /api/workers = %d: %s", resp.StatusCode, b)
+	}
+	var got saveWorkerResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Worker.Version != "1.0.1" {
+		t.Errorf("saved Version = %q, want 1.0.1 (server-computed, ignoring the client's submitted version)", got.Worker.Version)
+	}
+
+	// The original file is untouched, byte for byte.
+	stillThere, err := os.ReadFile(filepath.Join(dir, "reviewer.worker.yaml"))
+	if err != nil {
+		t.Fatalf("original file missing: %v", err)
+	}
+	if string(stillThere) != string(originalBytes) {
+		t.Errorf("original reviewer.worker.yaml was modified, want byte-identical")
+	}
+
+	// The new version's own file exists and round-trips the edited content.
+	newFile := filepath.Join(dir, "reviewer@1.0.1.worker.yaml")
+	newData, err := os.ReadFile(newFile)
+	if err != nil {
+		t.Fatalf("new version file missing: %v", err)
+	}
+	var newWorker domain.Worker
+	if err := serialize.UnmarshalYAML(newData, &newWorker); err != nil {
+		t.Fatalf("decode new file: %v", err)
+	}
+	if newWorker.Objective != "review code more strictly" {
+		t.Errorf("new file Objective = %q, want the edited text", newWorker.Objective)
+	}
+
+	// Both versions coexist and are independently loadable by id — proving
+	// rollback needs no engine change (LoadWorkers matches by internal
+	// id/version, not filename).
+	all, err := scanWorkerVersions(dir, "reviewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Errorf("scanWorkerVersions found %d versions, want 2", len(all))
+	}
+}
+
+func TestSaveWorkerRequiresID(t *testing.T) {
+	s, _ := fastServerWithTemplates(t, "")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	body, _ := json.Marshal(saveWorkerRequest{Worker: domain.Worker{}})
+	resp, err := http.Post(ts.URL+"/api/workers", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestNextPatchVersionStartsAtOneZeroZeroWhenNoneExist(t *testing.T) {
+	if got := nextPatchVersion(nil); got != "1.0.0" {
+		t.Errorf("nextPatchVersion(nil) = %q, want 1.0.0", got)
 	}
 }
