@@ -118,6 +118,42 @@ func TestAuditReconstructsSucceededFailedAndSkippedNodes(t *testing.T) {
 	}
 }
 
+// TestAuditExposesResolvedInputs is REQ-INPUT-01's audit half: the resolved
+// value behind a declared workflow input is readable from the audit record
+// alone, the same way DefinitionHashes/Workers already are (M1.13).
+func TestAuditExposesResolvedInputs(t *testing.T) {
+	base := t.TempDir()
+	log := eventlog.New(base)
+	st := store.New(base)
+
+	exec := &recordingExecutor{}
+	sched := engine.New(exec, st, log, cache.New(base))
+
+	wf := &domain.Workflow{
+		ID: "wf", Version: "1.0.0",
+		Nodes:  []domain.Node{{ID: "a", Worker: "w@1.0.0"}},
+		Edges:  []domain.Edge{},
+		Inputs: []domain.InputDecl{{Name: "prUrl", Required: true}},
+	}
+
+	const execID = "exec-audit-inputs"
+	if _, err := sched.Run(context.Background(), wf, engine.RunOptions{
+		ExecutionID: execID,
+		Inputs:      map[string]string{"prUrl": "https://example.com/42"},
+	}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	aud := replay.NewAuditor(eventlog.New(base), store.New(base))
+	tl, err := aud.Audit(execID)
+	if err != nil {
+		t.Fatalf("Audit: %v", err)
+	}
+	if got := tl.Inputs["prUrl"]; got != "https://example.com/42" {
+		t.Errorf("tl.Inputs[prUrl] = %q, want the resolved value", got)
+	}
+}
+
 // TestAuditUnknownExecutionErrors mirrors eventlog's own
 // TestReadAllMissingIsError: auditing an execution id that was never run is
 // an error, not a zero-value Timeline.

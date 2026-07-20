@@ -54,6 +54,11 @@ type Timeline struct {
 	// contextPolicy) behind each DefinitionHashes entry, pinned the same way
 	// (REQ-UI-03) — the Inspector's source for a node's Contract.
 	Workers map[string]domain.Worker `json:"workers,omitempty"`
+	// Inputs is the resolved value (supplied or Default) behind every declared
+	// Workflow.Inputs entry this execution actually used (REQ-INPUT-01) — what
+	// this run was run against. Not a secret, so unlike a "${env:...}" value it
+	// belongs here in the audit record.
+	Inputs map[string]string `json:"inputs,omitempty"`
 }
 
 // Auditor renders past executions from their on-disk record alone (REQ-
@@ -153,5 +158,6 @@ func (a *Auditor) Audit(executionID string) (Timeline, error) {
 		SpentTokens:      totalTokens,
 		DefinitionHashes: snap.DefinitionHashes,
 		Workers:          snap.Workers,
+		Inputs:           snap.Inputs,
 	}, nil
 }
