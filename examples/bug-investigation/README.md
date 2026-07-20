@@ -35,3 +35,12 @@ comfortably inside the workflow's own `maxCostUsd: 0.30` ceiling; a run where `a
 skips `apply-patch` and `test` and costs less still. The actual figure for any specific run is real
 accounting, not an estimate — see it via `wee inspect <id>` or the UI's Metrics panel
 ([concepts/budget.md](../../docs/concepts/budget.md)).
+
+## Found during M1.15's real-repo validation
+
+`apply-patch` referenced `${patch.path}`/`${patch.content}` without a direct edge from `patch` — context
+resolution only ever sees direct parents, so both placeholders failed to resolve at run time despite
+passing schema/graph validation. Fixed by adding a `patch -> apply-patch` edge alongside the existing
+`verify-patch -> apply-patch` gating edge. Found while validating [pr-review-autofix](../pr-review-autofix/README.md)
+against real repos, which had the identical bug in its own `stage`/`commit` nodes — see that README's
+"Real-repo validation" section for the full account.

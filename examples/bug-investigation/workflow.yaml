@@ -58,6 +58,7 @@ edges:
   - { from: hypothesis, to: patch }
   - { from: hypothesis, to: verify-patch }
   - { from: patch, to: verify-patch }
+  - { from: patch, to: apply-patch }
   - { from: verify-patch, to: apply-patch, condition: { path: approved, op: truthy } }
   - { from: apply-patch, to: test }
   - { from: hypothesis, to: review }
