@@ -2,6 +2,7 @@ package validate
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
@@ -44,6 +45,7 @@ func Graph(wf *domain.Workflow, src LineResolver) error {
 	}
 
 	problems = append(problems, checkNodeRef(wf, src)...)
+	problems = append(problems, checkInputRefs(wf, src)...)
 
 	// Edge resolution. Only edges whose endpoints both exist feed the graph
 	// analysis below; unresolved endpoints are reported here.
@@ -176,6 +178,57 @@ func checkNodeRef(wf *domain.Workflow, src LineResolver) []Problem {
 		}
 	}
 	return problems
+}
+
+// inputPlaceholderRe matches a leaf value that is, in its entirety, an
+// "${input:NAME}" placeholder (core/engine/tool_input.go resolves the same
+// grammar at run time; this is a static, pre-run check over the same syntax).
+var inputPlaceholderRe = regexp.MustCompile(`^\$\{input:(.+)\}$`)
+
+// checkInputRefs verifies every "${input:NAME}" a tool-backed node's input
+// tree references names a Workflow.Inputs declaration (REQ-INPUT-01) — the
+// same "reference must resolve" discipline checkContextArtifacts applies to
+// artifact refs, applied here to declared workflow inputs instead.
+func checkInputRefs(wf *domain.Workflow, src LineResolver) []Problem {
+	declared := make(map[string]bool, len(wf.Inputs))
+	for _, d := range wf.Inputs {
+		declared[d.Name] = true
+	}
+	var problems []Problem
+	for i, n := range wf.Nodes {
+		if n.Tool == nil {
+			continue
+		}
+		walkInputRefs(n.Tool.Input, fmt.Sprintf("/nodes/%d/tool/input", i), func(name, ptr string) {
+			if !declared[name] {
+				problems = append(problems, resolveLine(src, Problem{
+					Pointer: ptr,
+					Message: fmt.Sprintf("node %q references undeclared workflow input %q (add it to the workflow's top-level \"inputs\")", n.ID, name),
+				}))
+			}
+		})
+	}
+	return problems
+}
+
+// walkInputRefs recurses through a tool call's input tree (the same shape
+// resolveToolInput walks at run time), reporting every "${input:NAME}"
+// placeholder leaf it finds via report.
+func walkInputRefs(v any, ptr string, report func(name, ptr string)) {
+	switch val := v.(type) {
+	case string:
+		if m := inputPlaceholderRe.FindStringSubmatch(val); m != nil {
+			report(m[1], ptr)
+		}
+	case map[string]any:
+		for k, sub := range val {
+			walkInputRefs(sub, ptr+"/"+k, report)
+		}
+	case []any:
+		for i, sub := range val {
+			walkInputRefs(sub, fmt.Sprintf("%s/%d", ptr, i), report)
+		}
+	}
 }
 
 // checkContextArtifacts verifies that every node id referenced by an

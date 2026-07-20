@@ -144,3 +144,39 @@ func TestGraphRejectsContextArtifactNotUpstream(t *testing.T) {
 		t.Errorf("expected an upstream-artifact error, got: %v", err)
 	}
 }
+
+func TestGraphRejectsUndeclaredInputRef(t *testing.T) {
+	wf := &domain.Workflow{
+		ID: "inputs", Version: "1.0.0",
+		Nodes: []domain.Node{
+			{ID: "fetch", Tool: &domain.ToolCall{
+				ToolName: "http",
+				Input:    map[string]any{"url": "${input:prUrl}"},
+			}},
+		},
+		Edges:  []domain.Edge{},
+		Budget: domain.Budget{MaxCostUSD: 1, MaxTokens: 1, MaxDurationMs: 1, MaxRetriesPerNode: 1},
+	}
+	err := validate.Graph(wf, nil)
+	if err == nil || !strings.Contains(err.Error(), "undeclared workflow input") {
+		t.Errorf("expected an undeclared-workflow-input error, got: %v", err)
+	}
+}
+
+func TestGraphAcceptsDeclaredInputRef(t *testing.T) {
+	wf := &domain.Workflow{
+		ID: "inputs", Version: "1.0.0",
+		Nodes: []domain.Node{
+			{ID: "fetch", Tool: &domain.ToolCall{
+				ToolName: "http",
+				Input:    map[string]any{"url": "${input:prUrl}"},
+			}},
+		},
+		Edges:  []domain.Edge{},
+		Inputs: []domain.InputDecl{{Name: "prUrl", Required: true}},
+		Budget: domain.Budget{MaxCostUSD: 1, MaxTokens: 1, MaxDurationMs: 1, MaxRetriesPerNode: 1},
+	}
+	if err := validate.Graph(wf, nil); err != nil {
+		t.Errorf("expected a declared input reference to validate cleanly, got: %v", err)
+	}
+}
