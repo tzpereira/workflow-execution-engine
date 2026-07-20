@@ -99,6 +99,44 @@ func TestWorkflowResolvesRegisteredRef(t *testing.T) {
 	}
 }
 
+// TestSoleWorkflowRoundTripsThroughImport is the template-gallery use case
+// (M1.14): Export -> Import -> SoleWorkflow recovers the one bundled
+// workflow without the caller needing to already know its ref.
+func TestSoleWorkflowRoundTripsThroughImport(t *testing.T) {
+	r := registry.New()
+	if err := r.RegisterWorker(worker("reviewer", "1.0.0", "review code")); err != nil {
+		t.Fatalf("RegisterWorker: %v", err)
+	}
+	wf := domain.Workflow{ID: "wf", Version: "1.0.0", Nodes: []domain.Node{{ID: "a", Worker: "reviewer@1.0.0"}}}
+	if err := r.RegisterWorkflow(wf); err != nil {
+		t.Fatalf("RegisterWorkflow: %v", err)
+	}
+
+	bundle, err := r.Export("wf", "1.0.0")
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	imported, err := registry.Import(bundle)
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	ref, got, ok := imported.SoleWorkflow()
+	if !ok {
+		t.Fatal("SoleWorkflow() = not ok, want the one imported workflow")
+	}
+	if ref != "wf@1.0.0" || got.ID != "wf" {
+		t.Errorf("SoleWorkflow() = (%q, %+v), want (\"wf@1.0.0\", id=wf)", ref, got)
+	}
+}
+
+func TestSoleWorkflowFalseWhenNotExactlyOne(t *testing.T) {
+	r := registry.New()
+	if _, _, ok := r.SoleWorkflow(); ok {
+		t.Error("SoleWorkflow() on an empty registry = ok, want false")
+	}
+}
+
 // TestReRegisterIdenticalContentIsNoOp: registering byte-identical content at
 // the same version again is allowed (idempotent), not a conflict.
 func TestReRegisterIdenticalContentIsNoOp(t *testing.T) {

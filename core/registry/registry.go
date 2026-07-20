@@ -107,6 +107,21 @@ func (r *Registry) Workflow(ref string) (domain.Workflow, bool) {
 	return e.def, ok
 }
 
+// SoleWorkflow returns the one workflow registered, along with its "id@version"
+// ref, when there is exactly one — the common case right after Import(), which
+// registers exactly the one workflow Export bundled (plus its Workers). ok is
+// false if zero or more than one workflow is registered, so a caller never
+// silently picks an arbitrary one out of an ambiguous Registry.
+func (r *Registry) SoleWorkflow() (ref string, wf domain.Workflow, ok bool) {
+	if len(r.workflows) != 1 {
+		return "", domain.Workflow{}, false
+	}
+	for ref, e := range r.workflows {
+		return ref, e.def, true
+	}
+	return "", domain.Workflow{}, false // unreachable
+}
+
 // ContentHash returns the canonical content hash recorded for a registered
 // worker or workflow reference, or ok=false if nothing is registered there.
 func (r *Registry) ContentHash(ref string) (hash string, ok bool) {
