@@ -28,14 +28,14 @@ var placeholderRe = regexp.MustCompile(`^\$\{(.+)\}$`)
 // hash of every upstream NodeInput an artifact placeholder actually
 // referenced, for NodeResult.ContextHashes — the same audit property
 // REQ-CTXPOL-03 gives model-backed nodes, extended here at no extra cost.
-func resolveToolInput(v any, inputs []NodeInput, secrets map[string]string, refHashes map[string]bool) (any, error) {
+func resolveToolInput(v any, inputs []NodeInput, wfInputs map[string]string, secrets map[string]string, refHashes map[string]bool) (any, error) {
 	switch val := v.(type) {
 	case string:
-		return resolvePlaceholder(val, inputs, secrets, refHashes)
+		return resolvePlaceholder(val, inputs, wfInputs, secrets, refHashes)
 	case map[string]any:
 		out := make(map[string]any, len(val))
 		for k, sub := range val {
-			r, err := resolveToolInput(sub, inputs, secrets, refHashes)
+			r, err := resolveToolInput(sub, inputs, wfInputs, secrets, refHashes)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", k, err)
 			}
@@ -45,7 +45,7 @@ func resolveToolInput(v any, inputs []NodeInput, secrets map[string]string, refH
 	case []any:
 		out := make([]any, len(val))
 		for i, sub := range val {
-			r, err := resolveToolInput(sub, inputs, secrets, refHashes)
+			r, err := resolveToolInput(sub, inputs, wfInputs, secrets, refHashes)
 			if err != nil {
 				return nil, fmt.Errorf("[%d]: %w", i, err)
 			}
@@ -65,11 +65,16 @@ func resolveToolInput(v any, inputs []NodeInput, secrets map[string]string, refH
 // (core/model/openai, core/model/anthropic): only the variable NAME ever
 // appears in a definition, never a value (NFR-SEC-01).
 //
+// "${input:NAME}" resolves against wfInputs — the run's resolved
+// Workflow.Inputs values (REQ-INPUT-01), supplied by the caller or defaulted.
+// Unlike "${env:NAME}" this is not a secret and is not redacted: the whole
+// point is that an audit trail can show what a run actually ran against.
+//
 // "${nodeID.path}" resolves against the upstream NodeInput whose FromNode is
 // nodeID, via the existing dotted-path walker (lookupPath, conditional.go —
 // same package, no new parsing). An empty path (no ".", e.g. "${diff}")
 // returns that node's entire parsed output, per lookupPath's own contract.
-func resolvePlaceholder(s string, inputs []NodeInput, secrets map[string]string, refHashes map[string]bool) (any, error) {
+func resolvePlaceholder(s string, inputs []NodeInput, wfInputs map[string]string, secrets map[string]string, refHashes map[string]bool) (any, error) {
 	m := placeholderRe.FindStringSubmatch(s)
 	if m == nil {
 		return s, nil
@@ -83,6 +88,14 @@ func resolvePlaceholder(s string, inputs []NodeInput, secrets map[string]string,
 		}
 		if val != "" {
 			secrets[val] = s
+		}
+		return val, nil
+	}
+
+	if name, ok := strings.CutPrefix(inner, "input:"); ok {
+		val, ok := wfInputs[name]
+		if !ok {
+			return nil, fmt.Errorf("placeholder %q: workflow input %q has no value (not declared, or not supplied)", s, name)
 		}
 		return val, nil
 	}

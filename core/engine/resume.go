@@ -24,6 +24,12 @@ type Snapshot struct {
 	// DefinitionHashes entry (REQ-UI-03) — see RunOptions.Workers. omitempty for
 	// the same byte-identical-when-unused reason as DefinitionHashes.
 	Workers map[string]domain.Worker `json:"workers,omitempty"`
+	// Inputs records the actual resolved value (supplied or Default) behind
+	// every declared InputDecl this run used (REQ-INPUT-01) — not a secret, so
+	// unlike "${env:...}" values it belongs in the audit trail: "what was this
+	// run actually run against". omitempty for the same byte-identical-when-
+	// unused reason as DefinitionHashes/Workers.
+	Inputs map[string]string `json:"inputs,omitempty"`
 }
 
 // Resume restarts an execution from its recorded state. It reads the snapshot
@@ -78,6 +84,7 @@ func (s *Scheduler) Resume(ctx context.Context, executionID string) (*Result, er
 		ExecutionID: executionID,
 		Concurrency: snap.Concurrency,
 		Budget:      snap.Budget,
+		Inputs:      snap.Inputs,
 	}
 	return s.run(ctx, &snap.Workflow, opts, precompleted, false)
 }

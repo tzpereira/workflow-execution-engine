@@ -31,6 +31,7 @@ type stub struct {
 	cost             map[string]float64
 	blockUntilCancel map[string]bool // node blocks until ctx is cancelled
 	onStart          func(id string) // called (outside the lock) as each node starts
+	lastWfInputs     map[string]string
 }
 
 func newStub() *stub {
@@ -47,6 +48,7 @@ func (s *stub) Execute(ctx context.Context, req engine.NodeRequest) (engine.Node
 	s.mu.Lock()
 	s.starts[node.ID]++
 	s.inputs[node.ID] = len(inputs)
+	s.lastWfInputs = req.WorkflowInputs
 	if s.startAt[node.ID].IsZero() {
 		s.startAt[node.ID] = time.Now()
 	}
@@ -89,6 +91,11 @@ func (s *stub) Execute(ctx context.Context, req engine.NodeRequest) (engine.Node
 }
 
 func (s *stub) startCount(id string) int { s.mu.Lock(); defer s.mu.Unlock(); return s.starts[id] }
+func (s *stub) wfInputsSeen() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastWfInputs
+}
 func (s *stub) inputCount(id string) int { s.mu.Lock(); defer s.mu.Unlock(); return s.inputs[id] }
 func (s *stub) window(id string) (time.Time, time.Time) {
 	s.mu.Lock()

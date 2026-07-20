@@ -99,6 +99,13 @@ type RunOptions struct {
 	// (the registry, via Workers(wf)) computes it; nil is byte-identical to a run
 	// that pinned nothing.
 	Workers map[string]domain.Worker
+	// Inputs supplies values for the Workflow's declared InputDecls (REQ-INPUT-01)
+	// — from a CLI --input flag, an HTTP run request body, or the SDK. A value
+	// here wins over a declared Default; a Required declaration satisfied by
+	// neither fails the run before any node dispatches (resolveWorkflowInputs).
+	// nil is byte-identical to a run that supplied nothing, for a Workflow with
+	// no declared Inputs.
+	Inputs map[string]string
 }
 
 // Scheduler runs workflows against a NodeExecutor, persisting artifacts and
@@ -240,8 +247,16 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	backoff := exponentialBackoff(opts.RetryBackoff, opts.RetryBackoffMax)
 	cacheMode := s.normalizeCacheMode(opts.Cache)
 
+	// Fail before any node dispatches if a required input has no value and no
+	// default (PRIN-05: before the call, not after) — checked on every run,
+	// fresh or resumed, since a resumed run's remaining nodes need it too.
+	wfInputs, err := resolveWorkflowInputs(wf.Inputs, opts.Inputs)
+	if err != nil {
+		return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, err
+	}
+
 	if fresh {
-		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers}); err != nil {
+		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers, Inputs: wfInputs}); err != nil {
 			return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, fmt.Errorf("engine: write snapshot: %w", err)
 		}
 		s.emit(execID, domain.ExecutionStarted, "", map[string]any{"workflow": wf.ID, "version": wf.Version})
@@ -344,7 +359,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 		go func() {
 			defer wg.Done()
 			for t := range tasks {
-				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode)
+				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode, wfInputs)
 				completions <- completion{id: t.attrTo, node: t.node, res: res, err: err}
 			}
 		}()

@@ -24,7 +24,7 @@ func TestResolveToolInputArtifactReference(t *testing.T) {
 		"message": "${fixer.summary}",
 		"score":   "${fixer.score}",
 		"literal": "not a placeholder",
-	}, fixtureInputs(), secrets, refs)
+	}, fixtureInputs(), nil, secrets, refs)
 	if err != nil {
 		t.Fatalf("resolveToolInput: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestResolveToolInputArtifactReference(t *testing.T) {
 // resolves to that node's entire parsed output.
 func TestResolveToolInputEmptyPathIsWholeArtifact(t *testing.T) {
 	refs := map[string]bool{}
-	out, err := resolveToolInput("${diff}", fixtureInputs(), map[string]string{}, refs)
+	out, err := resolveToolInput("${diff}", fixtureInputs(), nil, map[string]string{}, refs)
 	if err != nil {
 		t.Fatalf("resolveToolInput: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestResolveToolInputEnvReference(t *testing.T) {
 	secrets := map[string]string{}
 	out, err := resolveToolInput(map[string]any{
 		"headers": map[string]any{"Authorization": "${env:WEE_TEST_TOKEN}"},
-	}, nil, secrets, nil)
+	}, nil, nil, secrets, nil)
 	if err != nil {
 		t.Fatalf("resolveToolInput: %v", err)
 	}
@@ -81,23 +81,50 @@ func TestResolveToolInputEnvReference(t *testing.T) {
 
 func TestResolveToolInputMissingEnvErrors(t *testing.T) {
 	os.Unsetenv("WEE_TEST_MISSING_VAR")
-	_, err := resolveToolInput("${env:WEE_TEST_MISSING_VAR}", nil, map[string]string{}, nil)
+	_, err := resolveToolInput("${env:WEE_TEST_MISSING_VAR}", nil, nil, map[string]string{}, nil)
 	if err == nil {
 		t.Fatal("expected an error for an unset env var")
 	}
 }
 
 func TestResolveToolInputMissingNodeErrors(t *testing.T) {
-	_, err := resolveToolInput("${nope.field}", fixtureInputs(), map[string]string{}, nil)
+	_, err := resolveToolInput("${nope.field}", fixtureInputs(), nil, map[string]string{}, nil)
 	if err == nil {
 		t.Fatal("expected an error for a placeholder referencing a non-wired node")
 	}
 }
 
 func TestResolveToolInputMissingPathErrors(t *testing.T) {
-	_, err := resolveToolInput("${fixer.nonexistent}", fixtureInputs(), map[string]string{}, nil)
+	_, err := resolveToolInput("${fixer.nonexistent}", fixtureInputs(), nil, map[string]string{}, nil)
 	if err == nil {
 		t.Fatal("expected an error for a path absent from the upstream artifact")
+	}
+}
+
+// TestResolveToolInputWorkflowInputReference is REQ-INPUT-01's placeholder
+// half: "${input:NAME}" resolves against the run's resolved workflow inputs,
+// distinct from "${env:NAME}" — not recorded in secrets, since it isn't one.
+func TestResolveToolInputWorkflowInputReference(t *testing.T) {
+	secrets := map[string]string{}
+	out, err := resolveToolInput(map[string]any{
+		"url": "${input:prUrl}",
+	}, nil, map[string]string{"prUrl": "https://api.github.com/repos/acme/widgets/pulls/42"}, secrets, nil)
+	if err != nil {
+		t.Fatalf("resolveToolInput: %v", err)
+	}
+	m := out.(map[string]any)
+	if m["url"] != "https://api.github.com/repos/acme/widgets/pulls/42" {
+		t.Errorf("url = %v, want the resolved input value", m["url"])
+	}
+	if len(secrets) != 0 {
+		t.Errorf("a workflow input is not a secret and must not be recorded for redaction, got %v", secrets)
+	}
+}
+
+func TestResolveToolInputMissingWorkflowInputErrors(t *testing.T) {
+	_, err := resolveToolInput("${input:missing}", nil, map[string]string{}, map[string]string{}, nil)
+	if err == nil {
+		t.Fatal("expected an error for an undeclared/unsupplied workflow input")
 	}
 }
 
@@ -107,7 +134,7 @@ func TestResolveToolInputNonStringLeavesPassThrough(t *testing.T) {
 	out, err := resolveToolInput(map[string]any{
 		"n": float64(42), "b": true, "z": nil,
 		"list": []any{float64(1), "${fixer.summary}", false},
-	}, fixtureInputs(), map[string]string{}, map[string]bool{})
+	}, fixtureInputs(), nil, map[string]string{}, map[string]bool{})
 	if err != nil {
 		t.Fatalf("resolveToolInput: %v", err)
 	}
