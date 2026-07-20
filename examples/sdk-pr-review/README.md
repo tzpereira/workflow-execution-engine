@@ -23,6 +23,13 @@ The `test` node runs `go test ./...` and the `commit` node makes a local git com
 tool nodes (no model decides their input, ADR 0006). `git push` stays out of scope (Phase 1 never reaches a
 remote), so the terminal state is "committed locally, tests green."
 
+## Expected cost
+
+Same worker shape and cost profile as [pr-review-autofix](../pr-review-autofix/README.md) — this program
+builds the identical graph, just authored in Go instead of YAML. A typical run costs low tens of cents,
+dominated by the `gpt-4o` fixer call; see [pr-review-autofix/README.md](../pr-review-autofix/README.md#expected-cost)
+for the per-node breakdown.
+
 ## v1 gaps (shared with the YAML flagship)
 
 The reviewers have no diff to read yet — there is no external-input seam in Phase 1 (a workflow is

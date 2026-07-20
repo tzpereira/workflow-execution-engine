@@ -1,0 +1,37 @@
+# bug-investigation
+
+Secondary demo ([VISION.md](../../docs/VISION.md)): `logs -> hypothesis -> patch -> verify -> apply ->
+test -> review`. Also the reference implementation of **REQ-CONTRACT-05's verifier-node pattern**: a cheap,
+independent Worker judges an expensive Worker's own output before anything downstream trusts it.
+
+```
+read-logs -> hypothesis -+-> patch -> verify-patch -> apply-patch -> test -+-> review
+                          \_____________________________________________/
+```
+
+`verify-patch` (`gpt-4o-mini`, temperature 0, a two-field `{approved, reason}` Contract) judges `patch`'s
+(`gpt-4o`) proposed fix against the stated root cause before `apply-patch` ever runs — the conditional edge
+`verify-patch -> apply-patch` carries `condition: {path: approved, op: truthy}`. The producer never gates
+itself; a separate judge does. See [writing-contracts.md](../../docs/writing-contracts.md) for why this
+pattern beats a self-reported confidence field.
+
+## Running it
+
+```sh
+export OPENAI_API_KEY=sk-...
+export BUG_LOG_PATH=/path/to/some.log
+```
+
+`read-logs` reads `BUG_LOG_PATH` via the `filesystem` tool — Phase 1 has no workflow-level "inputs" concept
+(see [concepts/workflow.md](../../docs/concepts/workflow.md)), so the log path is sourced from the
+environment, resolved fresh each run. Needs a `wee.yaml` allowlisting the terminal command `test` runs with
+(`go` by default) and a real git checkout as the workspace root.
+
+## Expected cost
+
+Four LLM Workers: three cheap `gpt-4o-mini` calls (`hypothesis`, `verify-patch`, `review`) and one `gpt-4o`
+call (`patch`, the only one that has to produce actual working code). A typical run costs a few cents,
+comfortably inside the workflow's own `maxCostUsd: 0.30` ceiling; a run where `approved` comes back false
+skips `apply-patch` and `test` and costs less still. The actual figure for any specific run is real
+accounting, not an estimate — see it via `wee inspect <id>` or the UI's Metrics panel
+([concepts/budget.md](../../docs/concepts/budget.md)).

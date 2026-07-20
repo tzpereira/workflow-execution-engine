@@ -30,6 +30,13 @@ composition is the CI job's responsibility, not this workflow's.
 The `http` tool instance a runner wires for this workflow must allowlist `api.github.com`
 (`core/tool/http.New([]string{"api.github.com"}, nil)`).
 
+## Expected cost
+
+Both nodes are `http` tool calls — no LLM Worker in this graph at all, so a run costs $0 in model spend
+regardless of PR size. The cost this demo is missing is exactly the gap called out below: a real review
+body needs an LLM Worker in the loop, which is what [pr-review-autofix](../pr-review-autofix/README.md)
+adds.
+
 ## Documented v1 gaps (not solved here)
 
 - **Diff truncation on very large PRs.** GitHub's diff media type can be truncated past an undocumented
