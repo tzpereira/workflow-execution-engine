@@ -41,9 +41,10 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.14 — complete, locally verified. Next up: M1.15 (flagship validated against 3
-  real repos, docs site, README/demo video, v0.1.0 launch checklist — paused pending the repos to validate
-  against and explicit go-ahead on the public release steps). **Milestone gate reached at
+- **Current milestone:** M1.14 — complete, locally verified. M1.15 in progress: docs site content and the
+  per-example README cost figures are done (see M1.15's task list below); still open — flagship validated
+  against 3 real repos, top-level README/demo video, v0.1.0 launch checklist — paused pending the repos to
+  validate against and explicit go-ahead on the public release steps. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
@@ -1347,12 +1348,22 @@ a real repository, recorded in one unedited take.
       diff) → Test Runner (terminal tool) → Commit (git tool).
 - [ ] Validate the flagship workflow against 3 real public repositories of different sizes (small/medium/large);
       fix anything that breaks per-repo (timeouts, tool allowlists, budget defaults).
-- [ ] Write the docs site content under `docs/`: `quickstart.md`, one page per domain object under
+- [x] Write the docs site content under `docs/`: `quickstart.md`, one page per domain object under
       `docs/concepts/` (workflow, worker, contract, context-policy, artifact, event, execution, budget),
       `docs/cli-reference.md`, `docs/sdk-reference.md`, `docs/replay-honesty.md` (already written in M1.7),
-      `docs/cache-deep-dive.md`, `docs/writing-contracts.md`.
-- [ ] Add the example gallery in `examples/`: each example gets its own `README.md` stating expected cost for
-      a typical run.
+      `docs/cache-deep-dive.md`, `docs/writing-contracts.md`. **Verified by:** every `cli-reference.md` flag
+      table cross-checked word-for-word against `wee <cmd> --help` output from a freshly rebuilt binary;
+      `sdk-reference.md` and `cache-deep-dive.md` cross-checked against `sdk/*.go` and `core/cache/*.go`
+      directly (builder frontier semantics, `Inputs` struct fields, atomic-index-write behavior); the
+      `--budget` tighten-vs-loosen claim in `concepts/budget.md` was drafted wrong first (claimed tighten-only)
+      and corrected against `cli/cmd/run.go`'s actual `budgetFor` before shipping.
+- [x] Add the example gallery in `examples/`: each example gets its own `README.md` stating expected cost for
+      a typical run. **Verified by:** a dedicated `README.md` added for `pr-review`, `pr-review-autofix`,
+      `bug-investigation`, `prd-generation`, `architecture-review` (cost figures derived from each workflow's
+      actual per-node `model.model` — `gpt-4o-mini` vs `gpt-4o` — against its own `maxCostUsd` ceiling, not
+      guessed); `github-pr-review` and `sdk-pr-review`'s existing READMEs gained an Expected cost section.
+      These are estimates pending the real-repo validation task below, not measured figures — disclosed as
+      such in each README (points to `wee inspect`/the Metrics panel for the real number of an actual run).
 - [ ] Write the top-level `README.md`: what this is (per VISION.md's Premise/Positioning), quickstart, and an
       embedded unedited 3-minute demo GIF/video.
 - [ ] Launch checklist: tag `v0.1.0`, run `goreleaser release` (binaries to GitHub Releases), publish/verify
