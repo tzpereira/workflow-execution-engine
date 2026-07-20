@@ -109,9 +109,17 @@ describe('liveStore', () => {
     const store = createLiveStore(deps)
     await store.getState().run('check.yaml', ['a'])
 
-    expect(deps.startRun).toHaveBeenCalledWith('http://127.0.0.1:7676', 'check.yaml')
+    expect(deps.startRun).toHaveBeenCalledWith('http://127.0.0.1:7676', 'check.yaml', undefined)
     expect(deps.watchExecution).toHaveBeenCalledWith('exec-1', expect.anything(), expect.anything())
     expect(store.getState().connected).toBe(true)
+  })
+
+  it('run forwards supplied inputs to startRun', async () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    await store.getState().run('check.yaml', ['a'], { prUrl: 'https://example.com/42' })
+
+    expect(deps.startRun).toHaveBeenCalledWith('http://127.0.0.1:7676', 'check.yaml', { prUrl: 'https://example.com/42' })
   })
 
   it('run records the error and never calls watch when startRun rejects', async () => {

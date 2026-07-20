@@ -1,8 +1,9 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 
 import { downloadText } from '../download'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
+import { RunInputsModal } from './RunInputsModal'
 
 // Toolbar is the top bar: the workflow's id@version, import/export controls,
 // and the Live control group — start/watch a `wee serve` execution and see its
@@ -24,6 +25,7 @@ export function Toolbar({ onOpenPalette, onOpenTemplates }: { onOpenPalette: () 
   const liveError = useLive((s) => s.error)
   const run = useLive((s) => s.run)
   const disconnect = useLive((s) => s.disconnect)
+  const [inputsModalOpen, setInputsModalOpen] = useState(false)
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -41,9 +43,22 @@ export function Toolbar({ onOpenPalette, onOpenTemplates }: { onOpenPalette: () 
   // a directory). Run posts it as-is to `wee serve --dir`'s workflow resolver —
   // this only resolves when the server's --dir is the folder the file came
   // from. A mismatch surfaces as liveError from the server's 400, not a crash.
+  //
+  // A workflow with declared Inputs (REQ-INPUT-01) pauses here for the modal to
+  // collect values first; one with none runs immediately, unchanged.
   function onRun() {
     if (!fileName) return
+    if (meta.inputs && meta.inputs.length > 0) {
+      setInputsModalOpen(true)
+      return
+    }
     void run(fileName, nodes.map((n) => n.id))
+  }
+
+  function onRunWithInputs(values: Record<string, string>) {
+    setInputsModalOpen(false)
+    if (!fileName) return
+    void run(fileName, nodes.map((n) => n.id), values)
   }
 
   return (
@@ -95,6 +110,13 @@ export function Toolbar({ onOpenPalette, onOpenTemplates }: { onOpenPalette: () 
           ⌘K
         </button>
       </div>
+      {inputsModalOpen && meta.inputs && (
+        <RunInputsModal
+          inputs={meta.inputs}
+          onCancel={() => setInputsModalOpen(false)}
+          onSubmit={onRunWithInputs}
+        />
+      )}
     </header>
   )
 }

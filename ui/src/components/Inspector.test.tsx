@@ -95,6 +95,19 @@ describe('Inspector', () => {
     expect(screen.getByText('Workflow')).toBeInTheDocument()
   })
 
+  it("shows the run's resolved Inputs (REQ-INPUT-01) when the loaded audit has any", () => {
+    useLive.setState({ audit: { ...audit, inputs: { prUrl: 'https://example.com/42' } } })
+    render(<Inspector />)
+    expect(screen.getByText('Inputs (this run)')).toBeInTheDocument()
+    expect(screen.getByText('prUrl')).toBeInTheDocument()
+    expect(screen.getByText('https://example.com/42')).toBeInTheDocument()
+  })
+
+  it('omits the Inputs section when the audit has none', () => {
+    render(<Inspector />)
+    expect(screen.queryByText('Inputs (this run)')).not.toBeInTheDocument()
+  })
+
   it("answers \"what did this Worker see, and what did it produce\" in one click (REQ-UI-03/04)", () => {
     selectReviewNode()
     useLive.setState((s) => ({ live: { ...s.live, nodes: { review: { id: 'review', status: 'succeeded', costUsd: 0.02, tokens: 10, cached: false, retries: 0, startedAt: 1000, endedAt: 3000 } } }, audit }))

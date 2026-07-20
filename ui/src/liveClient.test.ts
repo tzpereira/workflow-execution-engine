@@ -144,6 +144,19 @@ describe('startRun', () => {
     expect(id).toBe('exec-1')
   })
 
+  it('includes inputs in the request body when supplied', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        workflow: 'check.yaml',
+        inputs: { prUrl: 'https://example.com/42' },
+      })
+      return new Response(JSON.stringify({ executionId: 'exec-1' }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await startRun('http://127.0.0.1:7676', 'check.yaml', { prUrl: 'https://example.com/42' })
+  })
+
   it('throws with the server error body on a non-OK response', async () => {
     vi.stubGlobal(
       'fetch',

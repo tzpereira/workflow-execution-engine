@@ -68,12 +68,23 @@ export interface Budget {
   maxRetriesPerNode: number
 }
 
+// InputDecl mirrors core/domain.InputDecl — one named, string-valued run-time
+// parameter a Workflow declares (REQ-INPUT-01). Required with no default means
+// a run cannot start until a value is supplied (engine.resolveWorkflowInputs).
+export interface InputDecl {
+  name: string
+  required?: boolean
+  default?: string
+  description?: string
+}
+
 export interface Workflow {
   id: string
   version: string
   nodes: Node[]
   edges: Edge[]
   defaults?: Defaults
+  inputs?: InputDecl[]
   budget: Budget
 }
 

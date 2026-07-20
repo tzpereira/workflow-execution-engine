@@ -61,12 +61,18 @@ export interface RunResponse {
 
 /** startRun POSTs /api/run and returns the new execution id. workflow is a path
  *  resolved against the server's --dir (cli/cmd/serve.go), not an arbitrary
- *  client-side path — the server returns 400 if it can't be loaded. */
-export async function startRun(baseUrl: string, workflow: string): Promise<string> {
+ *  client-side path — the server returns 400 if it can't be loaded. inputs
+ *  supplies values for the workflow's declared Inputs (REQ-INPUT-01); omit or
+ *  pass undefined for a workflow with none. */
+export async function startRun(
+  baseUrl: string,
+  workflow: string,
+  inputs?: Record<string, string>
+): Promise<string> {
   const res = await fetch(`${baseUrl}/api/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workflow }),
+    body: JSON.stringify(inputs && Object.keys(inputs).length > 0 ? { workflow, inputs } : { workflow }),
   })
   if (!res.ok) {
     throw new Error((await res.text()) || `POST /api/run failed: ${res.status}`)

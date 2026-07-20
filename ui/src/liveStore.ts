@@ -55,8 +55,10 @@ export interface LiveStoreState {
    *  Workflow/Workers are available as soon as the run starts) and again once
    *  the stream closes (to pick up final artifact content/cost). */
   watch: (execId: string, nodeIds: string[]) => void
-  /** POST /api/run, then watch() the execution id it returns. */
-  run: (workflowRef: string, nodeIds: string[]) => Promise<void>
+  /** POST /api/run, then watch() the execution id it returns. inputs supplies
+   *  values for the workflow's declared Inputs (REQ-INPUT-01), collected by
+   *  RunInputsModal before this is called; omit for a workflow with none. */
+  run: (workflowRef: string, nodeIds: string[], inputs?: Record<string, string>) => Promise<void>
   /** GET /api/executions/{execId} on demand — watch() already calls this at
    *  the right moments; exposed for a manual refresh or inspecting an
    *  execution outside the current live stream. */
@@ -151,10 +153,10 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
       }
     },
 
-    run: async (workflowRef, nodeIds) => {
+    run: async (workflowRef, nodeIds, inputs) => {
       set({ error: null })
       try {
-        const execId = await deps.startRun(get().serverUrl, workflowRef)
+        const execId = await deps.startRun(get().serverUrl, workflowRef, inputs)
         get().watch(execId, nodeIds)
       } catch (e) {
         set({ error: e instanceof Error ? e.message : String(e) })

@@ -44,6 +44,23 @@ export function Inspector() {
                   engine validates against, never hand-copied fields. */}
               <SchemaForm schema={budgetSchema} formData={meta.budget} onChange={(b) => setMeta({ ...meta, budget: b })} />
             </div>
+            {audit?.inputs && Object.keys(audit.inputs).length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Inputs (this run)
+                </div>
+                <dl className="space-y-1">
+                  {Object.entries(audit.inputs).map(([name, value]) => (
+                    <div key={name} className="flex items-baseline gap-1.5 font-mono text-xs">
+                      <dt className="text-neutral-500">{name}</dt>
+                      <dd className="truncate text-neutral-800" title={value}>
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -72,6 +72,9 @@ export interface Audit {
   spentTokens: number
   definitionHashes?: Record<string, string>
   workers?: Record<string, Worker>
+  /** The resolved value (supplied or default) behind each of the workflow's
+   *  declared Inputs (REQ-INPUT-01) — what this run was actually run against. */
+  inputs?: Record<string, string>
   state: string
 }
 

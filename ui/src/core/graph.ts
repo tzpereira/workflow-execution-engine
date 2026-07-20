@@ -37,6 +37,7 @@ export interface WorkflowMeta {
   version: string
   budget: Workflow['budget']
   defaults?: Workflow['defaults']
+  inputs?: Workflow['inputs']
 }
 
 const COL_GAP = 260
@@ -82,6 +83,7 @@ export function fromGraph(graph: CanvasGraph, meta: WorkflowMeta): Workflow {
     budget: meta.budget,
   }
   if (meta.defaults) wf.defaults = meta.defaults
+  if (meta.inputs) wf.inputs = meta.inputs
   return wf
 }
 
@@ -89,6 +91,7 @@ export function fromGraph(graph: CanvasGraph, meta: WorkflowMeta): Workflow {
 export function metaOf(wf: Workflow): WorkflowMeta {
   const meta: WorkflowMeta = { id: wf.id, version: wf.version, budget: wf.budget }
   if (wf.defaults) meta.defaults = wf.defaults
+  if (wf.inputs) meta.inputs = wf.inputs
   return meta
 }
 
