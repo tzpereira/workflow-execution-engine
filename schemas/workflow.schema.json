@@ -78,6 +78,20 @@
         "contextPolicy": { "$ref": "https://wee.dev/schemas/context-policy.schema.json" }
       }
     },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "required": { "type": "boolean" },
+          "default": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
     "budget": { "$ref": "https://wee.dev/schemas/budget.schema.json" }
   }
 }

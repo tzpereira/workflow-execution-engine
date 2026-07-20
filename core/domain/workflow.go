@@ -3,9 +3,11 @@ package domain
 // ToolCall makes a Node tool-backed instead of Worker-backed (ADR 0008): the
 // engine invokes ToolName deterministically with Input, and no model ever
 // selects or shapes that input (ADR 0006). Input leaf values may be the
-// whole-string placeholders "${nodeID.path}" (an upstream artifact field) or
+// whole-string placeholders "${nodeID.path}" (an upstream artifact field),
 // "${env:NAME}" (an OS environment variable, resolved at call time and never
-// persisted) — see core/engine/tool_input.go.
+// persisted), or "${input:NAME}" (a value supplied for this run, see
+// Workflow.Inputs — resolved at call time and recorded in the execution
+// snapshot, since it is not a secret) — see core/engine/tool_input.go.
 type ToolCall struct {
 	ToolName string         `json:"toolName" yaml:"toolName"`
 	Input    map[string]any `json:"input" yaml:"input"`
@@ -84,13 +86,26 @@ type Defaults struct {
 	ContextPolicy *ContextPolicy `json:"contextPolicy,omitempty" yaml:"contextPolicy,omitempty"`
 }
 
+// InputDecl declares one named, string-valued parameter a Workflow accepts at
+// run time (REQ-INPUT-01) — a PR URL, a file path, anything a run needs to
+// vary that isn't a secret (secrets stay on "${env:NAME}", which is never
+// persisted; see ToolCall). Required with no Default means the run fails
+// before any node dispatches if no value is supplied (core/engine/scheduler.go).
+type InputDecl struct {
+	Name        string `json:"name" yaml:"name"`
+	Required    bool   `json:"required,omitempty" yaml:"required,omitempty"`
+	Default     string `json:"default,omitempty" yaml:"default,omitempty"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+}
+
 // Workflow is a versioned, serializable graph of Nodes and Edges. It is the
 // unit of authorship, versioning, and execution.
 type Workflow struct {
-	ID       string    `json:"id" yaml:"id"`
-	Version  string    `json:"version" yaml:"version"`
-	Nodes    []Node    `json:"nodes" yaml:"nodes"`
-	Edges    []Edge    `json:"edges" yaml:"edges"`
-	Defaults *Defaults `json:"defaults,omitempty" yaml:"defaults,omitempty"`
-	Budget   Budget    `json:"budget" yaml:"budget"`
+	ID       string      `json:"id" yaml:"id"`
+	Version  string      `json:"version" yaml:"version"`
+	Nodes    []Node      `json:"nodes" yaml:"nodes"`
+	Edges    []Edge      `json:"edges" yaml:"edges"`
+	Defaults *Defaults   `json:"defaults,omitempty" yaml:"defaults,omitempty"`
+	Inputs   []InputDecl `json:"inputs,omitempty" yaml:"inputs,omitempty"`
+	Budget   Budget      `json:"budget" yaml:"budget"`
 }

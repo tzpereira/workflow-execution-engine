@@ -44,6 +44,7 @@ func TestSchemaDrift(t *testing.T) {
 		Nodes:    []domain.Node{{ID: "a", Worker: "reviewer@1.0.0", ContextPolicy: &policy}},
 		Edges:    []domain.Edge{{From: "a", To: "a"}},
 		Defaults: &domain.Defaults{Model: &model, ContextPolicy: &domain.ContextPolicy{Mode: domain.ContextParentOnly}},
+		Inputs:   []domain.InputDecl{{Name: "prUrl", Required: true, Description: "PR diff URL to review"}},
 		Budget:   budget,
 	}
 

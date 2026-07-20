@@ -1,9 +1,11 @@
 package canonical_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/tzpereira/workflow-execution-engine/core/canonical"
+	"github.com/tzpereira/workflow-execution-engine/core/domain"
 )
 
 func TestMarshalSortsKeysDeterministically(t *testing.T) {
@@ -69,5 +71,42 @@ func TestHashStableAndOrderIndependent(t *testing.T) {
 	}
 	if len(ha) != 64 {
 		t.Errorf("expected 64 hex chars (sha256), got %d", len(ha))
+	}
+}
+
+// TestWorkflowInputsNilHashesIdenticalToOmitted is REQ-INPUT-01's hash-
+// stability guarantee (ADR 0004): every Workflow authored before the Inputs
+// field existed must keep hashing identically. A nil slice must marshal to no
+// "inputs" key at all, not `"inputs":null` — Go's own encoding/json already
+// drops a nil slice under `omitempty`, but this locks the behavior against the
+// domain struct itself, not just the tag.
+func TestWorkflowInputsNilHashesIdenticalToOmitted(t *testing.T) {
+	base := domain.Workflow{
+		ID: "wf", Version: "1.0.0",
+		Nodes:  []domain.Node{{ID: "a", Worker: "w@1.0.0"}},
+		Edges:  []domain.Edge{},
+		Budget: domain.Budget{MaxCostUSD: 1},
+	}
+	withNilInputs := base
+	withNilInputs.Inputs = nil
+
+	hBase, err := canonical.Hash(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hNil, err := canonical.Hash(withNilInputs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hBase != hNil {
+		t.Fatalf("a nil Inputs field changed the hash: %s != %s", hBase, hNil)
+	}
+
+	raw, err := canonical.Marshal(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte(`"inputs"`)) {
+		t.Errorf("nil Inputs must produce no \"inputs\" key at all, got: %s", raw)
 	}
 }
