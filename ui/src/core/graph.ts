@@ -41,7 +41,11 @@ export interface WorkflowMeta {
 }
 
 const COL_GAP = 260
-const ROW_GAP = 120
+// Tall enough to clear a node card with its inline artifact preview (M1.14b)
+// — a 3-line snippet plus the status pill and kind badge can push a card past
+// 150px; 120 (the pre-M1.14b card's own height) let siblings in the same
+// layer visually overlap.
+const ROW_GAP = 190
 
 /** toGraph renders a Workflow as React Flow nodes/edges. Positions come from the
  *  optional `positions` map (persisted canvas state); any node without one gets

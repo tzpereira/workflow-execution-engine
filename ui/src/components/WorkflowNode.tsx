@@ -4,6 +4,7 @@ import type { CanvasNode } from '../core/graph'
 import { nodeKind } from '../core/model'
 import type { NodeStatus } from '../core/live'
 import { useLive } from '../liveStore'
+import { NodeArtifactPreview } from './NodeArtifactPreview'
 
 // Border color per live status — cache hits get their own color (amber, not
 // green) so they read as visually distinct from a fresh success (REQ-UI-02).
@@ -34,13 +35,19 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const detail = kind === 'tool' ? (node.tool?.toolName ?? '—') : (node.worker ?? '—')
 
   const live = useLive((s) => s.live)
+  const audit = useLive((s) => s.audit)
   const isWatching = live.state !== 'idle'
   const status: NodeStatus = live.nodes[id]?.status ?? 'pending'
   const showStatus = isWatching && status !== 'pending'
+  const record = audit?.nodes[id]
 
   return (
     <div
-      className={`min-w-40 rounded-md border bg-white px-3 py-2 text-sm shadow-sm ${
+      // relative + a positive z-index keeps this card's own interactive
+      // content (the artifact preview's expand button, M1.14b) above React
+      // Flow's edge SVG layer — an edge's invisible, wider click-hit stroke
+      // can otherwise sit on top of a card its bezier path passes close to.
+      className={`relative z-10 min-w-40 rounded-md border bg-white px-3 py-2 text-sm shadow-sm ${
         selected ? 'border-neutral-900' : isWatching ? statusBorder[status] : 'border-neutral-300'
       } ${status === 'running' ? 'animate-pulse' : ''}`}
     >
@@ -75,6 +82,7 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
           {statusLabel[status]}
         </div>
       )}
+      <NodeArtifactPreview record={record} />
       <Handle type="source" position={Position.Right} className="!bg-neutral-400" />
     </div>
   )
