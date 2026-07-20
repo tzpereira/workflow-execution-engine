@@ -52,18 +52,35 @@ byte-for-byte modulo formatting (REQ-UI-01).
 
 Both must pass before a run starts; a schema-valid-but-cyclic graph is still rejected (`core/validate/graph.go`).
 
-## What a Workflow does *not* have
+## Parameterizing a run — Inputs (REQ-INPUT-01, M1.14a)
 
-There is no workflow-level "inputs" concept in Phase 1 — a Workflow is self-contained; it cannot be
-parameterized at invocation time the way a function call passes arguments. A workflow that needs external
-data (a diff to review, a spec to read, logs to investigate) sources it from an environment variable read by
-a Worker's whole-string placeholder (`${env:NAME}`, REQ-WORKER-06) or a Tool call, resolved fresh each run —
-see [examples/pr-review-autofix](../../examples/pr-review-autofix/README.md) for the pattern. Discovering
-*which* input to use (e.g. "list open PRs on this repo and review each") is out of scope until Phase 2's
-webhook triggers (ROADMAP.md M2.5) give a workflow a reason to be invoked with something to react to.
+A Workflow can declare named, string-valued **Inputs** — a PR URL, a log path, anything a run needs to
+vary that isn't a secret:
+
+```yaml
+inputs:
+  - name: prUrl
+    required: true
+    description: GitHub API URL of the PR diff to review
+```
+
+A tool node references one via the whole-string placeholder `${input:NAME}` (same discipline as
+`${env:NAME}`, REQ-WORKER-06 — never embedded in a larger string). Values are supplied per invocation —
+`wee run --input prUrl=...`, `POST /api/run`'s body, the SDK's `RunOptions.Inputs`, or the UI's Run dialog
+— never baked into the workflow file itself, so the same Workflow definition is reused across many
+concrete runs. A `Required` input with no supplied value and no `Default` fails the run before any node
+dispatches (PRIN-05). See [examples/pr-review-autofix](../../examples/pr-review-autofix/README.md) for the
+pattern in the flagship, and [ADR 0011](../adr/0011-workflow-level-inputs.md) for why this is a distinct
+mechanism from `${env:NAME}`, not a reuse of it: an Input's resolved value is recorded in the audit trail
+(what did this run actually target), while an env value never is (it might be a secret).
+
+Discovering *which* input to use on its own — "list open PRs on this repo and review each" — is still out
+of scope until Phase 2's webhook triggers (ROADMAP.md M2.5) give a workflow a reason to be invoked
+automatically; Inputs solve *supplying* a value a caller already knows, not *discovering* one.
 
 ## Related
 
 - [worker.md](worker.md) — what a Worker-backed node actually is
 - [budget.md](budget.md) — the one field every Workflow must declare explicitly (PRIN-05: no silent limits)
 - [execution.md](execution.md) — what running a Workflow produces
+- [../spec/inputs.md](../spec/inputs.md) — the full REQ-INPUT-* requirements

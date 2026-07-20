@@ -41,10 +41,11 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.14 — complete, locally verified. M1.15 in progress: docs site content and the
-  per-example README cost figures are done (see M1.15's task list below); still open — flagship validated
-  against 3 real repos, top-level README/demo video, v0.1.0 launch checklist — paused pending the repos to
-  validate against and explicit go-ahead on the public release steps. **Milestone gate reached at
+- **Current milestone:** M1.14a — complete, locally verified (workflow-level Inputs, closing M1.9's
+  disclosed `--input` gap; see ADR 0011). M1.15 in progress: docs site content and the per-example README
+  cost figures are done (see M1.15's task list below); still open — flagship validated against 3 real
+  repos, top-level README/demo video, v0.1.0 launch checklist — paused pending the repos to validate
+  against and explicit go-ahead on the public release steps. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
@@ -1043,7 +1044,8 @@ definitions evolve; tampering is rejected.
       `--resume <executionId>`, `--concurrency`, `--json`, `--workspace`. **`--input` omitted:** the engine
       has no external-input seam in Phase 1 (a workflow is self-contained; secrets reach tools via `${env:}`
       references), so a --input flag would have nowhere to route. Disclosed as a gap, not faked; needs an
-      engine capability, not a CLI flag.
+      engine capability, not a CLI flag. **Resolved in M1.14a** — see its own section below and
+      [ADR 0011](adr/0011-workflow-level-inputs.md).
 - [x] Implement `wee replay <executionId>` (audit) and `wee replay <executionId> --execute` (re-execution),
       wrapping `core/replay`. `--execute` takes `--workflow <path>` to supply the Workers any re-executed
       node needs (the snapshot pins hashes, not Worker bodies).
@@ -1330,6 +1332,83 @@ REQ-METRIC-03's cache-hit savings are surfaced (already recorded per `CacheHit` 
 other two categories (context-pruning and retry-avoidance savings) need a counterfactual cost model — "what
 would this have cost under a different policy" — that doesn't exist anywhere in the engine, so they're
 disclosed as out of scope rather than guessed at.
+
+---
+
+## M1.14a — Workflow-level Inputs
+
+**Goal:** close M1.9's disclosed `--input` gap — a Workflow can declare named, string-valued, per-run
+parameters, resolvable via `${input:NAME}`, supplied through the CLI, the HTTP API, the SDK, or the UI's
+Run dialog.
+**Depends on:** M1.14.
+**Delivers:** REQ-INPUT-01..05.
+
+Inserted as a lettered milestone (the `M1.6a` precedent: a disclosed, out-of-scope-until-now capability
+pulled in without renumbering M1.15) rather than folded into M1.15, which is Phase 1's terminal milestone
+and not a good host for new architecture work. Not new scope: `ROADMAP.md`'s M1.9 (CLI) deliverables always
+listed `--input` as a Phase 1 flag; M1.9 dropped it with an explicit, disclosed gap ("the engine has no
+external-input seam in Phase 1... needs an engine capability, not a CLI flag") — this milestone is that
+engine capability. See [ADR 0011](adr/0011-workflow-level-inputs.md) for the full design record, including
+why `${input:NAME}` is a distinct placeholder form from `${env:NAME}`, not a reuse of it.
+
+### Tasks
+
+- [x] `domain.Workflow` gains `Inputs []InputDecl` (`Name`/`Required`/`Default`/`Description`);
+      `schemas/workflow.schema.json` gains the matching `inputs` array property. **Verified by:**
+      `domain.TestSchemaDrift/workflow` (fixture updated), `canonical.TestWorkflowInputsNilHashesIdenticalToOmitted`
+      (a workflow with no `inputs` hashes identically to one predating this field, per ADR 0004).
+- [x] `core/engine/tool_input.go` gains an `${input:NAME}` placeholder branch, resolved against the run's
+      supplied values — not treated as a secret (no redaction), unlike `${env:NAME}`. **Verified by:**
+      `engine.TestResolveToolInputWorkflowInputReference`, `engine.TestResolveToolInputMissingWorkflowInputErrors`.
+- [x] `RunOptions.Inputs`/`Snapshot.Inputs` thread supplied-or-defaulted values through the scheduler;
+      `Scheduler.Run` fails fast (before any node dispatches) if a `Required` input has neither a supplied
+      value nor a `Default` (`ErrMissingInput`, PRIN-05's "before the call, not after"). **Verified by:**
+      `engine.TestRunFailsFastOnMissingRequiredInput`, `engine.TestRunUsesDefaultWhenInputNotSupplied`,
+      `engine.TestRunSuppliedInputOverridesDefault`, `engine.TestRunWithNoDeclaredInputsIsUnaffected`.
+- [x] `Resume` restores `Inputs` from the snapshot so a resumed run's remaining nodes don't need values
+      re-supplied. **Verified by:** `engine.TestResumeRestoresInputs`. A related, previously dormant gap was
+      found and fixed in the same code (Resume silently dropped `DefinitionHashes`/`Workers` too — harmless
+      only because nothing downstream of a resumed run's `opts` consumed either field) — recorded as its own
+      `fix:` commit, not folded into this feature.
+- [x] `core/validate/graph.go` gains `checkInputRefs` (mirrors `checkContextArtifacts`'s pattern): every
+      `${input:NAME}` a tool node references must name a declared `Workflow.Inputs` entry, caught statically
+      by `wee validate`. **Verified by:** `validate.TestGraphRejectsUndeclaredInputRef`,
+      `validate.TestGraphAcceptsDeclaredInputRef`.
+- [x] `replay.Timeline` gains `Inputs`, populated from the snapshot — an audit answers "what did this run
+      target" without re-running anything. **Verified by:** `replay.TestAuditExposesResolvedInputs`.
+- [x] `wee run` gains a repeatable `--input KEY=VALUE` flag (cobra `StringToStringVarP`); a missing required
+      input surfaces as exit code 3 (the validation-failure class, same as a bad graph), not a node failure.
+      **Verified by:** `cmd.TestRunInputFlagResolvesPlaceholder`, `cmd.TestRunMissingRequiredInputExits3`.
+- [x] `sdk.RunOptions` gains `Inputs`, threaded into `engine.RunOptions` — parity across all three authoring
+      doors (YAML/CLI, SDK, UI). **Verified by:** `go build ./...` (compiles; SDK has no dedicated Inputs
+      test — its `RunOptions` is a thin passthrough already covered by the engine-level tests above).
+- [x] `POST /api/run`'s body gains `inputs`; `server.StartFunc`'s signature grows to accept them, threaded
+      through `cli/cmd/serve.go`'s `runStarter`. **Verified by:** `server.TestRunInvokesStartFuncAndReturnsID`
+      (asserts the request's `inputs` reach `StartFunc` verbatim).
+- [x] UI: `ui/src/components/RunInputsModal.tsx` (new) — same overlay shell as `TemplateGallery`/
+      `CommandPalette`; Toolbar's Run button opens it only when the loaded workflow declares any input,
+      pre-filling declared defaults and disabling Run until every required field is non-empty; a workflow
+      with none runs immediately, unchanged. Inspector surfaces `audit.inputs` in its workflow-level
+      (no-node-selected) view. **Verified by:** `RunInputsModal.test.tsx`, `Toolbar.test.tsx`,
+      `Inspector.test.tsx`'s two new cases, `liveClient.test.ts`/`liveStore.test.ts`'s inputs-forwarding
+      cases — 122 UI tests green, `pnpm typecheck`/`build` clean.
+- [x] Examples: `pr-review-autofix`, `github-pr-review`, `bug-investigation`, `prd-generation`,
+      `architecture-review` converted their non-secret `${env:...}`-sourced values (`GH_PR_URL`,
+      `GH_REVIEW_URL`, `BUG_LOG_PATH`, `PRD_BRIEF_PATH`, `ARCH_SPEC_PATH`) to declared inputs (`prUrl`,
+      `reviewUrl`, `logPath`, `briefPath`, `specPath`) — proving the mechanism is general-purpose, not a
+      PR-review special case. `GITHUB_AUTH_HEADER` stays `${env:...}` (a credential, out of scope for this
+      mechanism by design). The 4 template bundles under `examples/templates/` were regenerated
+      (`wee export`) to include the new declarations; each example's README updated accordingly.
+
+### Acceptance criteria
+
+- [x] A real-browser pass (Playwright, freshly rebuilt `wee`): imported `pr-review-autofix` via the
+      Template gallery, clicked Run, confirmed the inputs modal appeared with a required `prUrl` field
+      (Run disabled until filled), submitted a value, confirmed the modal closed and the run started, and
+      confirmed the Inspector's workflow-level view showed "Inputs (this run)" with the exact submitted
+      value — zero console errors throughout.
+- [x] `go test ./... -race` and `go vet ./...` green across every package; `pnpm test`/`typecheck`/`build`
+      green in `ui/`.
 
 ---
 

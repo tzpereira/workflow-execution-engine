@@ -24,6 +24,7 @@ decision. Reference `docs/VISION.md`/`docs/ROADMAP.md` sections for background r
 | [0008](0008-tool-backed-graph-nodes.md) | Tool-backed graph nodes: Node-level (not Worker-level) extension, optional-interface event bridge | Accepted | 2026-07-17 |
 | [0009](0009-live-event-transport.md) | Live event stream over Server-Sent Events (stdlib, zero-dep), not WebSocket | Superseded by [0010](0010-websocket-transport.md) | 2026-07-18 |
 | [0010](0010-websocket-transport.md) | Live event stream over WebSocket (`github.com/coder/websocket`), superseding 0009 | Accepted | 2026-07-18 |
+| [0011](0011-workflow-level-inputs.md) | Workflow-level `Inputs`/`${input:NAME}` — a distinct, non-secret, per-run placeholder form | Accepted | 2026-07-19 |
 
 IDs are stable: never renumbered, never reused. A superseded ADR keeps its number and gets `Status:
 Superseded by ADR-NNNN` — see [spec/README.md](../spec/README.md) for the project-wide ID scheme (`ADR-NNNN`

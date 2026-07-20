@@ -46,17 +46,20 @@ WebSocket transport consumes (ADR 0010).
 | `--budget` | `0` | override the workflow's max cost in USD (`0` = use the workflow's own; see [concepts/budget.md](concepts/budget.md) — this can loosen or tighten, no one-way ratchet) |
 | `--cache` | `"on"` | cache mode: `on` \| `off` \| `readonly` |
 | `--concurrency` | `0` | max nodes to run in parallel (`0` = engine default) |
+| `--input`, `-i` | | workflow input `KEY=VALUE` (repeatable — see [concepts/workflow.md](concepts/workflow.md)'s Inputs section, REQ-INPUT-01) |
 | `--json` | | emit line-delimited event JSON instead of live status |
 | `--resume` | | resume a prior execution by id instead of starting fresh |
 | `--workspace` | `".workflow"` | workspace state directory |
 | `-h`, `--help` | | help for run |
 
-**Exit codes:** `0` success, `1` node failure, `2` budget exceeded, `3` validation error, `130` SIGINT.
+**Exit codes:** `0` success, `1` node failure, `2` budget exceeded, `3` validation error (including a
+missing required Input — a malformed invocation, not a node failure), `130` SIGINT.
 
 ```sh
 wee run examples/hello.yaml
 wee run workflow.yaml --budget 0.01 --json > run.ndjson
 wee run workflow.yaml --resume exec-abc123
+wee run examples/bug-investigation/workflow.yaml --input logPath=/var/log/app.log
 ```
 
 ## `wee list`

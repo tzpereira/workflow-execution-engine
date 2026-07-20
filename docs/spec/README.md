@@ -60,6 +60,7 @@ context — at most `contract.maxRetries` times, emitting a `Retry` event per at
 |---|---|---|
 | [runtime.md](runtime.md) | `REQ-RUNTIME` | Scheduler, parallelism, conditional edges, retries, failure policies, cancellation, resume |
 | [definition.md](definition.md) | `REQ-DEF` | Workflow as data: YAML/JSON formats, canonical form, validation |
+| [inputs.md](inputs.md) | `REQ-INPUT` | Workflow-level, per-run parameters: declaration, `${input:NAME}` resolution, fail-fast enforcement |
 | [workers.md](workers.md) | `REQ-WORKER` | Worker as a role: objective, constraints, tools, policy, contract |
 | [contracts.md](contracts.md) | `REQ-CONTRACT` | Output schemas, enforcement, retry-with-feedback |
 | [context-policies.md](context-policies.md) | `REQ-CTXPOL` | Context slicing, minimal-by-default, auditability |
