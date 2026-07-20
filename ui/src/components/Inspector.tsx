@@ -107,8 +107,6 @@ function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; a
         </Section>
       )}
 
-      {kind === 'worker' && worker && <ContractSection contract={worker.contract} />}
-
       {kind === 'tool' && (
         <Section title="Tool input">
           <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
@@ -116,6 +114,16 @@ function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; a
           </pre>
         </Section>
       )}
+
+      {/* What this node actually produced — the single most commonly needed
+          answer when inspecting a node — comes right after Goal, ahead of
+          the Contract's full schema dump (reference material, checked far
+          less often). Previously Artifact sat below Contract/Validation/
+          Resolved context/Cost, forcing a scroll past a JSON schema dump to
+          see a node's own output. */}
+      <Section title="Artifact">
+        <ArtifactViewer record={record} />
+      </Section>
 
       <Section title="Validation">
         {liveNode?.status === 'failed' && liveNode.error ? (
@@ -128,19 +136,6 @@ function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; a
           <p className="text-xs text-emerald-700">valid — no contract violations</p>
         ) : (
           <p className="text-xs text-neutral-400">not run yet</p>
-        )}
-      </Section>
-
-      <Section title="Resolved context">
-        {contextHashes.length > 0 ? (
-          <ul className="space-y-0.5 font-mono text-xs text-neutral-700">
-            {contextHashes.map((h) => {
-              const fromNode = audit ? nodeIdForHash(audit, h) : undefined
-              return <li key={h}>{fromNode ?? `${h.slice(0, 12)}…`}</li>
-            })}
-          </ul>
-        ) : (
-          <p className="text-xs text-neutral-400">{ran ? 'none admitted' : 'not resolved yet'}</p>
         )}
       </Section>
 
@@ -157,9 +152,20 @@ function NodeInspector({ node, live, audit }: { node: WFNode; live: LiveState; a
         </div>
       </Section>
 
-      <Section title="Artifact">
-        <ArtifactViewer record={record} />
+      <Section title="Resolved context">
+        {contextHashes.length > 0 ? (
+          <ul className="space-y-0.5 font-mono text-xs text-neutral-700">
+            {contextHashes.map((h) => {
+              const fromNode = audit ? nodeIdForHash(audit, h) : undefined
+              return <li key={h}>{fromNode ?? `${h.slice(0, 12)}…`}</li>
+            })}
+          </ul>
+        ) : (
+          <p className="text-xs text-neutral-400">{ran ? 'none admitted' : 'not resolved yet'}</p>
+        )}
       </Section>
+
+      {kind === 'worker' && worker && <ContractSection contract={worker.contract} />}
 
       <Section title="Events">
         <EventList events={nodeEvents} fixedNodeId={node.id} />
