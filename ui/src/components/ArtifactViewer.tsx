@@ -88,6 +88,17 @@ function JSONView({ record }: { record: NodeRecord }) {
 }
 
 function JSONTree({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  // A multi-line string (e.g. a Worker's own generated source file, embedded
+  // as a plain Contract field) is unreadable JSON.stringify'd — newlines come
+  // out as literal "\n" on one long line. Render it as real, pre-formatted
+  // text instead; short strings keep the compact quoted form.
+  if (typeof value === 'string' && value.includes('\n')) {
+    return (
+      <pre className="mt-0.5 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-neutral-50 p-1.5 font-mono text-xs text-neutral-700">
+        {value}
+      </pre>
+    )
+  }
   if (value === null || typeof value !== 'object') {
     return <span className="text-neutral-700">{JSON.stringify(value)}</span>
   }

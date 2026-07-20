@@ -25,6 +25,16 @@ describe('ArtifactViewer', () => {
     expect(screen.getByText(/"score": 90/)).toBeInTheDocument()
   })
 
+  it('renders a multi-line string field as real pre-formatted text, not an escaped one-liner', () => {
+    const code = 'package uuid\n\nfunc f() {\n\treturn\n}'
+    render(<ArtifactViewer record={record('json', JSON.stringify({ content: code }))} />)
+    // JSON.stringify(code) would appear as one line with literal "\n" — a
+    // real <pre> with the raw string preserves actual newlines instead.
+    const pre = screen.getByText((_, el) => el?.tagName === 'PRE' && el.textContent === code)
+    expect(pre).toBeInTheDocument()
+    expect(screen.queryByText(/\\n/)).not.toBeInTheDocument()
+  })
+
   it('sanitizes Markdown/Report content through marked + DOMPurify (no script execution)', () => {
     render(<ArtifactViewer record={record('markdown', '# Title\n\n<script>window.__xss = true</script>\n\nbody')} />)
     expect(screen.getByRole('heading', { name: 'Title' })).toBeInTheDocument()
