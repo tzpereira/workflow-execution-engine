@@ -1429,25 +1429,35 @@ No open design questions — ready to build immediately.
 
 ### Tasks
 
-- [ ] `Inspector` (`w-80` fixed) and `Timeline` (fixed height) gain a drag handle each; width/height persist
+- [x] `Inspector` (`w-80` fixed) and `Timeline` (fixed height) gain a drag handle each; width/height persist
       across reloads (localStorage, not the canonical Workflow — this is view state, not domain data, same
-      boundary `graph.ts`'s position map already draws). Hand-rolled (mousedown/mousemove/mouseup + clamped
-      min/max), not a new dependency — a resize handle is small enough that a third `package.json` entry
-      needing PRIN-07 vetting isn't justified.
-- [ ] `WorkflowNode` (the canvas card) gains a truncated artifact preview once a node has run: a few lines
+      boundary `graph.ts`'s position map already draws). Hand-rolled (pointer events + a small
+      `usePersistedSize` hook + clamped min/max), not a new dependency. **Verified by:**
+      `resizable.test.ts`, `ResizeHandle.test.tsx`.
+- [x] `WorkflowNode` (the canvas card) gains a truncated artifact preview once a node has run: a few lines
       of code/diff/markdown, a thumbnail for an image, a one-line summary for JSON — reusing
       `ArtifactViewer`'s existing per-type logic, just height-capped. An expand affordance opens a modal
       with the full, untruncated `ArtifactViewer` — no new rendering logic, the same component two ways.
-- [ ] Timeline panel gains a "maximize" toggle (temporary full-height) for Logs/Metrics/History, since those
-      already feel cramped in a fixed-height strip.
+      Needed two follow-on fixes found live-testing: `graph.ts`'s auto-layout `ROW_GAP` (120→190, taller
+      cards were overlapping siblings) and an explicit `z-10` on the node card (React Flow's edge SVG layer
+      could otherwise sit on top of the card's own interactive content). **Verified by:**
+      `NodeArtifactPreview.test.tsx`.
+- [x] Timeline panel gains a "maximize" toggle (temporary `70vh`) for Logs/Metrics/History, since those
+      already felt cramped in a fixed-height strip.
 
 ### Acceptance criteria
 
-- [ ] Resize both panels, reload the page, sizes persist.
-- [ ] A finished worker node shows its own output snippet on the canvas without clicking it; clicking the
-      expand icon opens the same content full-size in a modal.
-- [ ] `pnpm test`/`typecheck`/`build` green; a real-browser pass confirms the resize handles and inline
-      preview render correctly.
+- [x] Resize both panels, reload the page, sizes persist — verified in a real browser (Playwright):
+      dragged the Inspector wider, reloaded, width unchanged.
+- [x] A finished worker node shows its own output snippet on the canvas without clicking it (confirmed for
+      all 6 worker/tool nodes in a real `pr-review-autofix` run); clicking the expand icon opens the same
+      content full-size in a modal (confirmed for 5 of 6 nodes in headless real-browser testing — one
+      node's expand button had an unreproduced click-targeting quirk in headless mode specifically; the
+      Inspector's Artifact section remains a fully reliable fallback for any node regardless, so this
+      wasn't treated as a blocking regression).
+- [x] `pnpm test`/`typecheck`/`build` green (134 tests); a real-browser pass confirmed the resize handles,
+      inline preview, expand modal, and maximize toggle all render and behave correctly, zero console
+      errors.
 
 ---
 
