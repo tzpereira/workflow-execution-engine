@@ -23,11 +23,11 @@ of what a field inside it is named or contains (see [concepts/artifact.md](../..
 
 ```sh
 export OPENAI_API_KEY=sk-...
-export PRD_BRIEF_PATH=/path/to/brief.md
+wee run workflow.yaml --input briefPath=/path/to/brief.md
 ```
 
-`read-brief` reads `PRD_BRIEF_PATH` via the `filesystem` tool — same env-var-sourced-input pattern as
-[bug-investigation](../bug-investigation/README.md), since Phase 1 has no workflow-level "inputs" concept.
+`read-brief` reads its path via `briefPath`, a declared workflow input (REQ-INPUT-01, M1.14a) — same
+pattern as [bug-investigation](../bug-investigation/README.md)'s `logPath`.
 
 ## Expected cost
 

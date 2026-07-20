@@ -19,13 +19,13 @@ pattern beats a self-reported confidence field.
 
 ```sh
 export OPENAI_API_KEY=sk-...
-export BUG_LOG_PATH=/path/to/some.log
+wee run workflow.yaml --input logPath=/path/to/some.log
 ```
 
-`read-logs` reads `BUG_LOG_PATH` via the `filesystem` tool — Phase 1 has no workflow-level "inputs" concept
-(see [concepts/workflow.md](../../docs/concepts/workflow.md)), so the log path is sourced from the
-environment, resolved fresh each run. Needs a `wee.yaml` allowlisting the terminal command `test` runs with
-(`go` by default) and a real git checkout as the workspace root.
+`read-logs` reads its path via `logPath`, a declared workflow input (REQ-INPUT-01, M1.14a — see
+[concepts/workflow.md](../../docs/concepts/workflow.md)) — supply it with `--input`, or pick it in the UI's
+Run dialog after importing the template. Needs a `wee.yaml` allowlisting the terminal command `test` runs
+with (`go` by default) and a real git checkout as the workspace root.
 
 ## Expected cost
 

@@ -17,12 +17,16 @@
 # would reuse.
 #
 # The same whole-string-only rule is why the URLs and the auth header below
-# are each ONE precomposed environment variable, not built from separate
-# owner/repo/PR-number parts or a "Bearer " prefix + token: set GH_PR_URL /
-# GH_REVIEW_URL to the full request URLs, and GITHUB_AUTH_HEADER to the
-# complete header value (e.g. "Bearer ghp_..."). A CI job already has the
-# owner/repo/PR-number available and can compose these before invoking
-# `wee run` — see README.md.
+# are each ONE precomposed value, not built from separate owner/repo/PR-number
+# parts or a "Bearer " prefix + token. prUrl/reviewUrl are declared workflow
+# inputs (REQ-INPUT-01, M1.14a) — the specific PR this run targets, supplied
+# per run (`wee run --input prUrl=... --input reviewUrl=...`, the UI's Run
+# dialog, or POST /api/run) and recorded in the audit trail, since knowing
+# what a run reviewed isn't a secret. GITHUB_AUTH_HEADER stays "${env:...}":
+# a credential is deployment config, never a per-run parameter, and is never
+# recorded (REQ-WORKER-06). A CI job already has the owner/repo/PR-number
+# available and can compose prUrl/reviewUrl before invoking `wee run` — see
+# README.md.
 #
 # Documented v1 gaps (not solved here): GitHub's diff media type can be
 # truncated on very large PRs (the http tool caps reads at 8 MiB — generous,
@@ -31,13 +35,20 @@
 # README.md.
 id: github-pr-review
 version: 1.0.0
+inputs:
+  - name: prUrl
+    required: true
+    description: GitHub API URL of the PR diff to fetch (e.g. https://api.github.com/repos/OWNER/REPO/pulls/N)
+  - name: reviewUrl
+    required: true
+    description: GitHub API URL to POST the review to (e.g. https://api.github.com/repos/OWNER/REPO/pulls/N/reviews)
 nodes:
   - id: fetch-pr-diff
     tool:
       toolName: http
       input:
         method: GET
-        url: "${env:GH_PR_URL}"
+        url: "${input:prUrl}"
         headers:
           Accept: "application/vnd.github.diff"
           Authorization: "${env:GITHUB_AUTH_HEADER}"
@@ -46,7 +57,7 @@ nodes:
       toolName: http
       input:
         method: POST
-        url: "${env:GH_REVIEW_URL}"
+        url: "${input:reviewUrl}"
         headers:
           Accept: "application/vnd.github+json"
           Authorization: "${env:GITHUB_AUTH_HEADER}"

@@ -4,18 +4,24 @@
 # genuinely needs more than one upstream view) — no tool-backed steps at all,
 # every artifact is a Worker's own structured Contract output.
 #
-# read-brief sources the topic the same way examples/bug-investigation's
-# read-logs does — an env-var-supplied path (see README.md for
-# PRD_BRIEF_PATH), since Phase 1 has no workflow-level "inputs" concept.
+# read-brief sources its path via briefPath, a declared workflow input
+# (REQ-INPUT-01, M1.14a) — which brief this run generates a PRD from is
+# exactly what a run's audit trail should show, so it's supplied per run
+# (`wee run --input briefPath=...`, the UI's Run dialog, or POST /api/run)
+# rather than an env var (see README.md).
 id: prd-generation
 version: 1.0.0
+inputs:
+  - name: briefPath
+    required: true
+    description: Path to the product brief to generate a PRD from
 nodes:
   - id: read-brief
     tool:
       toolName: filesystem
       input:
         op: read
-        path: "${env:PRD_BRIEF_PATH}"
+        path: "${input:briefPath}"
 
   - id: research
     worker: research@1.0.0

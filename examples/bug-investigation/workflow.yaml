@@ -7,18 +7,24 @@
 # producer's own field gates the edge; here a second, independent Worker
 # does the judging, PRIN-08's "verification is a graph pattern, not a hope").
 #
-# read-logs sources its input the same way examples/pr-review-autofix's
-# fetch-diff does — an env-var-supplied path, since Phase 1 has no
-# workflow-level "inputs" concept (see README.md for BUG_LOG_PATH).
+# read-logs sources its path via logPath, a declared workflow input
+# (REQ-INPUT-01, M1.14a) — which log to investigate is exactly what a run's
+# audit trail should show, not deployment config, so it's supplied per run
+# (`wee run --input logPath=...`, the UI's Run dialog, or POST /api/run)
+# rather than an env var (see README.md).
 id: bug-investigation
 version: 1.0.0
+inputs:
+  - name: logPath
+    required: true
+    description: Path to the log file to investigate
 nodes:
   - id: read-logs
     tool:
       toolName: filesystem
       input:
         op: read
-        path: "${env:BUG_LOG_PATH}"
+        path: "${input:logPath}"
 
   - id: hypothesis
     worker: hypothesis@1.0.0

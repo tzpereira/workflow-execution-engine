@@ -32,26 +32,35 @@
 # reviewer sees only the diff, never a sibling's output), achieved with the
 # mechanism that actually works against today's tool wiring.
 #
-# Same whole-string-placeholder rule as github-pr-review (REQ-WORKER-06):
-# GH_PR_URL/GITHUB_AUTH_HEADER are each one precomposed env var. apply-fix's
-# path/content are two separate fields, each its own whole-string
-# placeholder — never concatenated into one string, so the rule isn't hit.
+# prUrl is a declared workflow input (REQ-INPUT-01, M1.14a) — picked in the
+# UI's Run dialog, passed via `wee run --input prUrl=...`, or supplied through
+# POST /api/run — not an env var: it's the specific thing this run reviews,
+# not deployment config, so it belongs in the audit trail (unlike a secret).
+# GITHUB_AUTH_HEADER stays "${env:...}": it's a credential, not a run
+# parameter, and secrets are deliberately never recorded in the audit record
+# (REQ-WORKER-06). apply-fix's path/content are two separate fields, each its
+# own whole-string placeholder — never concatenated into one string, so the
+# rule isn't hit.
 #
-# Requires (see README.md): GH_PR_URL, GITHUB_AUTH_HEADER set; a wee.yaml
-# allowlisting the terminal command this repo's tests run with and pointing
-# WorkspaceRoot at a real git checkout of the target repo; OPENAI_API_KEY (or
+# Requires (see README.md): GITHUB_AUTH_HEADER set; a wee.yaml allowlisting
+# the terminal command this repo's tests run with and pointing WorkspaceRoot
+# at a real git checkout of the target repo; OPENAI_API_KEY (or
 # ANTHROPIC_API_KEY, per each worker's model.provider) for the four LLM
 # Workers. Per-repo tuning (test command, timeouts, budget) is expected —
 # see M1.15's validation notes once run against real repositories.
 id: pr-review-autofix
 version: 1.0.0
+inputs:
+  - name: prUrl
+    required: true
+    description: GitHub API URL of the PR diff to review (e.g. https://api.github.com/repos/OWNER/REPO/pulls/N)
 nodes:
   - id: fetch-diff
     tool:
       toolName: http
       input:
         method: GET
-        url: "${env:GH_PR_URL}"
+        url: "${input:prUrl}"
         headers:
           Accept: "application/vnd.github.diff"
           Authorization: "${env:GITHUB_AUTH_HEADER}"

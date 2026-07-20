@@ -30,8 +30,12 @@ re-runs.
 
 Requires:
 
-- `GH_PR_URL`, `GITHUB_AUTH_HEADER` — env vars `fetch-diff`'s `http` tool call reads whole-string
-  (REQ-WORKER-06), same pattern as [github-pr-review](../github-pr-review/README.md).
+- `prUrl` — a declared workflow input ([concepts/workflow.md](../../docs/concepts/workflow.md),
+  REQ-INPUT-01): the specific PR diff URL this run reviews. Supply it with
+  `wee run workflow.yaml --input prUrl=https://api.github.com/repos/OWNER/REPO/pulls/N`, or pick it in the
+  UI's Run dialog after importing the template — either way it's recorded in the run's audit trail.
+- `GITHUB_AUTH_HEADER` — an env var (`REQ-WORKER-06`), since a credential is deployment config, not a run
+  parameter, and is never recorded.
 - A `wee.yaml` allowlisting the terminal command this repo's tests run with (`go` by default here) and
   pointing the workspace root at a real git checkout of the target repo.
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`, per each Worker's `model.provider`) for the four LLM Workers.

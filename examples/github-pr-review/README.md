@@ -1,8 +1,9 @@
 # github-pr-review
 
 Demonstrates remote GitHub access with **zero new tool code**: the generic `http` tool (M1.5), a domain
-allowlist entry for `api.github.com`, and the `${env:...}` secret-reference placeholder (M1.6a, ADR 0008)
-are all it takes to fetch a PR's diff and post a review comment.
+allowlist entry for `api.github.com`, and two placeholder mechanisms — `${input:...}` for the run-specific
+PR URLs (REQ-INPUT-01, M1.14a) and `${env:...}` for the credential (M1.6a, ADR 0008) — are all it takes to
+fetch a PR's diff and post a review comment.
 
 ## What it does
 
@@ -14,17 +15,24 @@ direct consequence of the whole-string-only placeholder design (REQ-WORKER-06).
 
 ## Running it
 
-Set these environment variables before invoking the workflow — each is one **complete, precomposed**
-value, because tool-input placeholders are whole-string only (never embedded in a larger string):
+Each value below is one **complete, precomposed** string, because tool-input placeholders are whole-string
+only (never embedded in a larger string):
 
-| Variable | Example value |
-|---|---|
-| `GH_PR_URL` | `https://api.github.com/repos/acme/widgets/pulls/42` |
-| `GH_REVIEW_URL` | `https://api.github.com/repos/acme/widgets/pulls/42/reviews` |
-| `GITHUB_AUTH_HEADER` | `Bearer ghp_xxxxxxxxxxxxxxxxxxxx` |
+| Name | Kind | Example value |
+|---|---|---|
+| `prUrl` | declared input (`--input prUrl=...`, or the UI's Run dialog) | `https://api.github.com/repos/acme/widgets/pulls/42` |
+| `reviewUrl` | declared input (`--input reviewUrl=...`, or the UI's Run dialog) | `https://api.github.com/repos/acme/widgets/pulls/42/reviews` |
+| `GITHUB_AUTH_HEADER` | env var (a credential, never a run input) | `Bearer ghp_xxxxxxxxxxxxxxxxxxxx` |
+
+```sh
+export GITHUB_AUTH_HEADER="Bearer ghp_xxxxxxxxxxxxxxxxxxxx"
+wee run workflow.yaml \
+  --input prUrl=https://api.github.com/repos/acme/widgets/pulls/42 \
+  --input reviewUrl=https://api.github.com/repos/acme/widgets/pulls/42/reviews
+```
 
 A CI job already has the owner/repo/PR-number available (e.g. GitHub Actions' `github.repository` /
-`github.event.number` context) and can compose these three values before invoking `wee run` — that
+`github.event.number` context) and can compose `prUrl`/`reviewUrl` before invoking `wee run` — that
 composition is the CI job's responsibility, not this workflow's.
 
 The `http` tool instance a runner wires for this workflow must allowlist `api.github.com`

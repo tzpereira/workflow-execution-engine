@@ -20,12 +20,12 @@ views at once) that synthesizes them into one verdict.
 
 ```sh
 export OPENAI_API_KEY=sk-...
-export ARCH_SPEC_PATH=/path/to/spec.md
+wee run workflow.yaml --input specPath=/path/to/spec.md
 ```
 
-`read-spec` reads `ARCH_SPEC_PATH` via the `filesystem` tool — same env-var-sourced-input pattern as the
-other secondary demos, since Phase 1 has no workflow-level "inputs" concept. No terminal/git tools are
-needed here — this workflow never touches a working tree, only reads one file.
+`read-spec` reads its path via `specPath`, a declared workflow input (REQ-INPUT-01, M1.14a) — same pattern
+as the other secondary demos. No terminal/git tools are needed here — this workflow never touches a working
+tree, only reads one file.
 
 ## Expected cost
 

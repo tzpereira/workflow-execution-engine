@@ -4,17 +4,24 @@
 # scoped to see only the spec, feeding a merge Worker that reads all four —
 # applied here to a design spec instead of a PR diff.
 #
-# read-spec sources the document the same way the other examples' read-*
-# nodes do — an env-var-supplied path (see README.md for ARCH_SPEC_PATH).
+# read-spec sources its path via specPath, a declared workflow input
+# (REQ-INPUT-01, M1.14a) — which spec this run reviews is exactly what a
+# run's audit trail should show, so it's supplied per run (`wee run --input
+# specPath=...`, the UI's Run dialog, or POST /api/run) rather than an env var
+# (see README.md).
 id: architecture-review
 version: 1.0.0
+inputs:
+  - name: specPath
+    required: true
+    description: Path to the design spec to review
 nodes:
   - id: read-spec
     tool:
       toolName: filesystem
       input:
         op: read
-        path: "${env:ARCH_SPEC_PATH}"
+        path: "${input:specPath}"
 
   - id: backend
     worker: backend-reviewer@1.0.0
