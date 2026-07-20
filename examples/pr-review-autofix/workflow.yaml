@@ -10,8 +10,11 @@
 #   +-- reviewer-a        (style & correctness)
 #   +-- reviewer-b        (adversarial — assumes the diff is wrong)
 #   +-- security-reviewer (vulnerabilities)      <- all three in parallel
+#   +-- locate-file       (extracts the path the diff modifies)
 #         v
-#       fixer        (reads the diff + all three reviews)
+#       read-original (tool: filesystem read — the real file locate-file named)
+#         v
+#       fixer        (reads the diff + all three reviews + the real original file)
 #         v
 #       verify-fix   (REQ-CONTRACT-05 — a separate, cheap judge; the producer
 #                     never gates itself, see verify-fix.worker.yaml)
@@ -23,6 +26,11 @@
 #       stage         (tool: git add)
 #         v
 #       commit        (tool: git commit)
+#
+# read-original exists because fixer, given only the diff, has nothing to
+# copy the file's unchanged lines from — see locate-file.worker.yaml and
+# README.md's Real-repo validation section for the "content is a diff
+# fragment, not a full file" failure this closes.
 #
 # Reviewer context policy: `artifacts` naming fetch-diff by id, not
 # `diff-only` by artifact TYPE — the generic `http` tool (core/tool/http)
@@ -48,10 +56,11 @@
 #
 # Requires (see README.md): GITHUB_AUTH_HEADER set; a wee.yaml allowlisting
 # the terminal command this repo's tests run with and pointing WorkspaceRoot
-# at a real git checkout of the target repo; OPENAI_API_KEY (or
-# ANTHROPIC_API_KEY, per each worker's model.provider) for the four LLM
-# Workers. Per-repo tuning (test command, timeouts, budget) is expected —
-# see M1.15's validation notes once run against real repositories.
+# at a real git checkout of the target repo (read-original reads from it, not
+# just apply-fix/test/stage/commit); OPENAI_API_KEY (or ANTHROPIC_API_KEY, per
+# each worker's model.provider) for the six LLM Workers. Per-repo tuning (test
+# command, timeouts, budget) is expected — see M1.15's validation notes once
+# run against real repositories.
 id: pr-review-autofix
 version: 1.0.0
 inputs:
@@ -75,6 +84,16 @@ nodes:
     worker: reviewer-b@1.0.0
   - id: security-reviewer
     worker: security-reviewer@1.0.0
+
+  - id: locate-file
+    worker: locate-file@1.0.0
+
+  - id: read-original
+    tool:
+      toolName: filesystem
+      input:
+        op: read
+        path: "${locate-file.path}"
 
   - id: fixer
     worker: fixer@1.0.0
@@ -115,12 +134,16 @@ edges:
   - { from: fetch-diff, to: reviewer-a }
   - { from: fetch-diff, to: reviewer-b }
   - { from: fetch-diff, to: security-reviewer }
+  - { from: fetch-diff, to: locate-file }
+  - { from: locate-file, to: read-original }
   - { from: fetch-diff, to: fixer }
   - { from: reviewer-a, to: fixer }
   - { from: reviewer-b, to: fixer }
   - { from: security-reviewer, to: fixer }
+  - { from: read-original, to: fixer }
   - { from: fetch-diff, to: verify-fix }
   - { from: fixer, to: verify-fix }
+  - { from: read-original, to: verify-fix }
   - { from: verify-fix, to: apply-fix, condition: { path: approved, op: truthy } }
   - { from: apply-fix, to: test }
   - { from: fixer, to: stage }

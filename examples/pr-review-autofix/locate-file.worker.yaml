@@ -1,0 +1,39 @@
+# locate-file: a cheap, deterministic-in-spirit extraction step that exists
+# solely so read-original (workflow.yaml) knows which file to read. Without
+# it, fixer only ever sees the diff and never the real file it's supposed to
+# reconstruct — the root cause behind the "content is a diff fragment, not a
+# full file" rejections README.md's Real-repo validation section documents:
+# asked to produce a whole file from a diff alone, the model has nothing to
+# copy the unchanged lines from, and tends to echo back the diff shape it was
+# given instead.
+id: locate-file
+version: 1.0.0
+objective: Read a unified diff and report the exact path of the single file it modifies.
+constraints:
+  - path is the path from the diff's own "+++ b/" header, with the "b/" prefix stripped — never invented, never guessed.
+  - If the diff touches more than one file, path is the first file's path only — this workflow handles one file per run.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff]
+contract:
+  goal: Report the workspace-relative path of the file a diff modifies.
+  rules:
+    - path never starts with "/", "a/", or "b/" — it is a plain workspace-relative path, ready for a filesystem read.
+  successCriteria:
+    - path exactly matches the file the diff's own headers name.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [path]
+    properties:
+      path:
+        type: string
+        maxLength: 500
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

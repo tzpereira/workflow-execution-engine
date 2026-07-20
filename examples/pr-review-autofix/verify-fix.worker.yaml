@@ -7,19 +7,22 @@
 # `content` field instead of the complete corrected file — a shape no JSON
 # Schema alone can reject (content is just `{type: string}`; a diff fragment
 # is still a syntactically valid string), but an independent judge reading
-# both fetch-diff and fixer's own output catches immediately.
+# fetch-diff, fixer's own output, and now read-original's real file content
+# (workflow.yaml) catches immediately — read-original lets this judge compare
+# content against the actual original, not just pattern-match diff syntax.
 id: verify-fix
 version: 1.0.0
-objective: Judge whether fixer's proposed change should actually be applied — both that a fix is genuinely warranted and that content is a real, complete corrected file.
+objective: Judge whether fixer's proposed change should actually be applied — that a fix is genuinely warranted, that content is a real complete corrected file, and that it matches the original file plus only the intended edit.
 constraints:
   - approved is true only if shouldFix was true AND content is the complete file fixer claims to have corrected.
   - Reject content that looks like a diff or patch fragment rather than a whole file — lines starting with "diff --git", "---", "+++", or a "@@" hunk header mean content is a fragment, not the corrected file.
+  - Reject content whose unrelated lines (outside what the diff/reviews flagged) diverge from read-original's own content — that means fixer rewrote more than the targeted fix, or content isn't actually derived from the real file.
   - Never rewrite or improve the fix yourself — judge it as given.
 tools: []
 contextPolicy:
   mode: artifacts
   params:
-    artifacts: [fetch-diff, fixer]
+    artifacts: [fetch-diff, fixer, read-original]
 contract:
   goal: Approve or reject fixer's proposed content before it overwrites a real file.
   rules:

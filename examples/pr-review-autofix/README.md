@@ -8,8 +8,11 @@ fetch-diff
   +-- reviewer-a        (style & correctness)
   +-- reviewer-b        (adversarial — assumes the diff is wrong)
   +-- security-reviewer (vulnerabilities)      <- all three in parallel
+  +-- locate-file       (extracts the path the diff modifies)
         v
-      fixer        (reads the diff + all three reviews)
+      read-original (tool: filesystem read — the real file locate-file named)
+        v
+      fixer        (reads the diff + all three reviews + the real original file)
         v
       verify-fix   (REQ-CONTRACT-05 — a separate, cheap judge; see below)
         v (conditional: approved == true)
@@ -24,9 +27,11 @@ fetch-diff
 
 Three independent reviewers, each scoped to see only the diff (`contextPolicy: {mode: artifacts,
 params: {artifacts: [fetch-diff]}}` — see [concepts/context-policy.md](../../docs/concepts/context-policy.md)
-for why `artifacts` mode, not `diff-only`, is what actually works here); a Fixer whose own output is judged
-by a separate `verify-fix` Worker before anything touches a file; real tool-backed apply/test/stage/commit
-steps; node-cache reuse across re-runs.
+for why `artifacts` mode, not `diff-only`, is what actually works here); a `locate-file` Worker + a
+`read-original` filesystem read that hand the Fixer the real, complete original file — not just the diff
+— to base its rewrite on (see "Disclosed, current limitation" below for the failure this closes); a Fixer
+whose own output is judged by a separate `verify-fix` Worker before anything touches a file; real
+tool-backed apply/test/stage/commit steps; node-cache reuse across re-runs.
 
 ## Running it
 
@@ -40,20 +45,22 @@ Requires:
   parameter, and is never recorded. An empty value works fine against a public repo's diff for a quick try
   (GitHub allows unauthenticated reads at a lower rate limit); a real token is needed for sustained use.
 - A `wee.yaml` allowlisting the terminal command this repo's tests/build run with (`go` by default here)
-  and pointing the workspace root at a real git checkout of the target repo.
-- `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`, per each Worker's `model.provider`) for the five LLM Workers.
+  and pointing the workspace root at a real git checkout of the target repo — `read-original` reads the
+  file under fix straight out of that checkout, not just `apply-fix`/`test`/`stage`/`commit`.
+- `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`, per each Worker's `model.provider`) for the six LLM Workers.
 
 Per-repo tuning (test command, timeouts, budget) is expected — this bundle's defaults are a starting point,
 not a one-size-fits-all config. See "Real-repo validation" below for what tuning three actual repos needed.
 
 ## Expected cost
 
-Five LLM Workers per run: three `gpt-4o-mini` reviewers (parallel, cheap), one `gpt-4o` fixer (the
-expensive call), and one `gpt-4o-mini` verifier. A typical run costs roughly half a cent to a couple of
-cents — see the real figures below — comfortably inside the workflow's own `maxCostUsd: 0.50` ceiling; a
-run where `verify-fix` rejects the fix skips `apply-fix` onward and costs less still. The actual figure for
-any specific run is real accounting, not an estimate — see it via `wee inspect <id>` or the UI's Metrics
-panel ([concepts/budget.md](../../docs/concepts/budget.md)).
+Six LLM Workers per run: three `gpt-4o-mini` reviewers (parallel, cheap), one `gpt-4o-mini` `locate-file`
+(cheap — a one-field extraction), one `gpt-4o` fixer (the expensive call), and one `gpt-4o-mini` verifier.
+A typical run costs roughly half a cent to a couple of cents — see the real figures below — comfortably
+inside the workflow's own `maxCostUsd: 0.50` ceiling; a run where `verify-fix` rejects the fix skips
+`apply-fix` onward and costs less still. The actual figure for any specific run is real accounting, not an
+estimate — see it via `wee inspect <id>` or the UI's Metrics panel
+([concepts/budget.md](../../docs/concepts/budget.md)).
 
 ## Real-repo validation (M1.15)
 
@@ -88,13 +95,19 @@ corrected file, in a disposable local clone — a genuine, if contained, failure
 [bug-investigation](../bug-investigation/README.md)'s `verify-patch` pattern) was added specifically to
 catch this: a separate, cheap Worker judges `fixer`'s own output before `apply-fix` ever runs.
 
-**Disclosed, current limitation:** with `gpt-4o` at `temperature: 0`, `fixer` produces a diff-fragment
-`content` far more often than a real full-file rewrite when it's shown the diff as its own context — likely
-the diff's own formatting biasing the model's output shape. Across repeated runs against all three
-validation repos, `verify-fix` correctly rejected this every time (`"content is a diff fragment, not a full
-file."`), so **no file was ever corrupted after `verify-fix` was added** — but it also means the auto-fix
-step frequently doesn't reach an applied fix at all in its current prompt form. The review portion (three
-reviewers + the verdict) is reliable; the auto-*fix* portion needs further prompt iteration (a different
-model, restructuring how the diff is presented as context, or few-shot examples of correct full-file
-output) to be reliably useful, not just safe. This is exactly what REQ-CONTRACT-05's verifier-node pattern
-is *for*: a producer's unreliability degrades to "nothing happens," never to "something wrong got applied."
+**Root cause found and fixed:** with `gpt-4o` at `temperature: 0`, `fixer` produced a diff-fragment
+`content` far more often than a real full-file rewrite when it's shown the diff as its own context. The
+actual cause: `fixer` never had the real file to begin with — only the diff, which for anything but a
+trivially short file shows nowhere near every unchanged line. Asked for "the complete corrected file" with
+no source for most of that file's own content, the model had little choice but to echo back something
+diff-shaped. Across repeated runs against all three validation repos, `verify-fix` correctly rejected this
+every time (`"content is a diff fragment, not a full file."`), so **no file was ever corrupted** — but it
+also meant the auto-fix step frequently never reached an applied fix. Fixed by adding `locate-file` (a
+cheap Worker that extracts the modified path from the diff) and `read-original` (a `filesystem` read of
+that real file) upstream of `fixer`, so `fixer` now edits the actual file content instead of reconstructing
+it from a partial diff — and `verify-fix` now also sees `read-original`, so it can reject a `content` whose
+unrelated lines diverge from the real file, not just pattern-match diff syntax. **Not yet re-validated
+against a real repo** (the original three validation runs predate this fix) — the review portion (three
+reviewers + the verdict) remains independently reliable regardless. This is exactly what
+REQ-CONTRACT-05's verifier-node pattern is *for*: a producer's unreliability degrades to "nothing happens,"
+never to "something wrong got applied."
