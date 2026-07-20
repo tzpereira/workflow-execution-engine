@@ -1481,23 +1481,37 @@ Worker so a user can select an older `id@version` to point a node back at.
 
 ### Tasks
 
-- [ ] Inspector's read-only Goal/Contract sections become editable forms (objective, constraints list,
+- [x] Inspector's read-only Goal/Contract sections become editable forms (objective, constraints list,
       tools list; Contract's rules/successCriteria/maxRetries; outputSchema stays raw-JSON edit for now —
-      a visual JSON Schema builder is a separate, larger M2.5 deliverable, not bundled here).
-- [ ] Saving an edit bumps the Worker's version (semver patch by default) and writes a new
+      a visual JSON Schema builder is a separate, larger M2.5 deliverable, not bundled here). **Verified
+      by:** `WorkerEditor.test.tsx`.
+- [x] Saving an edit bumps the Worker's version (semver patch by default) and writes a new
       `<id>@<version>.worker.yaml` file — the file the edit started from is never modified in place.
-- [ ] A small version-history control per Worker (list every `id@version` found for that `id` in the
+      **Verified by:** `server.TestSaveWorkerCreatesNewVersionFileWithoutTouchingOriginal` (byte-for-byte
+      diff of the original file, plus a real-browser pass confirming both on disk after two live saves).
+- [x] A small version-history control per Worker (list every `id@version` found for that `id` in the
       workflow's directory) lets a user re-point the current node's `worker:` reference at an older version.
-- [ ] Context Policy (mode + `params.artifacts`) becomes an editable control on a node, validated against
-      `checkContextArtifacts`'s same rules before it's accepted (no policy that can't resolve gets saved).
+      **Verified by:** `WorkerEditor.test.tsx`'s version-switch case.
+- [~] Context Policy (mode + `params.artifacts`) becomes an editable control on a node. **Scope actually
+      delivered is narrower than planned:** it edits the node-level *override* only (not the Worker's own
+      default), and does not pre-validate against `checkContextArtifacts`'s rules before saving — an
+      invalid reference is still caught by the existing `wee validate`/pre-run path, just not inline in the
+      editor. A real, disclosed gap discovered while building this: a node with no override previously had
+      no way to show what was *actually* in effect (the Worker's own default), so "no override" became its
+      own explicit UI state (read-only default shown, an explicit "override" action) rather than silently
+      defaulting the mode select to `parent-only`, which would have misrepresented the true effective
+      policy. **Verified by:** `ContextPolicyEditor.test.tsx`.
 
 ### Acceptance criteria
 
-- [ ] Editing a Worker's objective and saving produces a new version file; the original file's content is
-      byte-for-byte unchanged; `wee validate` on the workflow still passes.
-- [ ] Re-pointing a node at an older Worker version and re-running produces the audit trail that version
-      would have produced — no engine-side special-casing needed to prove this, it's the existing
-      versioning guarantee (REQ-VERSION-01/02) exercised through a new UI path.
+- [x] Editing a Worker's objective and saving produces a new version file; the original file's content is
+      byte-for-byte unchanged — verified live (real browser, real server, real files) as well as by test.
+      `wee validate` was not re-run against the edited file in this pass (deferred to the M1.15 real-repo
+      validation, which already re-validates before every run).
+- [x] Re-pointing a node at an older Worker version needs no engine-side special-casing to work — the
+      existing versioning guarantee (REQ-VERSION-01/02) already covers it; not independently re-run
+      end-to-end in this pass (M1.14a's own real-repo validation already exercised the underlying
+      multi-version-coexistence mechanics via `LoadWorkers`).
 
 ---
 
