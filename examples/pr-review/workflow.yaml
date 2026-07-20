@@ -6,13 +6,14 @@
 # example's point is the tool-backed steps downstream, not diff-sourcing.
 #
 # Test and Commit are ToolCall nodes (ADR 0008, M1.6a): no LLM ever decides
-# their input — `test`'s command is fully static, and `commit`'s message
-# interpolates the reviewer's own verdict via the whole-string placeholder
-# `${review.verdict}` (REQ-WORKER-06). Commit depends on both review and test
-# so it can read the verdict and only runs after tests are in — a real
-# Commit step would also stage changes (`git add`) first; elided here for
-# brevity, since building the complete flagship graph is M1.15's task, not
-# this milestone's.
+# their input — `test`'s command is fully static, and `commit`'s message is
+# the reviewer's own verdict, referenced via the whole-string placeholder
+# `${review.verdict}` (REQ-WORKER-06 — never embedded in a larger string; a
+# placeholder must be the entire field value, or it's treated as a literal
+# and never substituted at all). Commit depends on both review and test so it
+# can read the verdict and only runs after tests are in — a real Commit step
+# would also stage changes (`git add`) first; elided here for brevity, since
+# building the complete flagship graph is M1.15's task, not this milestone's.
 #
 # Running this for real needs the runner to wire: a terminal tool instance
 # whose command allowlist includes "go", and a git tool instance pointed at
@@ -36,7 +37,7 @@ nodes:
       toolName: git
       input:
         op: commit
-        message: "${review.verdict}: automated review pass"
+        message: "${review.verdict}"
 edges:
   - { from: review, to: test }
   - { from: review, to: commit }

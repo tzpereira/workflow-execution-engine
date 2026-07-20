@@ -25,3 +25,11 @@ One `gpt-4o-mini` call (`reviewer`), nothing else billed — `test` and `commit`
 nodes, never model calls. A typical run costs a fraction of a cent, well inside the workflow's own
 `maxCostUsd: 0.05` ceiling. The actual figure for any specific run is real accounting, not an estimate —
 see it via `wee inspect <id>` or the UI's Metrics panel (`concepts/budget.md`).
+
+## Found during M1.15's real-repo validation
+
+`commit`'s message used to be `"${review.verdict}: automated review pass"` — but placeholders are
+whole-string only (REQ-WORKER-06): a string that isn't *entirely* one placeholder is never substituted at
+all, so this would have committed that literal, unresolved text. Fixed by making the message exactly
+`"${review.verdict}"`. Found while validating [pr-review-autofix](../pr-review-autofix/README.md) against
+real repos — see that README's "Real-repo validation" section.
