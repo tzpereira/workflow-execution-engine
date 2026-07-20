@@ -81,10 +81,12 @@ func (s *Scheduler) Resume(ctx context.Context, executionID string) (*Result, er
 	}
 
 	opts := RunOptions{
-		ExecutionID: executionID,
-		Concurrency: snap.Concurrency,
-		Budget:      snap.Budget,
-		Inputs:      snap.Inputs,
+		ExecutionID:      executionID,
+		Concurrency:      snap.Concurrency,
+		Budget:           snap.Budget,
+		Inputs:           snap.Inputs,
+		DefinitionHashes: snap.DefinitionHashes,
+		Workers:          snap.Workers,
 	}
 	return s.run(ctx, &snap.Workflow, opts, precompleted, false)
 }
