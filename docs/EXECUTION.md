@@ -41,16 +41,20 @@ Rules:
 
 ## Status
 
-- **Current milestone:** M1.14a — complete, locally verified (workflow-level Inputs, closing M1.9's
-  disclosed `--input` gap; see ADR 0011). M1.15 in progress: docs site content, the per-example README cost
-  figures, and the flagship's real-repo validation (3 real repos, user-approved spend) are all done — see
-  M1.15's task list below for the bugs found and the `verify-fix` safety gate added as a direct result;
-  top-level README/demo video and the v0.1.0 launch checklist remain explicitly deferred by the user (want
-  more than an MVP-shaped CLI/release before those). Three new milestones — **M1.14b/c/d** (Canvas
-  Ergonomics & Inline Artifacts, In-UI Worker/Contract/Context Policy Editing, Guided UX) — were inserted
-  after live-testing the flagship surfaced real UI friction (artifact buried under Contract's schema dump,
-  no inline preview, no way to edit a Worker without hand-editing YAML); starting with M1.14b next, the one
-  with no open design questions. **Milestone gate reached at
+- **Current milestone:** M1.14a/b/c/d — all complete, locally verified. M1.14a: workflow-level Inputs,
+  closing M1.9's disclosed `--input` gap (ADR 0011). M1.14b: resizable Inspector/Timeline panels, inline
+  artifact preview on a node's own canvas card with an expand modal, Timeline maximize. M1.14c: in-UI
+  Worker/Contract editing with auto-version-bump (rollback = point a node back at an older `id@version`,
+  no engine change needed) and a Context Policy override control per node. M1.14d: an empty-canvas
+  next-step hint, dismissible first-encounter tooltips on Contract/Context Policy/Artifact, an
+  explained-when-disabled Export button. All three were inserted after live-testing the flagship surfaced
+  real UI friction (artifact buried under Contract's schema dump, no inline preview, no way to edit a
+  Worker without hand-editing YAML, a blank canvas with no next step). M1.15 in progress: docs site
+  content, the per-example README cost figures, and the flagship's real-repo validation (3 real repos,
+  user-approved spend) are all done — see M1.15's task list below for the bugs found and the `verify-fix`
+  safety gate added as a direct result; top-level README/demo video and the v0.1.0 launch checklist remain
+  explicitly deferred by the user (want more than an MVP-shaped CLI/release before those). **Milestone gate
+  reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
