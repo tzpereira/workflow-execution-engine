@@ -36,9 +36,11 @@ import (
 // itself proceeds in the background (it must NOT be bound to the HTTP request's
 // context, which ends when the POST returns). ref identifies the workflow to the
 // concrete implementation — the CLI wires a runner-backed starter that resolves
-// ref as a workflow file path. A nil StartFunc disables POST /api/run (501),
-// leaving a read-only server that still streams and audits existing executions.
-type StartFunc func(ref string) (execID string, err error)
+// ref as a workflow file path. inputs supplies values for the workflow's
+// declared Inputs (REQ-INPUT-01) — nil is fine for a workflow with none. A nil
+// StartFunc disables POST /api/run (501), leaving a read-only server that
+// still streams and audits existing executions.
+type StartFunc func(ref string, inputs map[string]string) (execID string, err error)
 
 // defaultPoll is how often the live WebSocket handler re-reads the log for new
 // events. It matches `wee run`'s streamer tick: fast enough to feel live, cheap
@@ -218,7 +220,8 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 type runRequest struct {
-	Workflow string `json:"workflow"`
+	Workflow string            `json:"workflow"`
+	Inputs   map[string]string `json:"inputs,omitempty"`
 }
 
 type runResponse struct {
@@ -239,7 +242,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "workflow is required", http.StatusBadRequest)
 		return
 	}
-	execID, err := s.start(req.Workflow)
+	execID, err := s.start(req.Workflow, req.Inputs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

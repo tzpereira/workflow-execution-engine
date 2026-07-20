@@ -224,9 +224,10 @@ func TestAuditExposesWorkflowAndWorkers(t *testing.T) {
 func TestRunInvokesStartFuncAndReturnsID(t *testing.T) {
 	var mu sync.Mutex
 	var gotRef string
-	start := func(ref string) (string, error) {
+	var gotInputs map[string]string
+	start := func(ref string, inputs map[string]string) (string, error) {
 		mu.Lock()
-		gotRef = ref
+		gotRef, gotInputs = ref, inputs
 		mu.Unlock()
 		return "exec-123", nil
 	}
@@ -234,7 +235,7 @@ func TestRunInvokesStartFuncAndReturnsID(t *testing.T) {
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	body := strings.NewReader(`{"workflow":"examples/hello.yaml"}`)
+	body := strings.NewReader(`{"workflow":"examples/hello.yaml","inputs":{"prUrl":"https://example.com/42"}}`)
 	resp, err := http.Post(ts.URL+"/api/run", "application/json", body)
 	if err != nil {
 		t.Fatal(err)
@@ -252,6 +253,9 @@ func TestRunInvokesStartFuncAndReturnsID(t *testing.T) {
 	defer mu.Unlock()
 	if gotRef != "examples/hello.yaml" {
 		t.Errorf("start got ref %q", gotRef)
+	}
+	if gotInputs["prUrl"] != "https://example.com/42" {
+		t.Errorf("start got inputs %v, want prUrl=https://example.com/42", gotInputs)
 	}
 }
 

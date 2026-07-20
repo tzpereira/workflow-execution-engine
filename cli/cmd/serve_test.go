@@ -44,7 +44,7 @@ budget: {maxCostUsd: 0, maxTokens: 0, maxDurationMs: 30000, maxRetriesPerNode: 1
 	workspace := filepath.Join(dir, ".workflow")
 	start := runStarter(dir, workspace, engine.CacheMode("on"))
 
-	execID, err := start("check.yaml")
+	execID, err := start("check.yaml", nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -74,7 +74,7 @@ budget: {maxCostUsd: 0, maxTokens: 0, maxDurationMs: 30000, maxRetriesPerNode: 1
 func TestRunStarterRejectsMissingWorkflow(t *testing.T) {
 	dir := t.TempDir()
 	start := runStarter(dir, filepath.Join(dir, ".workflow"), engine.CacheMode("on"))
-	if _, err := start("does-not-exist.yaml"); err == nil {
+	if _, err := start("does-not-exist.yaml", nil); err == nil {
 		t.Fatal("expected an error for a missing workflow file")
 	}
 }

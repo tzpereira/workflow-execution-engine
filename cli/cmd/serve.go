@@ -28,7 +28,7 @@ func newServeCmd() *cobra.Command {
 			"  GET  /api/executions            list recorded and in-flight runs\n" +
 			"  GET  /api/executions/{id}       a run's full recorded events (audit)\n" +
 			"  GET  /api/executions/{id}/events  live event stream (WebSocket)\n" +
-			"  POST /api/run                   start a run ({\"workflow\":\"<path under --dir>\"})\n" +
+			"  POST /api/run                   start a run ({\"workflow\":\"<path under --dir>\",\"inputs\":{...}})\n" +
 			"  GET  /api/templates             list `wee export` bundles under --templates\n" +
 			"  POST /api/templates/{name}/import  unpack a bundle under --dir (M1.14 gallery)\n\n" +
 			"Each frame is byte-identical to one line of `wee run --json` and is pushed,\n" +
@@ -70,7 +70,7 @@ func newServeCmd() *cobra.Command {
 // request's context, which ends the moment POST /api/run returns — so the run
 // outlives the request and the client watches it over the WebSocket stream.
 func runStarter(dir, workspace string, cache engine.CacheMode) server.StartFunc {
-	return func(ref string) (string, error) {
+	return func(ref string, inputs map[string]string) (string, error) {
 		path := filepath.Join(dir, ref)
 		asm, err := runner.Load(path, workspace)
 		if err != nil {
@@ -86,6 +86,7 @@ func runStarter(dir, workspace string, cache engine.CacheMode) server.StartFunc 
 			Cache:            cache,
 			DefinitionHashes: asm.Registry.DefinitionHashes(*asm.Workflow),
 			Workers:          asm.Registry.Workers(*asm.Workflow),
+			Inputs:           inputs,
 		}
 		go func() { _, _ = asm.Scheduler.Run(context.Background(), asm.Workflow, opts) }()
 		return execID, nil
