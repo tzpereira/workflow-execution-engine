@@ -1,0 +1,45 @@
+# REQ-CONTRACT-05, the verifier-node pattern (mirrors
+# examples/bug-investigation/verify-patch.worker.yaml): a cheap, separate
+# Worker judges fixer's own artifact before apply-fix ever touches a file —
+# the producer never gates itself. Added after real-repo validation (M1.15)
+# surfaced the exact failure this exists to catch: fixer occasionally emits a
+# raw diff fragment ("diff --git a/...", "+++", "@@" hunk headers) as its
+# `content` field instead of the complete corrected file — a shape no JSON
+# Schema alone can reject (content is just `{type: string}`; a diff fragment
+# is still a syntactically valid string), but an independent judge reading
+# both fetch-diff and fixer's own output catches immediately.
+id: verify-fix
+version: 1.0.0
+objective: Judge whether fixer's proposed change should actually be applied — both that a fix is genuinely warranted and that content is a real, complete corrected file.
+constraints:
+  - approved is true only if shouldFix was true AND content is the complete file fixer claims to have corrected.
+  - Reject content that looks like a diff or patch fragment rather than a whole file — lines starting with "diff --git", "---", "+++", or a "@@" hunk header mean content is a fragment, not the corrected file.
+  - Never rewrite or improve the fix yourself — judge it as given.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff, fixer]
+contract:
+  goal: Approve or reject fixer's proposed content before it overwrites a real file.
+  rules:
+    - reason must cite the specific problem when approved is false (e.g. "content is a diff fragment, not a full file").
+  successCriteria:
+    - A diff/patch fragment masquerading as full file content is never approved.
+    - A fix fixer itself marked shouldFix=false is never approved.
+  maxRetries: 2
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [approved, reason]
+    properties:
+      approved:
+        type: boolean
+      reason:
+        type: string
+        maxLength: 300
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0

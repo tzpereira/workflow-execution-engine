@@ -2,8 +2,9 @@
 # forward into M1.14 so the Template gallery has a real bundle to import
 # (EXECUTION.md M1.14/M1.15). Every differentiator the project claims, in one
 # graph: three reviewers in parallel with a scoped context policy each, an LLM
-# Fixer gated by a conditional edge, real tool-backed test/commit steps, and
-# node-cache reuse across re-runs.
+# Fixer whose own output is judged by a separate verifier before anything is
+# applied, real tool-backed test/commit steps, and node-cache reuse across
+# re-runs.
 #
 # fetch-diff
 #   +-- reviewer-a        (style & correctness)
@@ -11,7 +12,10 @@
 #   +-- security-reviewer (vulnerabilities)      <- all three in parallel
 #         v
 #       fixer        (reads the diff + all three reviews)
-#         v (conditional: shouldFix == true)
+#         v
+#       verify-fix   (REQ-CONTRACT-05 — a separate, cheap judge; the producer
+#                     never gates itself, see verify-fix.worker.yaml)
+#         v (conditional: approved == true)
 #       apply-fix    (tool: filesystem, writes fixer's corrected file)
 #         v
 #       test          (tool: terminal)
@@ -75,6 +79,9 @@ nodes:
   - id: fixer
     worker: fixer@1.0.0
 
+  - id: verify-fix
+    worker: verify-fix@1.0.0
+
   - id: apply-fix
     tool:
       toolName: filesystem
@@ -112,9 +119,13 @@ edges:
   - { from: reviewer-a, to: fixer }
   - { from: reviewer-b, to: fixer }
   - { from: security-reviewer, to: fixer }
-  - { from: fixer, to: apply-fix, condition: { path: shouldFix, op: truthy } }
+  - { from: fetch-diff, to: verify-fix }
+  - { from: fixer, to: verify-fix }
+  - { from: verify-fix, to: apply-fix, condition: { path: approved, op: truthy } }
   - { from: apply-fix, to: test }
+  - { from: fixer, to: stage }
   - { from: test, to: stage }
+  - { from: fixer, to: commit }
   - { from: stage, to: commit }
 
 budget:
