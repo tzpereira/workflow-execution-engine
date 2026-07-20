@@ -45,8 +45,12 @@ Rules:
   disclosed `--input` gap; see ADR 0011). M1.15 in progress: docs site content, the per-example README cost
   figures, and the flagship's real-repo validation (3 real repos, user-approved spend) are all done — see
   M1.15's task list below for the bugs found and the `verify-fix` safety gate added as a direct result;
-  still open — top-level README/demo video and the v0.1.0 launch checklist, both explicitly deferred by the
-  user for now (want more than an MVP-shaped CLI/release before those). **Milestone gate reached at
+  top-level README/demo video and the v0.1.0 launch checklist remain explicitly deferred by the user (want
+  more than an MVP-shaped CLI/release before those). Three new milestones — **M1.14b/c/d** (Canvas
+  Ergonomics & Inline Artifacts, In-UI Worker/Contract/Context Policy Editing, Guided UX) — were inserted
+  after live-testing the flagship surfaced real UI friction (artifact buried under Contract's schema dump,
+  no inline preview, no way to edit a Worker without hand-editing YAML); starting with M1.14b next, the one
+  with no open design questions. **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
@@ -1410,6 +1414,106 @@ why `${input:NAME}` is a distinct placeholder form from `${env:NAME}`, not a reu
       value — zero console errors throughout.
 - [x] `go test ./... -race` and `go vet ./...` green across every package; `pnpm test`/`typecheck`/`build`
       green in `ui/`.
+
+---
+
+## M1.14b — Canvas Ergonomics & Inline Artifacts
+
+**Goal:** close the "click a node, scroll a sidebar" friction found live-testing the flagship — a node's
+own output is visible on the canvas itself, and the two fixed-size panels (Inspector, Timeline) resize to
+what the user is actually doing.
+**Depends on:** M1.14a.
+**Delivers:** pulls forward part of M2.5 ("Interface Maturity") — no domain-model changes, UI-only.
+
+No open design questions — ready to build immediately.
+
+### Tasks
+
+- [ ] `Inspector` (`w-80` fixed) and `Timeline` (fixed height) gain a drag handle each; width/height persist
+      across reloads (localStorage, not the canonical Workflow — this is view state, not domain data, same
+      boundary `graph.ts`'s position map already draws). Hand-rolled (mousedown/mousemove/mouseup + clamped
+      min/max), not a new dependency — a resize handle is small enough that a third `package.json` entry
+      needing PRIN-07 vetting isn't justified.
+- [ ] `WorkflowNode` (the canvas card) gains a truncated artifact preview once a node has run: a few lines
+      of code/diff/markdown, a thumbnail for an image, a one-line summary for JSON — reusing
+      `ArtifactViewer`'s existing per-type logic, just height-capped. An expand affordance opens a modal
+      with the full, untruncated `ArtifactViewer` — no new rendering logic, the same component two ways.
+- [ ] Timeline panel gains a "maximize" toggle (temporary full-height) for Logs/Metrics/History, since those
+      already feel cramped in a fixed-height strip.
+
+### Acceptance criteria
+
+- [ ] Resize both panels, reload the page, sizes persist.
+- [ ] A finished worker node shows its own output snippet on the canvas without clicking it; clicking the
+      expand icon opens the same content full-size in a modal.
+- [ ] `pnpm test`/`typecheck`/`build` green; a real-browser pass confirms the resize handles and inline
+      preview render correctly.
+
+---
+
+## M1.14c — In-UI Worker/Contract/Context Policy Editing
+
+**Goal:** a Worker's objective/constraints/tools, a Contract's rules/successCriteria/outputSchema, and a
+node's Context Policy become editable from the Inspector, not just from hand-edited YAML — pulling forward
+part of M2.5's "Contract editor upgrades" deliverable.
+**Depends on:** M1.14b.
+**Delivers:** pulls forward part of M2.5.
+
+**Versioning design (owner-confirmed 2026-07-20):** editing and saving a Worker creates a new version
+automatically (bump); the previous version's file is left untouched, never overwritten — rollback is
+"point the node back at the old `id@version`." This needs **no engine change at all**: `LoadWorkers`
+(`cli/internal/runner/assemble.go`) already registers every `*.worker.yaml` file in a directory by the
+`id`/`version` fields *inside* the file, not by filename, and `registry.RegisterWorker` already rejects
+re-registering a taken version with different content (`*ConflictError`) — two versions of the same Worker
+already coexist as two ordinary files today. The only new work is UI-side: write an edited Worker to its
+own file (never overwrite the file the previous version came from) and a small version-history picker per
+Worker so a user can select an older `id@version` to point a node back at.
+
+### Tasks
+
+- [ ] Inspector's read-only Goal/Contract sections become editable forms (objective, constraints list,
+      tools list; Contract's rules/successCriteria/maxRetries; outputSchema stays raw-JSON edit for now —
+      a visual JSON Schema builder is a separate, larger M2.5 deliverable, not bundled here).
+- [ ] Saving an edit bumps the Worker's version (semver patch by default) and writes a new
+      `<id>@<version>.worker.yaml` file — the file the edit started from is never modified in place.
+- [ ] A small version-history control per Worker (list every `id@version` found for that `id` in the
+      workflow's directory) lets a user re-point the current node's `worker:` reference at an older version.
+- [ ] Context Policy (mode + `params.artifacts`) becomes an editable control on a node, validated against
+      `checkContextArtifacts`'s same rules before it's accepted (no policy that can't resolve gets saved).
+
+### Acceptance criteria
+
+- [ ] Editing a Worker's objective and saving produces a new version file; the original file's content is
+      byte-for-byte unchanged; `wee validate` on the workflow still passes.
+- [ ] Re-pointing a node at an older Worker version and re-running produces the audit trail that version
+      would have produced — no engine-side special-casing needed to prove this, it's the existing
+      versioning guarantee (REQ-VERSION-01/02) exercised through a new UI path.
+
+---
+
+## M1.14d — Guided UX
+
+**Goal:** the interface orients a first-time user without ever blocking them — the "senior engineer, 5
+minutes, no docs" bar M1.15's acceptance criteria already sets, extended to someone who has never seen a
+Contract or a Context Policy before.
+**Depends on:** M1.14b.
+**Delivers:** general UX polish, not tied to a specific REQ-* — a usability goal, not a functional one.
+
+### Tasks
+
+- [ ] Empty states carry a next-step hint instead of a blank area (e.g. "no node selected — click a node to
+      see its Goal, Artifact, and cost").
+- [ ] A first-encounter, dismissible tooltip on domain-jargon labels (Contract, Context Policy, Artifact,
+      Node Cache) explaining the term in one sentence, linking to its `docs/concepts/*.md` page — dismissed
+      once, never shown again (localStorage), never a modal that blocks interaction.
+- [ ] Every disabled control states why in a `title` attribute (Toolbar's Run button already does this for
+      "import a workflow first" — extend the same pattern to Export/Templates-empty/etc.).
+
+### Acceptance criteria
+
+- [ ] A person with zero prior exposure to this project's vocabulary can, unprompted, correctly explain what
+      a Contract and a Context Policy are after five minutes in the UI alone (mirrors M1.15's own
+      acceptance criterion, but for the UI specifically rather than the README).
 
 ---
 
