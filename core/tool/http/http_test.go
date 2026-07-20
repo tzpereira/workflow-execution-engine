@@ -36,6 +36,23 @@ func TestAllowedHostSucceeds(t *testing.T) {
 	}
 }
 
+func TestEmptyHeaderIsOmitted(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, present := r.Header["Authorization"]; present {
+			t.Error("empty Authorization header should be omitted")
+		}
+		_, _ = io.WriteString(w, "ok")
+	}))
+	defer srv.Close()
+
+	host := hostOf(t, srv.URL)
+	tool := httptool.New([]string{host}, srv.Client())
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{"method":"GET","url":"`+srv.URL+`","headers":{"Authorization":""}}`))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+}
+
 // TestDisallowedDomainRejected is the M1.5 acceptance test (REQ-TOOL-03): a
 // request to a host not on the allowlist fails, and the server is never hit.
 func TestDisallowedDomainRejected(t *testing.T) {

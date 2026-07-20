@@ -64,6 +64,9 @@ func resolveToolInput(v any, inputs []NodeInput, wfInputs map[string]string, sec
 // the workflow definition — matching how provider API keys are already read
 // (core/model/openai, core/model/anthropic): only the variable NAME ever
 // appears in a definition, never a value (NFR-SEC-01).
+// "${env:NAME:-}" makes that reference optional and resolves to an empty
+// string when NAME is unset. This is useful for optional HTTP authorization:
+// the HTTP tool omits empty-valued headers entirely.
 //
 // "${input:NAME}" resolves against wfInputs — the run's resolved
 // Workflow.Inputs values (REQ-INPUT-01), supplied by the caller or defaulted.
@@ -82,8 +85,16 @@ func resolvePlaceholder(s string, inputs []NodeInput, wfInputs map[string]string
 	inner := m[1]
 
 	if name, ok := strings.CutPrefix(inner, "env:"); ok {
+		fallback := ""
+		optional := false
+		if envName, envFallback, found := strings.Cut(name, ":-"); found {
+			name, fallback, optional = envName, envFallback, true
+		}
 		val, ok := os.LookupEnv(name)
 		if !ok {
+			if optional {
+				return fallback, nil
+			}
 			return nil, fmt.Errorf("placeholder %q: environment variable %q is not set", s, name)
 		}
 		if val != "" {

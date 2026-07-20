@@ -85,7 +85,7 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 		return nil, fmt.Errorf("http: parse url: %w", err)
 	}
 	if !t.allowed(u.Hostname()) {
-		return nil, fmt.Errorf("http: host %q is not on the workflow domain allowlist", u.Hostname())
+		return nil, fmt.Errorf("http: host %q is not on the workflow domain allowlist; add it under http.allow in the workflow directory's wee.yaml", u.Hostname())
 	}
 
 	var bodyReader io.Reader
@@ -97,6 +97,9 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 		return nil, fmt.Errorf("http: build request: %w", err)
 	}
 	for k, v := range req.Headers {
+		if v == "" {
+			continue
+		}
 		httpReq.Header.Set(k, v)
 	}
 

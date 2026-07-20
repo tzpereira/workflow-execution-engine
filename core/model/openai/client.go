@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -157,10 +158,29 @@ func classifyStatus(resp *http.Response, body []byte) error {
 		te := &model.TransientError{Err: base}
 		if d, ok := parseRetryAfter(resp.Header.Get("Retry-After")); ok {
 			te.RetryAfter, te.HasRetry = d, true
+		} else if d, ok := parseRetryAfterMessage(string(body)); ok {
+			// OpenAI sometimes omits Retry-After but includes a precise delay in
+			// the structured error message (for example, "try again in 11.986s").
+			// Preserve that hint so the engine does not retry too early.
+			te.RetryAfter, te.HasRetry = d, true
 		}
 		return te
 	}
 	return &model.FatalError{Err: base}
+}
+
+var retryAfterMessageRE = regexp.MustCompile(`(?i)try again in\s+([0-9]+(?:\.[0-9]+)?)s`)
+
+func parseRetryAfterMessage(body string) (time.Duration, bool) {
+	match := retryAfterMessageRE.FindStringSubmatch(body)
+	if len(match) != 2 {
+		return 0, false
+	}
+	seconds, err := strconv.ParseFloat(match[1], 64)
+	if err != nil || seconds < 0 {
+		return 0, false
+	}
+	return time.Duration(seconds * float64(time.Second)), true
 }
 
 // parseRetryAfter reads the integer-seconds form of a Retry-After header. The

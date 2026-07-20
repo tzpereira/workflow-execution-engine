@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tzpereira/workflow-execution-engine/core/model"
 	"github.com/tzpereira/workflow-execution-engine/core/model/openai"
@@ -114,6 +115,24 @@ func TestStatusMapping(t *testing.T) {
 		} else if !errors.As(err, &fe) {
 			t.Errorf("status %d: want FatalError, got %T", tc.status, err)
 		}
+	}
+}
+
+func TestRateLimitDelayFromErrorMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"error":{"message":"Rate limit reached. Please try again in 11.986s."}}`)
+	}))
+	defer srv.Close()
+
+	c := openai.New(openai.WithBaseURL(srv.URL), openai.WithAPIKey("k"))
+	_, err := c.Complete(context.Background(), []model.Message{{Role: model.RoleUser, Content: "x"}}, model.Params{Model: "m"})
+	var te *model.TransientError
+	if !errors.As(err, &te) {
+		t.Fatalf("want TransientError, got %T", err)
+	}
+	if !te.HasRetry || te.RetryAfter != 11986*time.Millisecond {
+		t.Fatalf("RetryAfter = %s, want 11.986s", te.RetryAfter)
 	}
 }
 

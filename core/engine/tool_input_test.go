@@ -87,6 +87,17 @@ func TestResolveToolInputMissingEnvErrors(t *testing.T) {
 	}
 }
 
+func TestResolveToolInputOptionalEnvDefaultsToEmpty(t *testing.T) {
+	os.Unsetenv("WEE_TEST_OPTIONAL_TOKEN")
+	out, err := resolveToolInput("${env:WEE_TEST_OPTIONAL_TOKEN:-}", nil, nil, map[string]string{}, nil)
+	if err != nil {
+		t.Fatalf("optional env: %v", err)
+	}
+	if out != "" {
+		t.Fatalf("optional env = %q, want empty string", out)
+	}
+}
+
 func TestResolveToolInputMissingNodeErrors(t *testing.T) {
 	_, err := resolveToolInput("${nope.field}", fixtureInputs(), nil, map[string]string{}, nil)
 	if err == nil {

@@ -107,6 +107,9 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("POST /api/templates/{name}/import", s.handleImportTemplate)
 	s.mux.HandleFunc("GET /api/workers/{id}", s.handleListWorkerVersions)
 	s.mux.HandleFunc("POST /api/workers", s.handleSaveWorker)
+	s.mux.HandleFunc("GET /api/secrets", s.handleSecretsStatus)
+	s.mux.HandleFunc("POST /api/secrets", s.handleSetSecret)
+	s.mux.HandleFunc("DELETE /api/secrets", s.handleUnsetSecret)
 	return s
 }
 
@@ -367,11 +370,33 @@ func (s *Server) handleImportTemplate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := s.copyTemplateConfig(name, destDir); err != nil {
+		http.Error(w, "write wee.yaml: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, importTemplateResponse{
 		WorkflowPath: filepath.Join(name, "workflow.yaml"),
 		Workflow:     wf,
 	})
+}
+
+// copyTemplateConfig carries a template's sidecar wee.yaml into the imported
+// workflow directory when the examples tree provides one. The registry bundle
+// itself intentionally contains only versioned definitions, but a runnable
+// template also needs its deny-first tool allowlists (for example
+// pr-review-autofix's api.github.com HTTP allowlist).
+func (s *Server) copyTemplateConfig(name, destDir string) error {
+	src := filepath.Join(filepath.Dir(s.templatesDir), name, "wee.yaml")
+	data, err := os.ReadFile(src)
+	switch {
+	case err == nil:
+		return os.WriteFile(filepath.Join(destDir, "wee.yaml"), data, 0o644)
+	case os.IsNotExist(err):
+		return nil
+	default:
+		return err
+	}
 }
 
 // workerVersionsResponse is GET /api/workers/{id}'s body — every version of
@@ -448,6 +473,62 @@ func (s *Server) handleSaveWorker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, saveWorkerResponse{Worker: req.Worker})
+}
+
+// handleSecretsStatus reports which of the requested env var names currently
+// have a value set — never the value itself, only presence (M1.14e). The UI's
+// Settings panel uses this to render "● set" / "○ not set" per field without
+// a secret ever making a round trip back to the browser once written.
+func (s *Server) handleSecretsStatus(w http.ResponseWriter, r *http.Request) {
+	status := map[string]bool{}
+	for _, name := range strings.Split(r.URL.Query().Get("names"), ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		_, status[name] = os.LookupEnv(name)
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+type setSecretRequest struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// handleSetSecret applies name=value to this process's own environment,
+// in-memory only (M1.14e, owner-confirmed 2026-07-20: never written to disk).
+// The engine already reads "${env:NAME}" placeholders and each model
+// provider's API key fresh at call time — os.Setenv here is the entire
+// mechanism; no engine or provider-registry change is needed for the next run
+// to pick up the new value.
+func (s *Server) handleSetSecret(w http.ResponseWriter, r *http.Request) {
+	var req setSecretRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "decode request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if err := os.Setenv(req.Name, req.Value); err != nil {
+		http.Error(w, "set "+req.Name+": "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleUnsetSecret clears a previously set env var (the Settings panel's
+// "clear" action).
+func (s *Server) handleUnsetSecret(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	_ = os.Unsetenv(name)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // scanWorkerVersions reads every *.worker.yaml/*.worker.yml file directly in

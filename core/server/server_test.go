@@ -448,6 +448,46 @@ func TestImportTemplateWritesRunnableFilesAndReturnsWorkflow(t *testing.T) {
 	}
 }
 
+func TestImportTemplateCopiesSidecarToolConfig(t *testing.T) {
+	root := t.TempDir()
+	templatesDir := filepath.Join(root, "templates")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(templatesDir, "demo.tar"), testBundle(t), 0o644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	exampleDir := filepath.Join(root, "demo")
+	if err := os.MkdirAll(exampleDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const cfg = "workspaceRoot: .\nhttp:\n  allow: [api.github.com]\n"
+	if err := os.WriteFile(filepath.Join(exampleDir, "wee.yaml"), []byte(cfg), 0o644); err != nil {
+		t.Fatalf("write sidecar config: %v", err)
+	}
+	s, dir := fastServerWithTemplates(t, templatesDir)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/templates/demo/import", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST import = %d: %s", resp.StatusCode, b)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, "demo", "wee.yaml"))
+	if err != nil {
+		t.Fatalf("wee.yaml was not copied: %v", err)
+	}
+	if string(got) != cfg {
+		t.Errorf("wee.yaml = %q, want %q", got, cfg)
+	}
+}
+
 func TestImportTemplateUnknownNameIs404(t *testing.T) {
 	s, _ := fastServerWithTemplates(t, t.TempDir())
 	ts := httptest.NewServer(s.Handler())
@@ -634,5 +674,95 @@ func TestSaveWorkerRequiresID(t *testing.T) {
 func TestNextPatchVersionStartsAtOneZeroZeroWhenNoneExist(t *testing.T) {
 	if got := nextPatchVersion(nil); got != "1.0.0" {
 		t.Errorf("nextPatchVersion(nil) = %q, want 1.0.0", got)
+	}
+}
+
+func TestSecretsStatusReportsPresenceNotValue(t *testing.T) {
+	s, _ := fastServer(t, nil)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	const name = "WEE_TEST_SECRET_STATUS"
+	os.Unsetenv(name)
+	t.Cleanup(func() { os.Unsetenv(name) })
+	os.Setenv(name, "super-secret-value")
+
+	resp, err := http.Get(ts.URL + "/api/secrets?names=" + name + ",WEE_TEST_SECRET_UNSET")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var status map[string]bool
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if !status[name] {
+		t.Errorf("status[%s] = false, want true", name)
+	}
+	if status["WEE_TEST_SECRET_UNSET"] {
+		t.Error(`status["WEE_TEST_SECRET_UNSET"] = true, want false`)
+	}
+}
+
+func TestSetSecretAppliesToProcessEnvironmentImmediately(t *testing.T) {
+	s, _ := fastServer(t, nil)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	const name = "WEE_TEST_SECRET_SET"
+	os.Unsetenv(name)
+	t.Cleanup(func() { os.Unsetenv(name) })
+
+	body, _ := json.Marshal(setSecretRequest{Name: name, Value: "sk-live-example"})
+	resp, err := http.Post(ts.URL+"/api/secrets", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+	if got := os.Getenv(name); got != "sk-live-example" {
+		t.Errorf("os.Getenv(%s) = %q, want sk-live-example", name, got)
+	}
+}
+
+func TestSetSecretRequiresName(t *testing.T) {
+	s, _ := fastServer(t, nil)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	body, _ := json.Marshal(setSecretRequest{Value: "no name attached"})
+	resp, err := http.Post(ts.URL+"/api/secrets", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestUnsetSecretClearsIt(t *testing.T) {
+	s, _ := fastServer(t, nil)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	const name = "WEE_TEST_SECRET_UNSET_ME"
+	os.Setenv(name, "will be cleared")
+	t.Cleanup(func() { os.Unsetenv(name) })
+
+	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/secrets?name="+name, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+	if _, ok := os.LookupEnv(name); ok {
+		t.Error("env var still set after DELETE /api/secrets")
 	}
 }
