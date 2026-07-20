@@ -11,6 +11,7 @@ import { ArtifactViewer } from './ArtifactViewer'
 import { ContextPolicyEditor } from './ContextPolicyEditor'
 import { EventList } from './EventList'
 import { SchemaForm } from './SchemaForm'
+import { Term } from './Term'
 import { WorkerEditor } from './WorkerEditor'
 
 /** dirOf returns the directory portion of a workspace fileName ("" for a
@@ -146,7 +147,7 @@ function NodeInspector({
       </dl>
 
       {kind === 'worker' && node.worker && (
-        <Section title="Worker & Contract">
+        <Section title="Worker & Contract" term="Contract">
           <WorkerEditor
             workerRef={node.worker}
             dir={dir}
@@ -158,7 +159,7 @@ function NodeInspector({
       )}
 
       {kind === 'worker' && (
-        <Section title="Context policy">
+        <Section title="Context policy" term="Context policy">
           <ContextPolicyEditor
             policy={node.contextPolicy}
             workerDefault={workerDefaultPolicy}
@@ -187,7 +188,7 @@ function NodeInspector({
           less often). Previously Artifact sat below Contract/Validation/
           Resolved context/Cost, forcing a scroll past a JSON schema dump to
           see a node's own output. */}
-      <Section title="Artifact">
+      <Section title="Artifact" term="Artifact">
         <ArtifactViewer record={record} />
       </Section>
 
@@ -238,10 +239,23 @@ function NodeInspector({
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  term,
+  children,
+}: {
+  title: string
+  /** When set, wraps the title in a first-encounter, dismissible explanation
+   *  of the domain term it names (M1.14d) — omit for a section whose title
+   *  isn't project jargon (e.g. "Cost · tokens · duration"). */
+  term?: 'Contract' | 'Context policy' | 'Artifact'
+  children: React.ReactNode
+}) {
   return (
     <div>
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">{title}</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        {term ? <Term name={term}>{title}</Term> : title}
+      </div>
       {children}
     </div>
   )

@@ -38,21 +38,36 @@ export function Canvas() {
   }))
 
   return (
-    <ReactFlow
-      nodes={typedNodes}
-      edges={renderedEdges}
-      nodeTypes={nodeTypes}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onConnect={onConnect}
-      onNodeClick={(_, n) => selectNode(n.id)}
-      onPaneClick={() => selectNode(null)}
-      fitView
-      proOptions={{ hideAttribution: true }}
-    >
-      <Background color="#e5e5e5" gap={16} />
-      <Controls showInteractive={false} />
-      <MiniMap pannable zoomable className="!bg-neutral-50" />
-    </ReactFlow>
+    <div className="relative h-full">
+      <ReactFlow
+        nodes={typedNodes}
+        edges={renderedEdges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeClick={(_, n) => selectNode(n.id)}
+        onPaneClick={() => selectNode(null)}
+        fitView
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background color="#e5e5e5" gap={16} />
+        <Controls showInteractive={false} />
+        <MiniMap pannable zoomable className="!bg-neutral-50" />
+      </ReactFlow>
+      {/* An empty canvas has no other affordance pointing at what to do next
+          (M1.14d) — this was the exact confusion behind "nada apareceu na
+          UI" earlier: DIR only configures backend path resolution, nothing
+          loads until Templates or Import is actually clicked. pointer-events-
+          none so it never blocks React Flow's own pane interactions. */}
+      {nodes.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <p className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-500 shadow-sm">
+            No workflow loaded — click <span className="font-medium text-neutral-700">Templates</span> for a one-click
+            example, or <span className="font-medium text-neutral-700">Import</span> to open a file.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }

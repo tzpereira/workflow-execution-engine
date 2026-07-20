@@ -100,7 +100,13 @@ export function Toolbar({ onOpenPalette, onOpenTemplates }: { onOpenPalette: () 
         <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
           Import
         </button>
-        <button type="button" className="btn" onClick={onExport}>
+        <button
+          type="button"
+          className="btn"
+          onClick={onExport}
+          disabled={nodes.length === 0}
+          title={nodes.length === 0 ? 'Nothing to export yet — import or pick a template first' : undefined}
+        >
           Export
         </button>
         <button type="button" className="btn" onClick={onOpenTemplates}>
