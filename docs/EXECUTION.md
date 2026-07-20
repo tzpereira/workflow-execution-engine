@@ -42,10 +42,11 @@ Rules:
 ## Status
 
 - **Current milestone:** M1.14a — complete, locally verified (workflow-level Inputs, closing M1.9's
-  disclosed `--input` gap; see ADR 0011). M1.15 in progress: docs site content and the per-example README
-  cost figures are done (see M1.15's task list below); still open — flagship validated against 3 real
-  repos, top-level README/demo video, v0.1.0 launch checklist — paused pending the repos to validate
-  against and explicit go-ahead on the public release steps. **Milestone gate reached at
+  disclosed `--input` gap; see ADR 0011). M1.15 in progress: docs site content, the per-example README cost
+  figures, and the flagship's real-repo validation (3 real repos, user-approved spend) are all done — see
+  M1.15's task list below for the bugs found and the `verify-fix` safety gate added as a direct result;
+  still open — top-level README/demo video and the v0.1.0 launch checklist, both explicitly deferred by the
+  user for now (want more than an MVP-shaped CLI/release before those). **Milestone gate reached at
   M1.6:** the domain model, event catalog, and artifact model are frozen, with M1.6a recorded as its one
   disclosed, narrow exception (`domain.Node` only — `domain.Worker`/`worker.schema.json` untouched). M1.8
   added one optional, `omitempty` field to the engine's (non-domain) execution `Snapshot` — no domain type
@@ -1421,12 +1422,45 @@ a real repository, recorded in one unedited take.
 
 ### Tasks
 
-- [ ] Write `examples/pr-review-autofix.yaml` (or the SDK equivalent) implementing the exact graph from
-      VISION.md "Flagship Demo": PR Diff → {Reviewer A (diff-only, style/correctness), Reviewer B (diff-only,
-      adversarial), Security Reviewer (diff-only, vulnerabilities)} in parallel → Fixer (reads all reviews +
-      diff) → Test Runner (terminal tool) → Commit (git tool).
-- [ ] Validate the flagship workflow against 3 real public repositories of different sizes (small/medium/large);
-      fix anything that breaks per-repo (timeouts, tool allowlists, budget defaults).
+- [x] Write `examples/pr-review-autofix/workflow.yaml` (the exact graph from VISION.md "Flagship Demo"):
+      PR Diff → {Reviewer A, Reviewer B, Security Reviewer} in parallel → Fixer → Test Runner → Commit.
+      Already pulled forward into M1.14 (see that milestone's own notes); this milestone's real-repo
+      validation below extended it with a `verify-fix` gate.
+- [x] Validate the flagship workflow against 3 real public repositories of different sizes (small/medium/large);
+      fix anything that breaks per-repo (timeouts, tool allowlists, budget defaults). **Repos:**
+      [google/uuid](https://github.com/google/uuid) (small, PR #217), [spf13/cobra](https://github.com/spf13/cobra)
+      (medium, PR #2429), [prometheus/prometheus](https://github.com/prometheus/prometheus) (large, PR #19208)
+      — user-approved. Each run against a disposable local clone (nothing pushed anywhere), real
+      `OPENAI_API_KEY` spend, `--budget 0.20` cap (user-approved). Real costs: $0.0050–$0.0110/run.
+      **Three real bugs found and fixed** (none caught by schema/graph validation or unit tests — only
+      surfaced running the graph against a real model and a real repo):
+      1. `stage`/`commit` referenced `${fixer.path}`/`${fixer.commitMessage}` with no direct edge from
+         `fixer` (context resolution is direct-parents-only) — both placeholders silently failed to
+         resolve at run time. Fixed with `fixer -> stage`/`fixer -> commit` edges. The identical bug
+         existed in `bug-investigation`'s `apply-patch` (fixed there too, same root cause).
+      2. `pr-review`'s commit message embedded a placeholder in a larger string
+         (`"${review.verdict}: automated review pass"`) — REQ-WORKER-06 placeholders are whole-string
+         only; this would have committed the literal, unresolved text. Fixed to `"${review.verdict}"`.
+      3. Large-repo tuning: prometheus's `test` node scoped from `go test ./...` to
+         `go build ./cmd/prometheus/...` (the full suite would run far past a few minutes on this
+         codebase); `wee.yaml`'s terminal `timeoutMs` and the workflow's `maxDurationMs` both raised —
+         exactly the per-repo tuning the example's own `wee.yaml` comment already anticipated.
+      **A real safety gap found, closed with REQ-CONTRACT-05:** the first pass (before any verifier
+      existed) found `fixer` occasionally emits a raw diff fragment as its `content` field instead of the
+      actual corrected file — no `outputSchema` can reject this (`content` is just `{type: string}`, and a
+      diff fragment is still a syntactically valid string). This once overwrote prometheus's `AGENTS.md`
+      with diff syntax in the disposable clone. Added `verify-fix.worker.yaml` (`gpt-4o-mini`, mirrors
+      `bug-investigation`'s `verify-patch`) gating `apply-fix` on a separate judge's `approved` field —
+      the producer never gates itself. **Disclosed, current limitation:** with `gpt-4o` at
+      `temperature: 0`, `fixer` produces a diff-fragment `content` far more often than a real full-file
+      rewrite once it's shown the diff as its own context (likely the diff's formatting biasing the
+      model's output shape) — confirmed across repeated runs on all three repos, `verify-fix` correctly
+      rejected every one (`"content is a diff fragment, not a full file."`), so no file was corrupted
+      after the fix — but the auto-fix step frequently doesn't reach an applied fix at all in its current
+      prompt form. The review portion is reliable; auto-*fix* reliability needs further prompt iteration
+      (different model, different context-shaping, few-shot examples) — exactly what the verifier-node
+      pattern is for: a producer's unreliability degrades to "nothing happens," never to "something wrong
+      got applied." Full account in [pr-review-autofix/README.md](../examples/pr-review-autofix/README.md#real-repo-validation-m115).
 - [x] Write the docs site content under `docs/`: `quickstart.md`, one page per domain object under
       `docs/concepts/` (workflow, worker, contract, context-policy, artifact, event, execution, budget),
       `docs/cli-reference.md`, `docs/sdk-reference.md`, `docs/replay-honesty.md` (already written in M1.7),
