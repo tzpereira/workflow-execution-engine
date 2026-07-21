@@ -59,6 +59,7 @@ context — at most `contract.maxRetries` times, emitting a `Retry` event per at
 | Spec | Prefix | Covers |
 |---|---|---|
 | [runtime.md](runtime.md) | `REQ-RUNTIME` | Scheduler, parallelism, conditional edges, retries, failure policies, cancellation, resume |
+| [control-plane.md](control-plane.md) | `REQ-CTRL` | Durable `wee serve`: restart survival, run controls, settings persistence, progress/liveness |
 | [definition.md](definition.md) | `REQ-DEF` | Workflow as data: YAML/JSON formats, canonical form, validation |
 | [inputs.md](inputs.md) | `REQ-INPUT` | Workflow-level, per-run parameters: declaration, `${input:NAME}` resolution, fail-fast enforcement |
 | [workers.md](workers.md) | `REQ-WORKER` | Worker as a role: objective, constraints, tools, policy, contract |

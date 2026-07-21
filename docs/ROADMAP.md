@@ -440,6 +440,9 @@ Acceptance:
 
 ### M2.2 — Local Control Plane
 
+Delivers: REQ-CTRL-01..07 · NFR-CTRL-01 (see [spec/control-plane.md](spec/control-plane.md); decision in
+[ADR 0012](adr/0012-local-control-plane.md)).
+
 Deliverables:
 
 * `wee serve` becomes a durable local service: executions, artifacts, cache, settings, and workflow catalog survive restarts

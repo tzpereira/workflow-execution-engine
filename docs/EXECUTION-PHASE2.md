@@ -98,6 +98,11 @@ Acceptance:
 
 **Depends on:** M2.1.
 
+**Requirements:** REQ-CTRL-01..07, NFR-CTRL-01 ([spec/control-plane.md](spec/control-plane.md)).
+**Decision:** [ADR 0012](adr/0012-local-control-plane.md) — in-workspace persistence, in-memory run
+registry reconciled from disk on restart, run controls as thin surface over existing core capabilities,
+non-secret settings, transport-derived progress.
+
 Tasks:
 
 - [ ] Define local service persistence: config directory, data directory, execution index, artifact store,
