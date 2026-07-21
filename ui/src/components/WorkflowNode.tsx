@@ -23,6 +23,14 @@ const statusLabel: Record<Exclude<NodeStatus, 'pending'>, string> = {
   failed: 'failed',
 }
 
+const statusTone: Record<NodeStatus, string> = {
+  pending: 'bg-neutral-100 text-neutral-500',
+  running: 'bg-blue-100 text-blue-700',
+  succeeded: 'bg-emerald-100 text-emerald-700',
+  cached: 'bg-amber-100 text-amber-700',
+  failed: 'bg-red-100 text-red-700',
+}
+
 // WorkflowNode renders one graph node. Worker and tool nodes read distinctly (a
 // kind badge + the reference), so the graph's two node kinds are legible at a
 // glance. Handles on left/right let the user draw dependency edges. While a
@@ -41,6 +49,10 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const status: NodeStatus = live.nodes[id]?.status ?? 'pending'
   const showStatus = isWatching && status !== 'pending'
   const record = audit?.nodes[id]
+  const liveNode = live.nodes[id]
+  const cost = liveNode?.costUsd ?? record?.costUsd ?? 0
+  const tokens = liveNode?.tokens ?? record?.tokens ?? 0
+  const error = liveNode?.error
 
   return (
     <div
@@ -62,9 +74,9 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
         className="!bg-neutral-400"
       />
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-neutral-900">{node.id}</span>
+        <span className="truncate font-medium text-neutral-900">{node.id}</span>
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
             kind === 'tool'
               ? 'bg-neutral-100 text-neutral-600'
               : kind === 'worker'
@@ -78,19 +90,27 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
       <div className="mt-0.5 truncate font-mono text-xs text-neutral-500">
         {detail}
       </div>
-      {showStatus && (
-        <div
-          className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            status === 'failed'
-              ? 'bg-red-100 text-red-700'
-              : status === 'cached'
-                ? 'bg-amber-100 text-amber-700'
-                : status === 'succeeded'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-blue-100 text-blue-700'
-          }`}
-        >
-          {statusLabel[status]}
+      <div className="mt-1.5 flex min-h-5 items-center gap-1.5">
+        {showStatus ? (
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusTone[status]}`}
+          >
+            {statusLabel[status]}
+          </span>
+        ) : (
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${statusTone.pending}`}
+          >
+            pending
+          </span>
+        )}
+        <span className="truncate font-mono text-[10px] text-neutral-500">
+          ${cost.toFixed(4)} · {tokens} tok
+        </span>
+      </div>
+      {error && (
+        <div className="mt-1 max-h-10 overflow-hidden rounded border border-red-100 bg-red-50 px-1.5 py-1 text-[10px] leading-tight text-red-700">
+          <span title={error}>{error}</span>
         </div>
       )}
       <NodeArtifactPreview record={record} />

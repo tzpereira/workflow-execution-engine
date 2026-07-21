@@ -31,6 +31,8 @@ export function Toolbar({
   const setServerUrl = useLive((s) => s.setServerUrl)
   const connected = useLive((s) => s.connected)
   const liveError = useLive((s) => s.error)
+  const live = useLive((s) => s.live)
+  const audit = useLive((s) => s.audit)
   const run = useLive((s) => s.run)
   const disconnect = useLive((s) => s.disconnect)
   const [inputsModalOpen, setInputsModalOpen] = useState(false)
@@ -79,97 +81,160 @@ export function Toolbar({
     )
   }
 
+  const hasWorkflow = nodes.length > 0
+  const requiresInputs = (meta.inputs?.length ?? 0) > 0
+  const providerReady = serverUrl.trim().length > 0
+  const canRun = Boolean(fileName && providerReady)
+  const runState =
+    live.state === 'idle'
+      ? connected
+        ? 'watching'
+        : hasWorkflow
+          ? 'ready'
+          : 'empty'
+      : live.state
+  const issueText = error ?? liveError
+  const runButtonTitle = !fileName
+    ? 'Import a workflow first'
+    : !providerReady
+      ? 'Set a wee serve address'
+      : requiresInputs
+        ? 'Run with workflow inputs'
+        : undefined
+
   return (
-    <header className="app-toolbar flex min-h-11 flex-col gap-1 border-b border-neutral-200 bg-white px-2 py-1 md:h-11 md:flex-row md:items-center md:justify-between md:gap-3 md:px-3 md:py-0">
-      <div className="flex w-full min-w-0 items-baseline gap-2 md:w-auto">
-        <span className="truncate text-sm font-semibold text-neutral-900">
-          {meta.id}
-        </span>
-        <span className="font-mono text-xs text-neutral-500">
-          @{meta.version}
-        </span>
-        {error && (
-          <span className="truncate text-xs text-red-600">· {error}</span>
+    <header className="app-toolbar border-b border-neutral-200 bg-white px-2 py-1.5 md:px-3">
+      <div className="flex min-h-10 flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              runState === 'running'
+                ? 'bg-blue-500'
+                : runState === 'failed'
+                  ? 'bg-red-500'
+                  : runState === 'succeeded'
+                    ? 'bg-emerald-500'
+                    : runState === 'cancelled'
+                      ? 'bg-neutral-500'
+                      : hasWorkflow
+                        ? 'bg-amber-500'
+                        : 'bg-neutral-300'
+            }`}
+            title={runState}
+            aria-label={`run state ${runState}`}
+          />
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="truncate text-sm font-semibold text-neutral-950">
+                {meta.id}
+              </span>
+              <span className="font-mono text-xs text-neutral-500">
+                @{meta.version}
+              </span>
+              {fileName && (
+                <span className="hidden truncate rounded border border-neutral-200 px-1.5 py-0.5 font-mono text-[11px] text-neutral-500 lg:inline">
+                  {fileName}
+                </span>
+              )}
+            </div>
+            <div className="mt-0.5 flex min-w-0 items-center gap-2 font-mono text-[11px] text-neutral-500">
+              <span>{nodes.length} nodes</span>
+              <span>${meta.budget.maxCostUsd}</span>
+              <span>{meta.budget.maxTokens} tok</span>
+              {requiresInputs && <span>{meta.inputs?.length} inputs</span>}
+              {live.executionId && (
+                <span className="truncate">exec {live.executionId}</span>
+              )}
+              {audit?.inputs && Object.keys(audit.inputs).length > 0 && (
+                <span>{Object.keys(audit.inputs).length} run inputs</span>
+              )}
+            </div>
+          </div>
+        </div>
+        {issueText && (
+          <div className="min-w-0 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 md:max-w-80">
+            <span className="block truncate" title={issueText}>
+              {issueText}
+            </span>
+          </div>
         )}
-        {liveError && (
-          <span className="truncate text-xs text-red-600">· {liveError}</span>
-        )}
-      </div>
-      <div className="toolbar-controls items-center gap-1.5">
-        <span
-          className={`hidden h-1.5 w-1.5 rounded-full md:block ${connected ? 'bg-emerald-500' : 'bg-neutral-300'}`}
-        />
-        <input
-          type="text"
-          value={serverUrl}
-          onChange={(e) => setServerUrl(e.target.value)}
-          className="server-address w-full min-w-0 rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-[11px] text-neutral-600 md:w-40 md:flex-none"
-          title="wee serve address"
-          aria-label="wee serve address"
-        />
-        {connected ? (
-          <button type="button" className="btn" onClick={disconnect}>
-            Disconnect
-          </button>
-        ) : (
+        <div className="toolbar-controls items-center gap-1.5">
+          <span
+            className={`hidden h-1.5 w-1.5 rounded-full md:block ${connected ? 'bg-emerald-500' : 'bg-neutral-300'}`}
+            title={connected ? 'connected' : 'not connected'}
+          />
+          <input
+            type="text"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            className="server-address w-full min-w-0 rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-[11px] text-neutral-600 md:w-40 md:flex-none"
+            title="wee serve address"
+            aria-label="wee serve address"
+          />
+          {connected ? (
+            <button type="button" className="btn" onClick={disconnect}>
+              Disconnect
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={onRun}
+              disabled={!canRun}
+              title={runButtonTitle}
+            >
+              Run
+            </button>
+          )}
+          <span className="mx-1 hidden h-4 w-px bg-neutral-200 md:block" />
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".yaml,.yml,.json"
+            className="hidden"
+            onChange={onFile}
+            data-testid="import-input"
+          />
           <button
             type="button"
             className="btn"
-            onClick={onRun}
-            disabled={!fileName}
-            title={fileName ? undefined : 'Import a workflow first'}
+            onClick={() => fileRef.current?.click()}
           >
-            Run
+            Import
           </button>
-        )}
-        <span className="mx-1 hidden h-4 w-px bg-neutral-200 md:block" />
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".yaml,.yml,.json"
-          className="hidden"
-          onChange={onFile}
-          data-testid="import-input"
-        />
-        <button
-          type="button"
-          className="btn"
-          onClick={() => fileRef.current?.click()}
-        >
-          Import
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={onExport}
-          disabled={nodes.length === 0}
-          title={
-            nodes.length === 0
-              ? 'Nothing to export yet — import or pick a template first'
-              : undefined
-          }
-        >
-          Export
-        </button>
-        <button type="button" className="btn" onClick={onOpenTemplates}>
-          Templates
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={onOpenSettings}
-          title="API keys, GitHub token"
-        >
-          Settings
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={onOpenPalette}
-          title="Command palette (⌘K)"
-        >
-          ⌘K
-        </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={onExport}
+            disabled={nodes.length === 0}
+            title={
+              nodes.length === 0
+                ? 'Nothing to export yet — import or pick a template first'
+                : undefined
+            }
+          >
+            Export
+          </button>
+          <button type="button" className="btn" onClick={onOpenTemplates}>
+            Templates
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={onOpenSettings}
+            title="API keys, GitHub token"
+          >
+            Settings
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={onOpenPalette}
+            title="Command palette (⌘K)"
+          >
+            ⌘K
+          </button>
+        </div>
       </div>
       {inputsModalOpen && meta.inputs && (
         <RunInputsModal

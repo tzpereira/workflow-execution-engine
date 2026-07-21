@@ -61,14 +61,15 @@ export function Canvas() {
           loads until Templates or Import is actually clicked. pointer-events-
           none so it never blocks React Flow's own pane interactions. */}
       {nodes.length === 0 && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="empty-canvas-hint rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-500 shadow-sm">
-            No workflow loaded — click{' '}
-            <span className="font-medium text-neutral-700">Templates</span> for
-            a one-click example, or{' '}
-            <span className="font-medium text-neutral-700">Import</span> to open
-            a file.
-          </p>
+        <div className="pointer-events-none absolute inset-x-3 top-1/2 flex -translate-y-1/2 justify-center">
+          <div className="empty-canvas-hint rounded-md border border-neutral-200 bg-white px-3 py-2 shadow-sm">
+            <p className="text-sm font-medium text-neutral-800">
+              No workflow loaded
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Templates or Import start the workspace.
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -23,11 +23,12 @@ Rules:
 
 ## Status
 
-- **Current Phase 2 milestone:** not started. Phase 1 is still the recorded active plan in
-  [EXECUTION.md](EXECUTION.md), but the intended next product arc is now local-first product hardening:
-  usability, output quality, control, observability, robust execution, safe mutations, and packaging.
-- **Open transition decision:** either finish M1.15 and explicitly defer/supersede M1.16/M1.17, or complete
-  the remaining Phase 1 gates before starting M2.0. Do not silently run both plans at once.
+- **Current Phase 2 milestone:** M2.0 — UX Reset. The owner chose to start Phase 2 local-first product
+  hardening before pursuing the old M1.16/M1.17 release gates. The active goal is to make the local
+  workspace feel like a focused developer tool: clear run readiness, readable node cards, coherent
+  observability, and less placeholder surface.
+- **Transition decision:** M1.16/M1.17 are superseded for now by this Phase 2 plan. Do not tag a public
+  release or start managed hosting work until the local/self-hosted product quality gates here pass.
 
 ---
 
@@ -40,16 +41,16 @@ tool.
 
 Tasks:
 
-- [ ] Audit the current UI routes, tabs, panels, components, and examples; delete or hide unused product
+- [x] Audit the current UI routes, tabs, panels, components, and examples; delete or hide unused product
       surfaces.
-- [ ] Redesign the application shell around the real workflow: choose template/import, configure, run,
+- [x] Redesign the application shell around the real workflow: choose template/import, configure, run,
       inspect, retry/replay, export.
-- [ ] Rework node cards so status, failure cause, cost/tokens, cache state, and primary output preview are
+- [x] Rework node cards so status, failure cause, cost/tokens, cache state, and primary output preview are
       visible without expanding raw data.
 - [ ] Rework Inspector layout: output first, then inputs/context/contract/events/debug.
-- [ ] Rework Timeline/Logs/Metrics/History into a coherent observability area with stable sizing.
+- [x] Rework Timeline/Logs/Metrics/History into a coherent observability area with stable sizing.
 - [ ] Add empty, loading, failed, cancelled, rate-limited, budget-exceeded, and no-provider states.
-- [ ] Validate responsive desktop and mobile layouts with screenshots.
+- [x] Validate responsive desktop and mobile layouts with screenshots.
 
 Acceptance:
 
@@ -57,7 +58,9 @@ Acceptance:
       replay without editing YAML.
 - [ ] No primary product surface shows unbounded raw JSON by default.
 - [ ] Screenshots show no overlapping controls or unreadable primary text.
-- [ ] Verification recorded here:
+- [x] Verification recorded here: `pnpm --dir ui lint`; `pnpm --dir ui typecheck`; `pnpm --dir ui test`
+      (171 tests); `pnpm --dir ui build`; Chrome headless screenshots at 1440x900 and 390x844. Build still
+      reports the known Shiki/wasm chunk-size warning.
 
 ---
 
@@ -263,4 +266,3 @@ Acceptance:
 - [ ] A small team uses the self-hosted product weekly on real work with shared cache savings visible.
 - [ ] Managed runtime can start without changing the product architecture.
 - [ ] Verification recorded here:
-
