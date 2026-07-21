@@ -23,9 +23,10 @@ Rules:
 
 ## Status
 
-- **Current Phase 2 milestone:** M2.1 — Output & Observability. M2.0 is complete: the local workspace now
-  has clearer run readiness, readable node cards, a workflow-oriented Inspector, coherent run monitoring,
-  explicit empty/loading/failed/cancelled/rate-limit/budget/provider states, and less placeholder surface.
+- **Current Phase 2 milestone:** M2.2 — Local Control Plane. M2.1 is complete: artifact viewers have
+  bounded semantic rendering, generated/code artifacts have language/wrap/copy/download controls, metrics
+  include usage/health/replay-cache comparison charts, and raw/debug payloads stay behind explicit
+  disclosure.
 - **Transition decision:** M1.16/M1.17 are superseded for now by this Phase 2 plan. Do not tag a public
   release or start managed hosting work until the local/self-hosted product quality gates here pass.
 
@@ -71,22 +72,23 @@ Acceptance:
 
 Tasks:
 
-- [ ] Build or refine semantic viewers for code, diff, markdown/report, JSON tree, HTTP response, test
+- [x] Build or refine semantic viewers for code, diff, markdown/report, JSON tree, HTTP response, test
       result, metrics, and risk/analysis artifacts.
-- [ ] Add code viewer controls: language detection, copy/download, wrapping, bounded height, and syntax
+- [x] Add code viewer controls: language detection, copy/download, wrapping, bounded height, and syntax
       highlighting.
-- [ ] Add charts for per-node cost, tokens, duration, cache hits, retries, failures, contract violations,
+- [x] Add charts for per-node cost, tokens, duration, cache hits, retries, failures, contract violations,
       and savings attribution.
-- [ ] Make replay/divergence visible as a comparison, not a raw event dump.
-- [ ] Keep raw payloads available behind explicit debug disclosure.
-- [ ] Add tests for viewer selection, bounded rendering, and chart data derivation.
+- [x] Make replay/divergence visible as a comparison, not a raw event dump.
+- [x] Keep raw payloads available behind explicit debug disclosure.
+- [x] Add tests for viewer selection, bounded rendering, and chart data derivation.
 
 Acceptance:
 
-- [ ] A user can answer "what happened, what did it cost, what was reused, and why did this node fail?"
+- [x] A user can answer "what happened, what did it cost, what was reused, and why did this node fail?"
       from the UI in under one minute.
-- [ ] Large artifacts stay readable and bounded.
-- [ ] Verification recorded here:
+- [x] Large artifacts stay readable and bounded.
+- [x] Verification recorded here: `pnpm --dir ui lint`; `pnpm --dir ui typecheck`; `pnpm --dir ui test`
+      (172 tests); `pnpm --dir ui build`. Build still reports the known Shiki/wasm chunk-size warning.
 
 ---
 

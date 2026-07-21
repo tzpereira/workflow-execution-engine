@@ -85,5 +85,10 @@ describe('MetricsPanel', () => {
     expect(
       screen.getByLabelText('Cost and token usage by node'),
     ).toBeInTheDocument()
+    expect(screen.getByLabelText('Execution health chart')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('Replay and cache comparison'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('audit view, zero model calls')).toBeInTheDocument()
   })
 })

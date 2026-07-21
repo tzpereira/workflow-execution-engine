@@ -97,12 +97,35 @@ describe('ArtifactViewer', () => {
         )}
       />,
     )
-    expect(screen.getByText('go')).toBeInTheDocument()
+    expect(screen.getAllByText('go').length).toBeGreaterThan(0)
     expect(screen.getByText('pkg/widget_test.go')).toBeInTheDocument()
     expect(
       screen.getByText('Covers the primary widget behavior.'),
     ).toBeInTheDocument()
     expect(document.body).toHaveTextContent('func TestWidget')
+    expect(screen.getByRole('combobox', { name: 'code language' })).toHaveValue(
+      'go',
+    )
+    expect(screen.getByRole('button', { name: 'Wrap' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+      'download',
+      'pkg/widget_test.go',
+    )
+    expect(screen.getByText(/1 lines/)).toBeInTheDocument()
+  })
+
+  it('lets code artifacts change language and wrapping without raw JSON', () => {
+    render(<ArtifactViewer record={record('code', 'const value = 1')} />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'code language' }), {
+      target: { value: 'javascript' },
+    })
+    expect(screen.getByRole('combobox', { name: 'code language' })).toHaveValue(
+      'javascript',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Wrap' }))
+    expect(screen.getByRole('button', { name: 'No wrap' })).toBeInTheDocument()
   })
 
   it('renders a risk report as dimension bars, findings, and actions', () => {
@@ -215,6 +238,9 @@ describe('ArtifactViewer', () => {
     expect(screen.getByText('fail')).toBeInTheDocument()
     expect(screen.getByText('2 failed')).toBeInTheDocument()
     expect(screen.getByText('FAIL foo_test.go')).toBeInTheDocument()
+    expect(screen.getByText('FAIL foo_test.go').closest('pre')).toHaveClass(
+      'max-h-[52vh]',
+    )
   })
 
   it('renders a File artifact as a download link', () => {

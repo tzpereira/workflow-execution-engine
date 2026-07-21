@@ -132,7 +132,11 @@ function GeneratedCodeView({ result }: { result: GeneratedCodeResult }) {
         </div>
         <p className="mt-1.5 text-sm text-neutral-700">{result.summary}</p>
       </div>
-      <HighlightedCode text={result.code} language={result.language} />
+      <CodeBlock
+        text={result.code}
+        language={result.language}
+        path={result.path}
+      />
     </div>
   )
 }
@@ -391,7 +395,7 @@ function MarkdownView({ record }: { record: NodeRecord }) {
           coaxed into emitting a script tag must not execute in the user's
           browser (XSS via artifact content). */}
       <div
-        className="prose prose-sm max-w-none overflow-auto rounded bg-neutral-50 p-2 text-neutral-800"
+        className="prose prose-sm max-h-[52vh] max-w-none overflow-auto rounded bg-neutral-50 p-2 text-neutral-800"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
@@ -498,7 +502,75 @@ function CodeView({ record }: { record: NodeRecord }) {
   return (
     <div>
       <Meta record={record} />
-      <HighlightedCode text={text} language="text" />
+      <CodeBlock text={text} language={languageFromRecord(record)} />
+    </div>
+  )
+}
+
+function CodeBlock({
+  text,
+  language,
+  path,
+}: {
+  text: string
+  language: string
+  path?: string
+}) {
+  const [wrap, setWrap] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [selectedLanguage, setSelectedLanguage] = useState(() =>
+    supportedLanguage(language),
+  )
+
+  async function copy() {
+    try {
+      await navigator.clipboard?.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <select
+          value={selectedLanguage}
+          onChange={(e) => setSelectedLanguage(e.target.value)}
+          aria-label="code language"
+          className="rounded border border-neutral-300 px-1.5 py-1 font-mono text-[11px] text-neutral-600"
+        >
+          {SUPPORTED_LANGUAGES.map((lang) => (
+            <option key={lang} value={lang}>
+              {lang}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setWrap((w) => !w)}
+        >
+          {wrap ? 'No wrap' : 'Wrap'}
+        </button>
+        <button type="button" className="btn" onClick={() => void copy()}>
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+        <a
+          href={`data:text/plain;charset=utf-8,${encodeURIComponent(text)}`}
+          download={
+            path ?? `artifact.${extensionForLanguage(selectedLanguage)}`
+          }
+          className="btn inline-block"
+        >
+          Download
+        </a>
+        <span className="ml-auto font-mono text-[11px] text-neutral-400">
+          {lineCount(text)} lines · {formatBytes(text)}
+        </span>
+      </div>
+      <HighlightedCode text={text} language={selectedLanguage} wrap={wrap} />
     </div>
   )
 }
@@ -506,9 +578,11 @@ function CodeView({ record }: { record: NodeRecord }) {
 function HighlightedCode({
   text,
   language,
+  wrap,
 }: {
   text: string
   language: string
+  wrap: boolean
 }) {
   const [html, setHtml] = useState<string | null>(null)
   const lang = supportedLanguage(language)
@@ -530,15 +604,28 @@ function HighlightedCode({
 
   return html ? (
     <div
-      className="max-h-[52vh] overflow-auto rounded text-xs [&_pre]:p-3"
+      className={`max-h-[52vh] overflow-auto rounded text-xs [&_pre]:p-3 ${wrap ? '[&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:whitespace-pre-wrap' : ''}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   ) : (
-    <pre className="max-h-[52vh] overflow-auto rounded bg-neutral-50 p-3 font-mono text-xs text-neutral-700">
+    <pre
+      className={`max-h-[52vh] overflow-auto rounded bg-neutral-50 p-3 font-mono text-xs text-neutral-700 ${wrap ? 'whitespace-pre-wrap break-words' : ''}`}
+    >
       {text}
     </pre>
   )
 }
+
+const SUPPORTED_LANGUAGES = [
+  'text',
+  'go',
+  'typescript',
+  'javascript',
+  'json',
+  'yaml',
+  'bash',
+  'markdown',
+]
 
 function supportedLanguage(language: string): string {
   const normalized = language.toLowerCase()
@@ -554,17 +641,33 @@ function supportedLanguage(language: string): string {
     golang: 'go',
   }
   const lang = aliases[normalized] ?? normalized
-  return [
-    'go',
-    'typescript',
-    'javascript',
-    'json',
-    'yaml',
-    'bash',
-    'markdown',
-  ].includes(lang)
-    ? lang
-    : 'text'
+  return SUPPORTED_LANGUAGES.includes(lang) ? lang : 'text'
+}
+
+function extensionForLanguage(language: string): string {
+  const extensions: Record<string, string> = {
+    go: 'go',
+    typescript: 'ts',
+    javascript: 'js',
+    json: 'json',
+    yaml: 'yaml',
+    bash: 'sh',
+    markdown: 'md',
+    text: 'txt',
+  }
+  return extensions[language] ?? 'txt'
+}
+
+function languageFromRecord(record: NodeRecord): string {
+  const hash = (record.hash ?? '').toLowerCase()
+  if (hash.endsWith('.go')) return 'go'
+  if (hash.endsWith('.ts') || hash.endsWith('.tsx')) return 'typescript'
+  if (hash.endsWith('.js') || hash.endsWith('.jsx')) return 'javascript'
+  if (hash.endsWith('.json')) return 'json'
+  if (hash.endsWith('.yaml') || hash.endsWith('.yml')) return 'yaml'
+  if (hash.endsWith('.sh')) return 'bash'
+  if (hash.endsWith('.md')) return 'markdown'
+  return 'text'
 }
 
 function TestResultView({ record }: { record: NodeRecord }) {
@@ -590,7 +693,7 @@ function TestResultView({ record }: { record: NodeRecord }) {
       {parsed?.summary && (
         <p className="mb-1.5 text-xs text-neutral-700">{parsed.summary}</p>
       )}
-      <pre className="overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
+      <pre className="max-h-[52vh] overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
         {parsed?.output ?? text}
       </pre>
     </div>
@@ -606,7 +709,7 @@ function ImageView({ record }: { record: NodeRecord }) {
         <img
           src={url}
           alt={`artifact ${record.hash}`}
-          className="max-w-full rounded border border-neutral-200"
+          className="max-h-[52vh] max-w-full rounded border border-neutral-200 object-contain"
         />
       )}
     </div>

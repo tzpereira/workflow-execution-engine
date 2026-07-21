@@ -44,6 +44,8 @@ export function MetricsPanel({ audit }: { audit: Audit | null }) {
       </div>
 
       <NodeUsageChart nodes={m.nodes} />
+      <ExecutionHealthChart metrics={m} />
+      <ReplayComparison metrics={m} />
 
       <table className="w-full border-collapse text-left font-mono text-[11px]">
         <thead>
@@ -92,6 +94,144 @@ export function MetricsPanel({ audit }: { audit: Audit | null }) {
           )}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+function ExecutionHealthChart({
+  metrics,
+}: {
+  metrics: ReturnType<typeof computeMetrics>
+}) {
+  const decisions = metrics.cacheHits + metrics.cacheMisses
+  const rows = [
+    {
+      label: 'cache hits',
+      value: metrics.cacheHits,
+      max: Math.max(decisions, 1),
+      tone: 'bg-amber-500',
+      detail: `${Math.round(metrics.cacheHitRate * 100)}% hit rate`,
+    },
+    {
+      label: 'cache misses',
+      value: metrics.cacheMisses,
+      max: Math.max(decisions, 1),
+      tone: 'bg-neutral-400',
+      detail: `${metrics.cacheMisses} fresh`,
+    },
+    {
+      label: 'retries',
+      value: metrics.retries,
+      max: Math.max(
+        metrics.retries,
+        metrics.contractViolations,
+        metrics.failures,
+        1,
+      ),
+      tone: 'bg-blue-500',
+      detail: `${metrics.retries}`,
+    },
+    {
+      label: 'violations',
+      value: metrics.contractViolations,
+      max: Math.max(
+        metrics.retries,
+        metrics.contractViolations,
+        metrics.failures,
+        1,
+      ),
+      tone: 'bg-orange-500',
+      detail: `${metrics.contractViolations}`,
+    },
+    {
+      label: 'failures',
+      value: metrics.failures,
+      max: Math.max(
+        metrics.retries,
+        metrics.contractViolations,
+        metrics.failures,
+        1,
+      ),
+      tone: 'bg-red-500',
+      detail: `${metrics.failures}`,
+    },
+  ]
+  return (
+    <div aria-label="Execution health chart">
+      <div className="mb-1 text-[10px] uppercase text-neutral-400">
+        execution health
+      </div>
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="grid grid-cols-[7rem_1fr_5rem] items-center gap-2"
+          >
+            <span className="text-[11px] text-neutral-600">{row.label}</span>
+            <UsageBar
+              value={row.value}
+              max={row.max}
+              tone={row.tone}
+              label={`${row.value}`}
+            />
+            <span className="truncate font-mono text-[10px] text-neutral-500">
+              {row.detail}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReplayComparison({
+  metrics,
+}: {
+  metrics: ReturnType<typeof computeMetrics>
+}) {
+  const cached = metrics.nodes.filter((node) => node.cached).length
+  const fresh = metrics.nodes.filter(
+    (node) => !node.cached && node.state === 'succeeded',
+  ).length
+  const failed = metrics.nodes.filter((node) => node.state === 'failed').length
+  const total = Math.max(metrics.nodes.length, 1)
+  return (
+    <div
+      className="rounded border border-neutral-200 p-2"
+      aria-label="Replay and cache comparison"
+    >
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="text-[10px] font-semibold uppercase text-neutral-500">
+          replay/cache comparison
+        </div>
+        <div className="font-mono text-[10px] text-neutral-400">
+          audit view, zero model calls
+        </div>
+      </div>
+      <div className="flex h-3 overflow-hidden rounded bg-neutral-100">
+        <div
+          className="bg-amber-500"
+          style={{ width: `${(cached / total) * 100}%` }}
+          title={`${cached} cached`}
+        />
+        <div
+          className="bg-emerald-500"
+          style={{ width: `${(fresh / total) * 100}%` }}
+          title={`${fresh} fresh successful`}
+        />
+        <div
+          className="bg-red-500"
+          style={{ width: `${(failed / total) * 100}%` }}
+          title={`${failed} failed`}
+        />
+      </div>
+      <div className="mt-1 flex flex-wrap gap-2 font-mono text-[10px] text-neutral-600">
+        <span>{cached} cached</span>
+        <span>{fresh} fresh</span>
+        <span>{failed} failed</span>
+        <span>${metrics.savedCostUsd.toFixed(4)} avoided</span>
+        <span>{metrics.savedTokens} tok avoided</span>
+      </div>
     </div>
   )
 }
