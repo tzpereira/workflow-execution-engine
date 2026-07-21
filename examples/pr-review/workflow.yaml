@@ -7,7 +7,7 @@ version: 1.1.0
 inputs:
   - name: prUrl
     required: true
-    description: GitHub API URL for the PR (https://api.github.com/repos/OWNER/REPO/pulls/N)
+    description: GitHub PR URL (https://github.com/OWNER/REPO/pull/N) or API URL (https://api.github.com/repos/OWNER/REPO/pulls/N)
 nodes:
   - id: fetch-diff
     tool:
@@ -15,6 +15,8 @@ nodes:
       input:
         method: GET
         url: "${input:prUrl}"
+        urlTransform: github-pr-diff
+        failOnStatus: true
         headers:
           Accept: "application/vnd.github.diff"
           Authorization: "${env:GITHUB_AUTH_HEADER:-}"

@@ -23,17 +23,19 @@ become a write, branch, or commit operation.
   correctness/security review whose `contract.outputSchema` bounds every field:
   enum verdict and severities, a `0..100` score, at most five issues, and
   200-character messages. Output is capped at 700 tokens.
-- **[`workflow.yaml`](pr-review/workflow.yaml)** — declares `prUrl`, fetches the
-  diff from `api.github.com`, and calls only that reviewer. One transient retry
-  and a 90-second wall-clock limit keep failure bounded.
+- **[`workflow.yaml`](pr-review/workflow.yaml)** — declares `prUrl`, accepts
+  either a browser PR URL or API URL, fetches the diff from `api.github.com`, and
+  calls only that reviewer. One transient retry and a 90-second wall-clock limit
+  keep failure bounded.
 
 Why tight contracts? Slop needs unbounded space; a contract denies it. A
 reviewer that can return "a paragraph of thoughts" will; one that must return
 `{verdict, score, issues[≤5]}` cannot (PRIN-08).
 
 **Running this for real** only needs `OPENAI_API_KEY`; the sibling `wee.yaml`
-already permits `api.github.com`. Use `pr-review-autofix` separately when a
-human deliberately wants fix generation and local tool actions.
+already permits the normalized `api.github.com` request. Use
+`pr-review-autofix` separately when a human deliberately wants fix generation
+and local tool actions.
 
 ## `test-generator/`
 

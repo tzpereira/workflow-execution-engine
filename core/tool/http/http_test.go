@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	httptool "github.com/tzpereira/workflow-execution-engine/core/tool/http"
@@ -86,6 +87,80 @@ func TestSubdomainSuffixMatch(t *testing.T) {
 	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"method":"GET","url":"https://evil.com"}`)); err == nil {
 		t.Error("evil.com should be denied by a .example.com allowlist")
 	}
+}
+
+func TestGitHubPRDiffTransformAllowsHumanURLThroughAPIAllowlist(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if r.Header.Get("Accept") != "application/vnd.github.diff" {
+			t.Errorf("Accept header = %q", r.Header.Get("Accept"))
+		}
+		_, _ = io.WriteString(w, "diff --git a/a b/a")
+	}))
+	defer srv.Close()
+
+	client := srv.Client()
+	client.Transport = rewriteHostTransport{
+		base:      srv.Client().Transport,
+		targetURL: srv.URL,
+	}
+	tool := httptool.New([]string{"api.github.com"}, client)
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{
+		"method": "GET",
+		"url": "https://github.com/bitcoin/bitcoin/pull/35750/changes",
+		"urlTransform": "github-pr-diff",
+		"headers": {"Accept": "application/vnd.github.diff"},
+		"failOnStatus": true
+	}`))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var r struct {
+		Status int    `json:"status"`
+		Body   string `json:"body"`
+	}
+	_ = json.Unmarshal(out, &r)
+	if gotPath != "/repos/bitcoin/bitcoin/pulls/35750" {
+		t.Fatalf("transformed path = %q", gotPath)
+	}
+	if r.Status != 200 || r.Body != "diff --git a/a b/a" {
+		t.Errorf("got status=%d body=%q", r.Status, r.Body)
+	}
+}
+
+func TestFailOnStatusRejectsHTTPErrorBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, `{"message":"Not Found"}`)
+	}))
+	defer srv.Close()
+
+	host := hostOf(t, srv.URL)
+	tool := httptool.New([]string{host}, srv.Client())
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{"method":"GET","url":"`+srv.URL+`","failOnStatus":true}`))
+	if err == nil {
+		t.Fatal("expected failOnStatus to reject a 404 response")
+	}
+	if !strings.Contains(err.Error(), "status 404") || !strings.Contains(err.Error(), "Not Found") {
+		t.Fatalf("error should include status and body preview, got %v", err)
+	}
+}
+
+type rewriteHostTransport struct {
+	base      http.RoundTripper
+	targetURL string
+}
+
+func (rt rewriteHostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	target, err := url.Parse(rt.targetURL)
+	if err != nil {
+		return nil, err
+	}
+	req.URL.Scheme = target.Scheme
+	req.URL.Host = target.Host
+	req.Host = target.Host
+	return rt.base.RoundTrip(req)
 }
 
 func hostOf(t *testing.T, raw string) string {
