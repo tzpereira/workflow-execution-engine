@@ -63,6 +63,10 @@ function fakeDeps() {
   const fetchTemplates = vi.fn(
     async () => [],
   ) as unknown as LiveDeps['fetchTemplates']
+  const cancelExecution = vi.fn(async () => undefined) as unknown as LiveDeps['cancelExecution']
+  const retryExecution = vi.fn(async (_url: string, id: string) => id) as unknown as LiveDeps['retryExecution']
+  const reexecuteExecution = vi.fn(async () => 'exec-2') as unknown as LiveDeps['reexecuteExecution']
+  const clearCache = vi.fn(async () => 1) as unknown as LiveDeps['clearCache']
 
   return {
     deps: {
@@ -71,6 +75,10 @@ function fakeDeps() {
       fetchAudit,
       fetchExecutions,
       fetchTemplates,
+      cancelExecution,
+      retryExecution,
+      reexecuteExecution,
+      clearCache,
     },
     stops,
     emit: (ev: WFEvent) => capturedOnEvent?.(ev),
@@ -195,6 +203,10 @@ describe('liveStore', () => {
       fetchAudit: vi.fn() as unknown as LiveDeps['fetchAudit'],
       fetchExecutions: vi.fn() as unknown as LiveDeps['fetchExecutions'],
       fetchTemplates: vi.fn() as unknown as LiveDeps['fetchTemplates'],
+      cancelExecution: vi.fn() as unknown as LiveDeps['cancelExecution'],
+      retryExecution: vi.fn() as unknown as LiveDeps['retryExecution'],
+      reexecuteExecution: vi.fn() as unknown as LiveDeps['reexecuteExecution'],
+      clearCache: vi.fn() as unknown as LiveDeps['clearCache'],
     }
     const store = createLiveStore(deps)
     await store.getState().run('missing.yaml', [])
@@ -359,5 +371,55 @@ describe('liveStore', () => {
       expect.anything(),
       { baseUrl: 'http://example.test:9000' },
     )
+  })
+})
+
+describe('liveStore run controls', () => {
+  it('cancel calls the transport for the current execution', async () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.setState({ audit: fakeAudit('exec-1') })
+    await store.getState().cancel()
+    expect(deps.cancelExecution).toHaveBeenCalledWith('http://127.0.0.1:7676', 'exec-1')
+  })
+
+  it('retry resumes the current execution then re-watches it', async () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.setState({ audit: fakeAudit('exec-1') })
+    await store.getState().retry('nodeB')
+    expect(deps.retryExecution).toHaveBeenCalledWith('http://127.0.0.1:7676', 'exec-1', 'nodeB')
+    expect(deps.watchExecution).toHaveBeenCalled()
+    expect(store.getState().connected).toBe(true)
+  })
+
+  it('reexecute starts a new execution and watches the new id', async () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.setState({ audit: fakeAudit('exec-1') })
+    await store.getState().reexecute()
+    expect(deps.reexecuteExecution).toHaveBeenCalledWith('http://127.0.0.1:7676', 'exec-1')
+    // watch() reset the fold seeded for the new run
+    expect(store.getState().connected).toBe(true)
+  })
+
+  it('clearNodeCache clears the current execution node then reloads the audit', async () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.setState({ audit: fakeAudit('exec-1') })
+    await store.getState().clearNodeCache('a')
+    expect(deps.clearCache).toHaveBeenCalledWith('http://127.0.0.1:7676', {
+      executionId: 'exec-1',
+      nodeId: 'a',
+    })
+  })
+
+  it('control actions are no-ops with no current execution', async () => {
+    const { deps } = fakeDeps()
+    const store = createLiveStore(deps)
+    await store.getState().cancel()
+    await store.getState().retry()
+    expect(deps.cancelExecution).not.toHaveBeenCalled()
+    expect(deps.retryExecution).not.toHaveBeenCalled()
   })
 })

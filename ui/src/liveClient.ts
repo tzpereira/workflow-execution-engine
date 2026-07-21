@@ -4,7 +4,7 @@
 // and browser-API-free so the fold itself is unit-tested without a server
 // (ADR 0010, github.com/coder/websocket on the server side).
 
-import type { Audit, ExecutionSummary, ImportedTemplate, Template } from './core/audit'
+import type { Audit, ExecutionSummary, ImportedTemplate, Settings, Template } from './core/audit'
 import type { WFEvent } from './core/live'
 import type { Worker } from './core/model'
 
@@ -193,4 +193,96 @@ export async function unsetSecret(baseUrl: string, name: string): Promise<void> 
   if (!res.ok) {
     throw new Error((await res.text()) || `DELETE /api/secrets failed: ${res.status}`)
   }
+}
+
+// --- Run controls (M2.2, REQ-CTRL-03) ---
+
+/** cancelExecution POSTs /api/executions/{id}/cancel: cancels an in-flight run.
+ *  The server cancels the run's context (REQ-RUNTIME-05); the run finalizes as
+ *  cancelled and the live stream closes. A 409 means it was not running. */
+export async function cancelExecution(baseUrl: string, id: string): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/executions/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `cancel ${id} failed: ${res.status}`)
+  }
+}
+
+/** retryExecution POSTs /api/executions/{id}/retry: resumes the SAME execution,
+ *  reusing completed nodes and re-running the rest. With `from`, that node and
+ *  its downstream re-run too (retry-from-node). Returns the same id it acts on. */
+export async function retryExecution(baseUrl: string, id: string, from?: string): Promise<string> {
+  const res = await fetch(`${baseUrl}/api/executions/${encodeURIComponent(id)}/retry`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(from ? { from } : {}),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `retry ${id} failed: ${res.status}`)
+  }
+  return ((await res.json()) as RunResponse).executionId
+}
+
+/** reexecuteExecution POSTs /api/executions/{id}/reexecute: re-runs the frozen
+ *  workflow as a NEW execution (cache reuses unchanged nodes). Returns the new
+ *  execution id to watch. */
+export async function reexecuteExecution(baseUrl: string, id: string): Promise<string> {
+  const res = await fetch(`${baseUrl}/api/executions/${encodeURIComponent(id)}/reexecute`, { method: 'POST' })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `reexecute ${id} failed: ${res.status}`)
+  }
+  return ((await res.json()) as RunResponse).executionId
+}
+
+export interface CacheClearRequest {
+  all?: boolean
+  keys?: string[]
+  executionId?: string
+  nodeId?: string
+}
+
+/** clearCache POSTs /api/cache/clear: clears everything (`all`), specific keys,
+ *  or the keys a given execution (optionally one node) recorded. Returns how
+ *  many entries were removed. */
+export async function clearCache(baseUrl: string, req: CacheClearRequest): Promise<number> {
+  const res = await fetch(`${baseUrl}/api/cache/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `cache clear failed: ${res.status}`)
+  }
+  return ((await res.json()) as { removed: number }).removed
+}
+
+/** bundleUrl is the GET download URL for an execution's portable bundle (tar) —
+ *  used as an anchor href so the browser downloads it directly. */
+export function bundleUrl(baseUrl: string, id: string): string {
+  return `${baseUrl}/api/executions/${encodeURIComponent(id)}/bundle`
+}
+
+// --- Durable settings (M2.2, REQ-CTRL-05) ---
+
+/** fetchSettings GETs /api/settings: the durable, non-secret control-plane
+ *  config. Never returns a secret value. */
+export async function fetchSettings(baseUrl: string): Promise<Settings> {
+  const res = await fetch(`${baseUrl}/api/settings`)
+  if (!res.ok) {
+    throw new Error((await res.text()) || `GET /api/settings failed: ${res.status}`)
+  }
+  return (await res.json()) as Settings
+}
+
+/** saveSettings PUTs /api/settings and returns the persisted copy. Any secret
+ *  value sent is dropped server-side (the Settings type has no field for one). */
+export async function saveSettings(baseUrl: string, settings: Settings): Promise<Settings> {
+  const res = await fetch(`${baseUrl}/api/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `PUT /api/settings failed: ${res.status}`)
+  }
+  return (await res.json()) as Settings
 }

@@ -9,12 +9,19 @@ import type {
 import type { WFEvent } from './core/live'
 import type { Worker } from './core/model'
 import {
+  bundleUrl,
+  cancelExecution,
+  clearCache,
   fetchAudit,
   fetchExecutions,
   fetchSecretsStatus,
+  fetchSettings,
   fetchTemplates,
   fetchWorkerVersions,
   importTemplate,
+  reexecuteExecution,
+  retryExecution,
+  saveSettings,
   saveWorker,
   setSecret,
   startRun,
@@ -574,5 +581,65 @@ describe('unsetSecret', () => {
     await expect(unsetSecret('http://127.0.0.1:7676', '')).rejects.toThrow(
       'name is required',
     )
+  })
+})
+
+describe('run controls', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('retryExecution POSTs {from} and returns the id', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('http://s/api/executions/e1/retry')
+      expect(JSON.parse(String(init?.body))).toEqual({ from: 'nodeB' })
+      return new Response(JSON.stringify({ executionId: 'e1' }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(retryExecution('http://s', 'e1', 'nodeB')).resolves.toBe('e1')
+  })
+
+  it('reexecuteExecution returns the new execution id', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ executionId: 'e2' }), { status: 200 })))
+    await expect(reexecuteExecution('http://s', 'e1')).resolves.toBe('e2')
+  })
+
+  it('cancelExecution surfaces a 409 as an error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('execution is not running', { status: 409 })))
+    await expect(cancelExecution('http://s', 'e1')).rejects.toThrow('not running')
+  })
+
+  it('clearCache returns the removed count', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ executionId: 'e1', nodeId: 'a' })
+      return new Response(JSON.stringify({ removed: 2 }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(clearCache('http://s', { executionId: 'e1', nodeId: 'a' })).resolves.toBe(2)
+  })
+
+  it('bundleUrl builds the download URL', () => {
+    expect(bundleUrl('http://s', 'e 1')).toBe('http://s/api/executions/e%201/bundle')
+  })
+})
+
+describe('durable settings', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('fetchSettings returns the persisted config', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ cacheMode: 'readonly' }), { status: 200 })))
+    await expect(fetchSettings('http://s')).resolves.toEqual({ cacheMode: 'readonly' })
+  })
+
+  it('saveSettings PUTs and returns the saved copy', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('http://s/api/settings')
+      expect(init?.method).toBe('PUT')
+      return new Response(String(init?.body), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(saveSettings('http://s', { defaultBudgetUsd: 5 })).resolves.toEqual({ defaultBudgetUsd: 5 })
   })
 })

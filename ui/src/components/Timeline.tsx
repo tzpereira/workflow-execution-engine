@@ -6,6 +6,7 @@ import { useWorkspace } from '../store'
 import { EventList } from './EventList'
 import { HistoryTable } from './HistoryTable'
 import { MetricsPanel } from './MetricsPanel'
+import { RunControls } from './RunControls'
 
 type Tab = 'timeline' | 'logs' | 'metrics' | 'history'
 
@@ -32,13 +33,9 @@ export function Timeline({
 }) {
   const [tab, setTab] = useState<Tab>('timeline')
   const nodes = useWorkspace((s) => s.nodes)
-  const fileName = useWorkspace((s) => s.fileName)
   const live = useLive((s) => s.live)
   const audit = useLive((s) => s.audit)
-  const connected = useLive((s) => s.connected)
-  const run = useLive((s) => s.run)
   const isWatching = live.state !== 'idle'
-  const canRetry = live.state === 'failed' && !connected && fileName !== null
   const failedNodes = Object.values(live.nodes).filter(
     (n) => n.status === 'failed',
   ).length
@@ -144,22 +141,7 @@ export function Timeline({
               )}
             </div>
           )}
-          {canRetry && (
-            <button
-              type="button"
-              className="btn"
-              onClick={() =>
-                void run(
-                  fileName,
-                  nodes.map((n) => n.id),
-                  audit?.inputs,
-                )
-              }
-              title="Start a new execution with the same inputs; completed model nodes are reused from cache"
-            >
-              Retry failed
-            </button>
-          )}
+          <RunControls />
           {onToggleMaximize && (
             <button
               type="button"

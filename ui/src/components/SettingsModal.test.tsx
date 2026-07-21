@@ -112,7 +112,30 @@ describe('SettingsModal', () => {
 
   it('shows a load error instead of a blank panel', async () => {
     vi.spyOn(liveClient, 'fetchSecretsStatus').mockRejectedValue(new Error('boom'))
+    vi.spyOn(liveClient, 'fetchSettings').mockRejectedValue(new Error('unreachable'))
     render(<SettingsModal open onOpenChange={() => {}} />)
     expect(await screen.findByText('boom')).toBeInTheDocument()
+  })
+
+  it('loads durable settings and persists edits to disk (REQ-CTRL-05)', async () => {
+    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
+      OPENAI_API_KEY: false,
+      ANTHROPIC_API_KEY: false,
+      GITHUB_AUTH_HEADER: false,
+      WEE_WORKSPACE_ROOT: false,
+    })
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({ cacheMode: 'on' })
+    const saveSpy = vi
+      .spyOn(liveClient, 'saveSettings')
+      .mockResolvedValue({ cacheMode: 'on', defaultBudgetUsd: 2.5 })
+    render(<SettingsModal open onOpenChange={() => {}} />)
+
+    const budget = await screen.findByPlaceholderText("0 = use each workflow's own")
+    fireEvent.change(budget, { target: { value: '2.5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalled())
+    expect(saveSpy.mock.calls[0][1]).toMatchObject({ defaultBudgetUsd: 2.5 })
+    expect(await screen.findByText('saved')).toBeInTheDocument()
   })
 })

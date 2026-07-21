@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import { fetchSecretsStatus, setSecret, unsetSecret } from '../liveClient'
+import type { Settings } from '../core/audit'
+import { fetchSecretsStatus, fetchSettings, saveSettings, setSecret, unsetSecret } from '../liveClient'
 import { useLive } from '../liveStore'
 
 // The settings this project ships examples for. API keys are secrets; the
@@ -54,6 +55,11 @@ export function SettingsModal({
   const [busy, setBusy] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Durable, non-secret settings (persisted to settings.json, REQ-CTRL-05) —
+  // distinct from the in-memory secrets above.
+  const [settings, setSettings] = useState<Settings>({})
+  const [settingsBusy, setSettingsBusy] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -84,6 +90,43 @@ export function SettingsModal({
       cancelled = true
     }
   }, [open, serverUrl])
+
+  // Load the durable settings when the modal opens.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetchSettings(serverUrl)
+      .then((s) => {
+        if (!cancelled) setSettings(s)
+      })
+      .catch(() => {
+        // Non-fatal: an unreachable server already surfaces via the secrets
+        // load above; the durable section just stays at its defaults.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, serverUrl])
+
+  async function saveDurable() {
+    setSettingsBusy(true)
+    setSettingsSaved(false)
+    setError(null)
+    try {
+      const saved = await saveSettings(serverUrl, settings)
+      setSettings(saved)
+      setSettingsSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSettingsBusy(false)
+    }
+  }
+
+  function patchBaseUrl(provider: string, url: string) {
+    setSettingsSaved(false)
+    setSettings((s) => ({ ...s, providerBaseUrls: { ...s.providerBaseUrls, [provider]: url } }))
+  }
 
   if (!open) return null
 
@@ -221,6 +264,79 @@ export function SettingsModal({
               </div>
             </div>
           ))}
+
+          <div className="border-t border-neutral-200 pt-3">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-xs font-semibold text-neutral-900">Durable settings</span>
+              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">saved to disk</span>
+            </div>
+            <p className="mb-2 text-xs text-neutral-500">
+              Persisted in the workspace and applied to runs — they survive a <code>wee serve</code> restart.
+              No secret values are ever stored here.
+            </p>
+            <div className="space-y-2">
+              <label className="block">
+                <span className="text-[11px] font-medium text-neutral-700">OpenAI base URL</span>
+                <input
+                  type="text"
+                  value={settings.providerBaseUrls?.openai ?? ''}
+                  onChange={(e) => patchBaseUrl('openai', e.target.value)}
+                  placeholder="https://api.openai.com/v1 (or a self-hosted endpoint)"
+                  className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-medium text-neutral-700">Anthropic base URL</span>
+                <input
+                  type="text"
+                  value={settings.providerBaseUrls?.anthropic ?? ''}
+                  onChange={(e) => patchBaseUrl('anthropic', e.target.value)}
+                  placeholder="https://api.anthropic.com/v1"
+                  className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                />
+              </label>
+              <div className="flex gap-2">
+                <label className="flex-1">
+                  <span className="text-[11px] font-medium text-neutral-700">Default budget (USD)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={settings.defaultBudgetUsd ?? ''}
+                    onChange={(e) => {
+                      setSettingsSaved(false)
+                      setSettings((s) => ({ ...s, defaultBudgetUsd: e.target.value === '' ? undefined : Number(e.target.value) }))
+                    }}
+                    placeholder="0 = use each workflow's own"
+                    className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                  />
+                </label>
+                <label className="flex-1">
+                  <span className="text-[11px] font-medium text-neutral-700">Cache mode</span>
+                  <select
+                    value={settings.cacheMode ?? ''}
+                    onChange={(e) => {
+                      setSettingsSaved(false)
+                      setSettings((s) => ({ ...s, cacheMode: e.target.value || undefined }))
+                    }}
+                    className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                    aria-label="Cache mode"
+                  >
+                    <option value="">default (on)</option>
+                    <option value="on">on</option>
+                    <option value="readonly">readonly</option>
+                    <option value="off">off</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" className="btn btn-primary" disabled={settingsBusy} onClick={() => void saveDurable()}>
+                  {settingsBusy ? 'saving' : 'Save settings'}
+                </button>
+                {settingsSaved && <span className="text-[11px] text-emerald-600">saved</span>}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

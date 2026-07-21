@@ -61,6 +61,19 @@ export interface ExecutionSummary {
   durationMs: number
 }
 
+/** Settings mirrors core/settings.Settings — the durable, non-secret
+ *  control-plane config (GET/PUT /api/settings, REQ-CTRL-05). It never carries a
+ *  secret value: ProviderKeyEnv records the env-var NAME a provider's key comes
+ *  from, never the key (PRIN-10). */
+export interface Settings {
+  providerBaseUrls?: Record<string, string>
+  providerKeyEnv?: Record<string, string>
+  defaultBudgetUsd?: number
+  cacheMode?: string
+  workspaceRoot?: string
+  templatePaths?: string[]
+}
+
 /** Audit mirrors core/server.Audit (replay.Timeline plus the derived State). */
 export interface Audit {
   executionId: string

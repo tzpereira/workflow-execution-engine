@@ -9,9 +9,13 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand'
 import type { Audit, ExecutionSummary, Template } from './core/audit'
 import { emptyLive, reduce, reduceAll, type LiveState } from './core/live'
 import {
+  cancelExecution as defaultCancelExecution,
+  clearCache as defaultClearCache,
   fetchAudit as defaultFetchAudit,
   fetchExecutions as defaultFetchExecutions,
   fetchTemplates as defaultFetchTemplates,
+  reexecuteExecution as defaultReexecuteExecution,
+  retryExecution as defaultRetryExecution,
   startRun as defaultStartRun,
   watchExecution as defaultWatchExecution,
 } from './liveClient'
@@ -22,6 +26,10 @@ export interface LiveDeps {
   fetchAudit: typeof defaultFetchAudit
   fetchExecutions: typeof defaultFetchExecutions
   fetchTemplates: typeof defaultFetchTemplates
+  cancelExecution: typeof defaultCancelExecution
+  retryExecution: typeof defaultRetryExecution
+  reexecuteExecution: typeof defaultReexecuteExecution
+  clearCache: typeof defaultClearCache
 }
 
 const defaultDeps: LiveDeps = {
@@ -30,6 +38,10 @@ const defaultDeps: LiveDeps = {
   fetchAudit: defaultFetchAudit,
   fetchExecutions: defaultFetchExecutions,
   fetchTemplates: defaultFetchTemplates,
+  cancelExecution: defaultCancelExecution,
+  retryExecution: defaultRetryExecution,
+  reexecuteExecution: defaultReexecuteExecution,
+  clearCache: defaultClearCache,
 }
 
 export interface LiveStoreState {
@@ -47,6 +59,11 @@ export interface LiveStoreState {
   /** M1.14's template gallery source (GET /api/templates). */
   templates: Template[]
   templatesError: string | null
+  /** Wall-clock ms of the last event folded from the live stream — the liveness
+   *  signal RunControls uses to show "still working (idle Ns)" for a long node
+   *  that has not emitted an event yet (REQ-CTRL-06). null when nothing is
+   *  being watched. */
+  lastEventAt: number | null
 
   setServerUrl: (url: string) => void
   /** Open the WebSocket stream for execId, resetting the fold seeded with
@@ -73,7 +90,26 @@ export interface LiveStoreState {
    *  finished run's own recorded events. Disconnects any active watch first:
    *  a historical load and a live watch are mutually exclusive views. */
   loadHistorical: (execId: string) => Promise<void>
+  /** Cancel the current execution (REQ-CTRL-03). The server cancels the run;
+   *  the live stream closes on the resulting terminal event. */
+  cancel: () => Promise<void>
+  /** Resume/retry the current execution in place (REQ-CTRL-03/04): completed
+   *  nodes are reused, the rest re-run. With `from`, that node and its
+   *  downstream re-run too. Re-watches the same id so the new work streams in. */
+  retry: (from?: string) => Promise<void>
+  /** Re-execute the current execution's frozen workflow as a NEW execution
+   *  (cache reuses unchanged nodes) and watch it (REQ-CTRL-03). */
+  reexecute: () => Promise<void>
+  /** Clear the current execution's cache — all its nodes, or one (REQ-CTRL-03).
+   *  Refreshes the audit so the next retry/re-exec recomputes the cleared node. */
+  clearNodeCache: (nodeId?: string) => Promise<void>
   disconnect: () => void
+}
+
+/** currentExecId is the execution the control actions operate on: the live
+ *  stream's id if one is being watched, else the loaded audit's id. */
+function currentExecId(s: LiveStoreState): string | null {
+  return s.live.executionId || s.audit?.executionId || null
 }
 
 /** createLiveStore takes injectable transport deps so the store's own logic —
@@ -92,6 +128,7 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
     executionsError: null,
     templates: [],
     templatesError: null,
+    lastEventAt: null,
 
     setServerUrl: (url) => set({ serverUrl: url }),
 
@@ -100,7 +137,7 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
       const stop = deps.watchExecution(
         execId,
         {
-          onEvent: (ev) => set((s) => ({ live: reduce(s.live, ev) })),
+          onEvent: (ev) => set((s) => ({ live: reduce(s.live, ev), lastEventAt: Date.now() })),
           onDone: () => {
             set({ connected: false })
             void get().loadAudit(execId)
@@ -108,7 +145,7 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
         },
         { baseUrl: get().serverUrl },
       )
-      set({ live: emptyLive(nodeIds), connected: true, error: null, stop, audit: null })
+      set({ live: emptyLive(nodeIds), connected: true, error: null, stop, audit: null, lastEventAt: Date.now() })
       void get().loadAudit(execId)
     },
 
@@ -158,6 +195,53 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
       try {
         const execId = await deps.startRun(get().serverUrl, workflowRef, inputs)
         get().watch(execId, nodeIds)
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    cancel: async () => {
+      const id = currentExecId(get())
+      if (!id) return
+      try {
+        await deps.cancelExecution(get().serverUrl, id)
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    retry: async (from) => {
+      const id = currentExecId(get())
+      if (!id) return
+      const nodeIds = get().audit?.workflow.nodes.map((n) => n.id) ?? []
+      set({ error: null })
+      try {
+        await deps.retryExecution(get().serverUrl, id, from)
+        get().watch(id, nodeIds)
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    reexecute: async () => {
+      const id = currentExecId(get())
+      if (!id) return
+      const nodeIds = get().audit?.workflow.nodes.map((n) => n.id) ?? []
+      set({ error: null })
+      try {
+        const newId = await deps.reexecuteExecution(get().serverUrl, id)
+        get().watch(newId, nodeIds)
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    clearNodeCache: async (nodeId) => {
+      const id = currentExecId(get())
+      if (!id) return
+      try {
+        await deps.clearCache(get().serverUrl, { executionId: id, nodeId })
+        await get().loadAudit(id)
       } catch (e) {
         set({ error: e instanceof Error ? e.message : String(e) })
       }
