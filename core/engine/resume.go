@@ -37,14 +37,44 @@ type Snapshot struct {
 // done (reusing its persisted artifact), and runs the rest — so finished nodes
 // are never re-executed. It appends to the same execution's log.
 func (s *Scheduler) Resume(ctx context.Context, executionID string) (*Result, error) {
+	snap, precompleted, err := s.reconstruct(executionID)
+	if err != nil {
+		return nil, err
+	}
+	return s.run(ctx, &snap.Workflow, resumeOpts(executionID, snap), precompleted, false)
+}
+
+// ResumeFrom is Resume, but node fromNodeID and every node reachable from it are
+// forced to re-execute even if they previously finished; everything upstream is
+// still reused from the record. This is the control plane's "retry from node"
+// (REQ-CTRL-03, ADR 0012): re-run this node and its downstream, keep the rest.
+// It pairs with a cache clear (or cache=off) when the intent is to genuinely
+// recompute rather than serve the same cached artifact for an unchanged key.
+func (s *Scheduler) ResumeFrom(ctx context.Context, executionID, fromNodeID string) (*Result, error) {
+	snap, precompleted, err := s.reconstruct(executionID)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := nodeByID(&snap.Workflow, fromNodeID); !ok {
+		return nil, fmt.Errorf("engine: resume-from %s: node %q not in workflow", executionID, fromNodeID)
+	}
+	for id := range descendantsInclusive(&snap.Workflow, fromNodeID) {
+		delete(precompleted, id) // drop this node + its downstream so they re-run
+	}
+	return s.run(ctx, &snap.Workflow, resumeOpts(executionID, snap), precompleted, false)
+}
+
+// reconstruct reads an execution's frozen snapshot and rebuilds the set of nodes
+// already completed on a prior run (those with a recorded WorkerFinished and a
+// reloadable artifact) — the shared precondition for Resume and ResumeFrom.
+func (s *Scheduler) reconstruct(executionID string) (Snapshot, map[string]nodeOutput, error) {
 	var snap Snapshot
 	if err := s.log.ReadSnapshot(executionID, &snap); err != nil {
-		return nil, fmt.Errorf("engine: resume %s: %w", executionID, err)
+		return Snapshot{}, nil, fmt.Errorf("engine: resume %s: %w", executionID, err)
 	}
-
 	events, err := s.log.ReadAll(executionID)
 	if err != nil {
-		return nil, fmt.Errorf("engine: resume %s: %w", executionID, err)
+		return Snapshot{}, nil, fmt.Errorf("engine: resume %s: %w", executionID, err)
 	}
 
 	// A node is done iff it recorded a WorkerFinished; its artifact hash comes
@@ -75,12 +105,18 @@ func (s *Scheduler) Resume(ctx context.Context, executionID string) (*Result, er
 		}
 		content, err := s.store.Get(hash)
 		if err != nil {
-			return nil, fmt.Errorf("engine: resume %s: reload artifact for node %q: %w", executionID, nodeID, err)
+			return Snapshot{}, nil, fmt.Errorf("engine: resume %s: reload artifact for node %q: %w", executionID, nodeID, err)
 		}
 		precompleted[nodeID] = nodeOutput{Hash: hash, Content: content, Type: typeByNode[nodeID]}
 	}
+	return snap, precompleted, nil
+}
 
-	opts := RunOptions{
+// resumeOpts rebuilds the RunOptions a resumed run needs from the frozen
+// snapshot — concurrency, budget, inputs, and the definition/worker pins — so a
+// resumed run's remaining nodes see exactly what the original run resolved.
+func resumeOpts(executionID string, snap Snapshot) RunOptions {
+	return RunOptions{
 		ExecutionID:      executionID,
 		Concurrency:      snap.Concurrency,
 		Budget:           snap.Budget,
@@ -88,5 +124,36 @@ func (s *Scheduler) Resume(ctx context.Context, executionID string) (*Result, er
 		DefinitionHashes: snap.DefinitionHashes,
 		Workers:          snap.Workers,
 	}
-	return s.run(ctx, &snap.Workflow, opts, precompleted, false)
+}
+
+// nodeByID finds a node in wf by id.
+func nodeByID(wf *domain.Workflow, id string) (domain.Node, bool) {
+	for _, n := range wf.Nodes {
+		if n.ID == id {
+			return n, true
+		}
+	}
+	return domain.Node{}, false
+}
+
+// descendantsInclusive returns start plus every node reachable from it by
+// following edges forward (start's transitive downstream). Used by ResumeFrom to
+// decide which recorded nodes to invalidate. Robust to cycles via a visited set.
+func descendantsInclusive(wf *domain.Workflow, start string) map[string]bool {
+	children := make(map[string][]string)
+	for _, e := range wf.Edges {
+		children[e.From] = append(children[e.From], e.To)
+	}
+	seen := map[string]bool{}
+	queue := []string{start}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		queue = append(queue, children[id]...)
+	}
+	return seen
 }

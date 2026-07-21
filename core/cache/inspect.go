@@ -44,3 +44,28 @@ func (c *Cache) Clear() error {
 	c.loaded = true
 	return c.save()
 }
+
+// Delete removes the named cache entries, leaving the rest of the index intact
+// (REQ-CTRL-03's clear-cache-for-node/workflow granularity — the control plane
+// resolves a node's key from its recorded CacheHit/CacheMiss event, then calls
+// this). Keys with no entry are ignored. Like Clear, shared-store artifacts are
+// never touched — only the index references are dropped. Returns the number of
+// entries actually removed so a caller can report "cleared N".
+func (c *Cache) Delete(keys ...string) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.ensureLoaded(); err != nil {
+		return 0, err
+	}
+	removed := 0
+	for _, k := range keys {
+		if _, ok := c.index[k]; ok {
+			delete(c.index, k)
+			removed++
+		}
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	return removed, c.save()
+}
