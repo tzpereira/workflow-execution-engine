@@ -16,11 +16,13 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/registry"
 	"github.com/tzpereira/workflow-execution-engine/core/serialize"
+	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
 // writeSnapshot seeds a minimal snapshot so Append can chain the first event to
@@ -40,13 +42,41 @@ func appendEvent(t *testing.T, log *eventlog.Log, id string, typ domain.EventTyp
 }
 
 // fastServer builds a Server over a temp workspace with a short poll so live
-// tests don't wait 40ms per tick.
-func fastServer(t *testing.T, start StartFunc) (*Server, *eventlog.Log) {
+// tests don't wait 40ms per tick. A nil assemble leaves the run controls
+// disabled (a read-only server) — what most read-side tests want.
+func fastServer(t *testing.T, assemble Assembler) (*Server, *eventlog.Log) {
 	t.Helper()
 	ws := t.TempDir()
-	s := New(Config{Workspace: ws, Start: start})
+	s := New(Config{Workspace: ws, Assemble: assemble})
 	s.poll = 2 * time.Millisecond
 	return s, eventlog.New(ws)
+}
+
+// stubExec is a NodeExecutor that returns a fixed JSON artifact without a model
+// or tool — enough to drive a run to completion through the real Scheduler.
+type stubExec struct{}
+
+func (stubExec) Execute(_ context.Context, _ engine.NodeRequest) (engine.NodeResult, error) {
+	return engine.NodeResult{Content: []byte(`{"ok":true}`), Type: domain.ArtifactJSON}, nil
+}
+
+// waitForEvent polls an execution's log until an event of typ appears (or fails
+// the test). Used by control-plane tests that launch a background run and need
+// to observe its recorded outcome.
+func waitForEvent(t *testing.T, log *eventlog.Log, id string, typ domain.EventType) {
+	t.Helper()
+	for i := 0; i < 400; i++ {
+		events, err := log.ReadAll(id)
+		if err == nil {
+			for _, ev := range events {
+				if ev.Type == typ {
+					return
+				}
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s on %s", typ, id)
 }
 
 // fastServerWithTemplates is fastServer plus a Dir (a fresh temp dir, for
@@ -223,17 +253,23 @@ func TestAuditExposesWorkflowAndWorkers(t *testing.T) {
 	}
 }
 
-func TestRunInvokesStartFuncAndReturnsID(t *testing.T) {
+// TestRunStartsExecutionAndReturnsID: POST /api/run assembles the workflow,
+// mints an id, runs it in the background to completion, and persists run params
+// (REQ-CTRL-03/07). The Assembler receives the ref and the server owns the run.
+func TestRunStartsExecutionAndReturnsID(t *testing.T) {
+	ws := t.TempDir()
 	var mu sync.Mutex
 	var gotRef string
-	var gotInputs map[string]string
-	start := func(ref string, inputs map[string]string) (string, error) {
+	asm := func(ref string) (*Assembly, error) {
 		mu.Lock()
-		gotRef, gotInputs = ref, inputs
+		gotRef = ref
 		mu.Unlock()
-		return "exec-123", nil
+		sched := engine.New(stubExec{}, store.New(ws), eventlog.New(ws), cache.New(ws))
+		wf := &domain.Workflow{ID: "hello", Version: "1.0.0", Nodes: []domain.Node{{ID: "a"}}}
+		return &Assembly{Scheduler: sched, Workflow: wf}, nil
 	}
-	s, _ := fastServer(t, start)
+	s := New(Config{Workspace: ws, Assemble: asm, NewID: func(id string) string { return id + "-exec1" }})
+	s.poll = 2 * time.Millisecond
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
@@ -248,20 +284,31 @@ func TestRunInvokesStartFuncAndReturnsID(t *testing.T) {
 	}
 	var out runResponse
 	json.NewDecoder(resp.Body).Decode(&out)
-	if out.ExecutionID != "exec-123" {
-		t.Errorf("executionId = %q", out.ExecutionID)
+	if out.ExecutionID != "hello-exec1" {
+		t.Fatalf("executionId = %q, want hello-exec1", out.ExecutionID)
 	}
+
+	log := eventlog.New(ws)
+	waitForEvent(t, log, out.ExecutionID, domain.ExecutionFinished)
+
 	mu.Lock()
-	defer mu.Unlock()
 	if gotRef != "examples/hello.yaml" {
-		t.Errorf("start got ref %q", gotRef)
+		t.Errorf("assembler got ref %q, want examples/hello.yaml", gotRef)
 	}
-	if gotInputs["prUrl"] != "https://example.com/42" {
-		t.Errorf("start got inputs %v, want prUrl=https://example.com/42", gotInputs)
+	mu.Unlock()
+
+	// Run params are persisted (so the run can later be resumed/retried), with
+	// the caller's inputs — and no secret (there are none here to leak).
+	rp, err := s.readRunParams(out.ExecutionID)
+	if err != nil {
+		t.Fatalf("read run params: %v", err)
+	}
+	if rp.Workflow != "examples/hello.yaml" || rp.Inputs["prUrl"] != "https://example.com/42" {
+		t.Errorf("run params = %+v, want workflow+inputs recorded", rp)
 	}
 }
 
-func TestRunDisabledWithoutStartFunc(t *testing.T) {
+func TestRunDisabledWithoutAssembler(t *testing.T) {
 	s, _ := fastServer(t, nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()

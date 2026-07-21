@@ -1,14 +1,20 @@
 package cmd
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/tzpereira/workflow-execution-engine/cli/internal/runner"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/server"
 )
 
 func TestServeCommandRegistered(t *testing.T) {
@@ -21,11 +27,12 @@ func TestServeCommandRegistered(t *testing.T) {
 	t.Fatal("serve command is not registered on root")
 }
 
-// TestRunStarterExecutesInBackground drives the exact closure `wee serve` hands
-// the HTTP server: it must resolve a tool-only workflow (no API key needed),
-// return an execution id immediately, and run to completion in the background,
-// writing the terminal ExecutionFinished event to the log the live stream tails.
-func TestRunStarterExecutesInBackground(t *testing.T) {
+// TestServeRunsWorkflowInBackground drives the real serve wiring end to end: the
+// runAssembler `wee serve` injects resolves a tool-only workflow (no API key
+// needed), and POST /api/run returns an id immediately while the run completes
+// in the background, writing the terminal ExecutionFinished the live stream
+// tails (REQ-CTRL-03).
+func TestServeRunsWorkflowInBackground(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "check.yaml"), `id: build-check
 version: 1.0.0
@@ -42,22 +49,37 @@ budget: {maxCostUsd: 0, maxTokens: 0, maxDurationMs: 30000, maxRetriesPerNode: 1
 	writeFile(t, filepath.Join(dir, "wee.yaml"), "terminal:\n  allow: [\"echo\"]\n  timeoutMs: 5000\n")
 
 	workspace := filepath.Join(dir, ".workflow")
-	start := runStarter(dir, workspace, engine.CacheMode("on"))
+	srv := server.New(server.Config{
+		Workspace:    workspace,
+		Assemble:     runAssembler(dir, workspace),
+		NewID:        runner.NewExecutionID,
+		DefaultCache: engine.CacheOff,
+		Dir:          dir,
+	})
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
 
-	execID, err := start("check.yaml", nil)
+	resp, err := http.Post(ts.URL+"/api/run", "application/json", strings.NewReader(`{"workflow":"check.yaml"}`))
 	if err != nil {
-		t.Fatalf("start: %v", err)
+		t.Fatalf("post run: %v", err)
 	}
-	if execID == "" {
-		t.Fatal("empty execution id")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var out struct {
+		ExecutionID string `json:"executionId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || out.ExecutionID == "" {
+		t.Fatalf("decode run response: %v (id=%q)", err, out.ExecutionID)
 	}
 
-	// The run is asynchronous; poll the log (as the WebSocket handler does) for the
-	// terminal event.
+	// The run is asynchronous; poll the log (as the WebSocket handler does) for
+	// the terminal event and assert it succeeded.
 	log := eventlog.New(workspace)
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		events, err := log.ReadAll(execID)
+		events, err := log.ReadAll(out.ExecutionID)
 		if err == nil && len(events) > 0 && events[len(events)-1].Type == domain.ExecutionFinished {
 			if st, _ := events[len(events)-1].Payload["state"].(string); st != string(domain.ExecutionSucceeded) {
 				t.Fatalf("run finished in state %q, want succeeded", st)
@@ -71,10 +93,9 @@ budget: {maxCostUsd: 0, maxTokens: 0, maxDurationMs: 30000, maxRetriesPerNode: 1
 	}
 }
 
-func TestRunStarterRejectsMissingWorkflow(t *testing.T) {
+func TestRunAssemblerRejectsMissingWorkflow(t *testing.T) {
 	dir := t.TempDir()
-	start := runStarter(dir, filepath.Join(dir, ".workflow"), engine.CacheMode("on"))
-	if _, err := start("does-not-exist.yaml", nil); err == nil {
+	if _, err := runAssembler(dir, filepath.Join(dir, ".workflow"))("does-not-exist.yaml"); err == nil {
 		t.Fatal("expected an error for a missing workflow file")
 	}
 }

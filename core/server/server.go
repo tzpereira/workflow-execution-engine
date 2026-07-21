@@ -1,8 +1,11 @@
-// Package server exposes a recorded or in-flight execution's event stream over
-// HTTP, so a browser client (the UI, M1.12) can watch a run live. It is a pure
-// reader of the event log — the single source of truth (PRIN-02) — plus one
-// injected hook to start a run; it never holds engine state of its own and
-// never becomes a second record of what happened.
+// Package server is the local control plane: it exposes a recorded or in-flight
+// execution's event stream over HTTP (so the UI can watch a run live, M1.12) and
+// drives the run lifecycle — start, cancel, resume, retry-from-node, re-execute,
+// clear cache, export bundle — plus durable, non-secret settings (M2.2, ADR
+// 0012). History always remains the event log, the single source of truth
+// (PRIN-02); the only process-local state the server holds is the registry of
+// in-flight runs' cancel handles, reconciled against disk on startup (Reconcile)
+// so a restart never loses or misreports a run.
 //
 // The live transport is WebSocket via github.com/coder/websocket (ADR 0010,
 // superseding ADR 0009's Server-Sent Events choice): one JSON text frame per
@@ -14,6 +17,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,62 +30,91 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/tzpereira/workflow-execution-engine/core/cache"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
+	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/registry"
 	"github.com/tzpereira/workflow-execution-engine/core/replay"
 	"github.com/tzpereira/workflow-execution-engine/core/serialize"
+	"github.com/tzpereira/workflow-execution-engine/core/settings"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
-// StartFunc begins a workflow execution and returns its id immediately; the run
-// itself proceeds in the background (it must NOT be bound to the HTTP request's
-// context, which ends when the POST returns). ref identifies the workflow to the
-// concrete implementation — the CLI wires a runner-backed starter that resolves
-// ref as a workflow file path. inputs supplies values for the workflow's
-// declared Inputs (REQ-INPUT-01) — nil is fine for a workflow with none. A nil
-// StartFunc disables POST /api/run (501), leaving a read-only server that
-// still streams and audits existing executions.
-type StartFunc func(ref string, inputs map[string]string) (execID string, err error)
+// Assembly is a runnable engine for one workflow: the wired Scheduler plus the
+// resolved Workflow and the definition/Worker pins a fresh run records in its
+// snapshot. The server drives it — owning the goroutine and cancel context —
+// rather than the assembler launching runs itself, so every run started through
+// the API is cancellable and reconcilable.
+type Assembly struct {
+	Scheduler        *engine.Scheduler
+	Workflow         *domain.Workflow
+	DefinitionHashes map[string]string
+	Workers          map[string]domain.Worker
+}
+
+// Assembler builds an Assembly from a workflow ref (a path under Dir). The CLI
+// wires a runner-backed implementation (loading the workflow, its Workers, and
+// its sandboxed tools); it returns an error for a missing or invalid workflow. A
+// nil Assembler makes the server read-only: it still streams and audits existing
+// executions, but every run control returns 501.
+type Assembler func(ref string) (*Assembly, error)
 
 // defaultPoll is how often the live WebSocket handler re-reads the log for new
 // events. It matches `wee run`'s streamer tick: fast enough to feel live, cheap
 // enough for a local dev tool. The client sees pushed frames, never this tail.
 const defaultPoll = 40 * time.Millisecond
 
-// Server serves the read side of the workspace over HTTP.
+// Server is the local control plane over the workspace. Beyond the read side
+// (list/audit/stream) it owns the run lifecycle: `runs` holds the cancel handle
+// of each execution started in THIS process (the one bit of process-local
+// state, reconciled against disk on startup), `settings` is the durable
+// non-secret config, and `assemble`/`newID` are the injected seam that turns a
+// workflow ref into a runnable engine without core/server importing the CLI.
 type Server struct {
 	log          *eventlog.Log
 	store        *store.Store
+	cache        *cache.Cache
+	settings     *settings.Store
 	workspace    string
 	dir          string
 	templatesDir string
-	start        StartFunc
+	assemble     Assembler
+	newID        func(workflowID string) string
+	defaultCache engine.CacheMode
+	runs         *runRegistry
 	mux          *http.ServeMux
 	poll         time.Duration
 }
 
-// Config configures a Server. Workspace and Start are the only two most
-// callers need; Dir and TemplatesDir exist for POST /api/run's workflow-path
-// resolution and M1.14's template gallery respectively — both "" leaves the
-// corresponding feature inert (Dir empty behaves as "." did before this
-// field existed; TemplatesDir empty disables GET/POST /api/templates*).
+// Config configures a Server. Workspace is the only field most read-only callers
+// need. Assemble + NewID enable the run controls (nil Assemble → a read-only
+// server: streaming and audit work, every control returns 501). Dir resolves a
+// run's workflow ref and a template import's unpacked files; TemplatesDir ""
+// disables the gallery; DefaultCache is the fallback cache mode for started runs
+// when neither the request nor persisted settings specify one.
 type Config struct {
 	// Workspace is the state directory the engine writes under
-	// (conventionally ".workflow") — executions, artifacts, cache.
+	// (conventionally ".workflow") — executions, artifacts, cache, settings.
 	Workspace string
-	// Start begins a run; nil disables POST /api/run (501).
-	Start StartFunc
-	// Dir is the base directory POST /api/run's workflow paths — and a
-	// template import's unpacked files — resolve against.
+	// Assemble turns a workflow ref into a runnable engine; nil disables all run
+	// controls (501). See Assembler.
+	Assemble Assembler
+	// NewID mints an execution id for a fresh run; required when Assemble is set.
+	NewID func(workflowID string) string
+	// DefaultCache is the fallback cache mode for started runs. "" → CacheOn.
+	DefaultCache engine.CacheMode
+	// Dir is the base directory a run's workflow ref — and a template import's
+	// unpacked files — resolve against.
 	Dir string
 	// TemplatesDir holds `wee export` bundles (*.tar) for GET /api/templates
 	// and POST /api/templates/{name}/import; "" means no templates configured.
 	TemplatesDir string
 }
 
-// New builds a Server per cfg. Config.Start may be nil (a read-only server
-// that still streams and audits existing executions).
+// New builds a Server per cfg. Config.Assemble may be nil (a read-only server
+// that still streams and audits existing executions). Call Reconcile once before
+// serving to settle runs a prior process left in flight.
 func New(cfg Config) *Server {
 	dir := cfg.Dir
 	if dir == "" {
@@ -90,10 +123,15 @@ func New(cfg Config) *Server {
 	s := &Server{
 		log:          eventlog.New(cfg.Workspace),
 		store:        store.New(cfg.Workspace),
+		cache:        cache.New(cfg.Workspace),
+		settings:     settings.New(cfg.Workspace),
 		workspace:    cfg.Workspace,
 		dir:          dir,
 		templatesDir: cfg.TemplatesDir,
-		start:        cfg.Start,
+		assemble:     cfg.Assemble,
+		newID:        cfg.NewID,
+		defaultCache: cfg.DefaultCache,
+		runs:         newRunRegistry(),
 		mux:          http.NewServeMux(),
 		poll:         defaultPoll,
 	}
@@ -102,7 +140,16 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("GET /api/executions", s.handleList)
 	s.mux.HandleFunc("GET /api/executions/{id}", s.handleAudit)
 	s.mux.HandleFunc("GET /api/executions/{id}/events", s.handleEvents)
+	s.mux.HandleFunc("GET /api/executions/{id}/progress", s.handleProgress)
+	s.mux.HandleFunc("GET /api/executions/{id}/bundle", s.handleBundle)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
+	s.mux.HandleFunc("POST /api/executions/{id}/cancel", s.handleCancel)
+	s.mux.HandleFunc("POST /api/executions/{id}/resume", s.handleRetry)
+	s.mux.HandleFunc("POST /api/executions/{id}/retry", s.handleRetry)
+	s.mux.HandleFunc("POST /api/executions/{id}/reexecute", s.handleReexecute)
+	s.mux.HandleFunc("POST /api/cache/clear", s.handleCacheClear)
+	s.mux.HandleFunc("GET /api/settings", s.handleGetSettings)
+	s.mux.HandleFunc("PUT /api/settings", s.handlePutSettings)
 	s.mux.HandleFunc("GET /api/templates", s.handleListTemplates)
 	s.mux.HandleFunc("POST /api/templates/{name}/import", s.handleImportTemplate)
 	s.mux.HandleFunc("GET /api/workers/{id}", s.handleListWorkerVersions)
@@ -212,7 +259,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 					return // client disconnected mid-write
 				}
-				if events[sent].Type == domain.ExecutionFinished {
+				// Close on a terminal event only when the run is not (again) in
+				// flight: a resumed/retried run reuses its id and appends a second
+				// ExecutionFinished, so closing on the first would hide the new
+				// work. While it is in this process's run registry, keep tailing.
+				if events[sent].Type == domain.ExecutionFinished && !s.runs.running(id) {
 					_ = conn.Close(websocket.StatusNormalClosure, "")
 					return
 				}
@@ -226,17 +277,27 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// runRequest is POST /api/run's body. Cache and BudgetUsd are the per-run
+// overrides (REQ-CTRL-07); both optional — omitted falls back to persisted
+// settings, then the server default / workflow budget.
 type runRequest struct {
-	Workflow string            `json:"workflow"`
-	Inputs   map[string]string `json:"inputs,omitempty"`
+	Workflow  string            `json:"workflow"`
+	Inputs    map[string]string `json:"inputs,omitempty"`
+	Cache     string            `json:"cache,omitempty"`
+	BudgetUsd float64           `json:"budgetUsd,omitempty"`
 }
 
 type runResponse struct {
 	ExecutionID string `json:"executionId"`
 }
 
+// handleRun starts a fresh execution (REQ-CTRL-03). The server owns the run: it
+// mints the id, persists the run params so the run can later be resumed/retried/
+// re-executed, launches the Scheduler on a cancellable background context (NOT
+// the request's — that ends when the POST returns), and registers its cancel
+// handle so cancel and restart-reconciliation can find it.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
-	if s.start == nil {
+	if s.assemble == nil || s.newID == nil {
 		http.Error(w, "run not configured on this server", http.StatusNotImplemented)
 		return
 	}
@@ -249,11 +310,36 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "workflow is required", http.StatusBadRequest)
 		return
 	}
-	execID, err := s.start(req.Workflow, req.Inputs)
+	asm, err := s.assemble(req.Workflow)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	cacheMode := s.effectiveCache(req.Cache)
+	budget := s.effectiveBudget(asm.Workflow, req.BudgetUsd)
+	execID := s.newID(asm.Workflow.ID)
+	if err := s.writeRunParams(execID, runParams{
+		Workflow:  req.Workflow,
+		Inputs:    req.Inputs,
+		Cache:     string(cacheMode),
+		BudgetUSD: budget.MaxCostUSD,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	opts := engine.RunOptions{
+		ExecutionID:      execID,
+		Budget:           budget,
+		Cache:            cacheMode,
+		DefinitionHashes: asm.DefinitionHashes,
+		Workers:          asm.Workers,
+		Inputs:           req.Inputs,
+	}
+	s.launch(execID, func(ctx context.Context) (*engine.Result, error) {
+		return asm.Scheduler.Run(ctx, asm.Workflow, opts)
+	})
 	writeJSON(w, http.StatusOK, runResponse{ExecutionID: execID})
 }
 

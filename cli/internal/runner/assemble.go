@@ -15,6 +15,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/model"
 	"github.com/tzpereira/workflow-execution-engine/core/model/providers"
 	"github.com/tzpereira/workflow-execution-engine/core/registry"
 	"github.com/tzpereira/workflow-execution-engine/core/serialize"
@@ -38,12 +39,20 @@ type Assembly struct {
 	BaseDir   string
 }
 
-// Load builds an Assembly from a workflow file. baseDir is the workspace state
-// directory (executions, artifacts, cache live under it). It loads the
-// workflow's sibling Workers (see loadWorkers), registers both model providers
-// (keys read from the environment, lazily), and wires the four sandboxed tools
-// from an optional wee.yaml next to the workflow.
+// Load builds an Assembly from a workflow file using the default (public)
+// provider endpoints. See LoadWith to supply a provider registry configured
+// from persisted settings (e.g. a self-hosted base URL, M2.2).
 func Load(workflowPath, baseDir string) (*Assembly, error) {
+	return LoadWith(workflowPath, baseDir, providers.Default())
+}
+
+// LoadWith is Load with an injected provider registry, so the caller controls
+// provider configuration (base URLs from settings, REQ-MODEL-04) while keeping
+// the concrete openai/anthropic imports out of the CLI (REQ-MODEL-01). baseDir
+// is the workspace state directory (executions, artifacts, cache live under it).
+// It loads the workflow's sibling Workers (see LoadWorkers) and wires the four
+// sandboxed tools from an optional wee.yaml next to the workflow.
+func LoadWith(workflowPath, baseDir string, provReg *model.Registry) (*Assembly, error) {
 	wf, err := serialize.LoadWorkflow(workflowPath)
 	if err != nil {
 		return nil, err
@@ -57,12 +66,6 @@ func Load(workflowPath, baseDir string) (*Assembly, error) {
 	if err := LoadWorkers(workflowPath, reg); err != nil {
 		return nil, err
 	}
-
-	// providers.Default wires both built-in providers behind the model.Provider
-	// interface — the CLI must not import the concrete openai/anthropic packages
-	// (REQ-MODEL-01, enforced by core/model's isolation test). Keys are read from
-	// the environment lazily.
-	provReg := providers.Default()
 
 	cfg, err := loadConfig(dir)
 	if err != nil {

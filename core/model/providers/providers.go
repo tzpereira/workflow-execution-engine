@@ -13,14 +13,35 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/model/openai"
 )
 
-// Default returns a Registry wired with the built-in providers, each reading its
-// own API key from the environment: "openai" (the default, cheaper) and
-// "anthropic". To target a self-hosted OpenAI-compatible endpoint (Ollama, vLLM,
-// llama.cpp), register openai.New(openai.WithBaseURL(...)) under a name of your
-// choosing (REQ-MODEL-04).
-func Default() *model.Registry {
+// Config overrides the built-in providers' API roots (REQ-MODEL-04) — e.g. to
+// point "openai" at a self-hosted OpenAI-compatible endpoint (Ollama, vLLM,
+// llama.cpp). An empty base URL leaves that provider on its public default. This
+// is the seam the durable control plane's persisted settings flow through
+// (M2.2): the CLI reads settings.ProviderBaseURLs and passes them here, keeping
+// the concrete openai/anthropic imports confined to this package (REQ-MODEL-01).
+type Config struct {
+	OpenAIBaseURL    string
+	AnthropicBaseURL string
+}
+
+// Default returns a Registry wired with the built-in providers on their public
+// API roots, each reading its own API key from the environment: "openai" (the
+// default, cheaper) and "anthropic".
+func Default() *model.Registry { return Configured(Config{}) }
+
+// Configured returns a Registry with the built-in providers, applying any base
+// URL overrides in cfg. Keys are still read from the environment lazily.
+func Configured(cfg Config) *model.Registry {
 	r := model.NewRegistry()
-	r.Register("openai", openai.New())
-	r.Register("anthropic", anthropic.New())
+	var oo []openai.Option
+	if cfg.OpenAIBaseURL != "" {
+		oo = append(oo, openai.WithBaseURL(cfg.OpenAIBaseURL))
+	}
+	r.Register("openai", openai.New(oo...))
+	var ao []anthropic.Option
+	if cfg.AnthropicBaseURL != "" {
+		ao = append(ao, anthropic.WithBaseURL(cfg.AnthropicBaseURL))
+	}
+	r.Register("anthropic", anthropic.New(ao...))
 	return r
 }
