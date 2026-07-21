@@ -94,6 +94,7 @@ export function Toolbar({
           : 'empty'
       : live.state
   const issueText = error ?? liveError
+  const issue = issueText ? classifyIssue(issueText, live.state) : null
   const runButtonTitle = !fileName
     ? 'Import a workflow first'
     : !providerReady
@@ -151,10 +152,13 @@ export function Toolbar({
             </div>
           </div>
         </div>
-        {issueText && (
-          <div className="min-w-0 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 md:max-w-80">
-            <span className="block truncate" title={issueText}>
-              {issueText}
+        {issue && (
+          <div
+            className={`min-w-0 rounded border px-2 py-1 text-xs md:max-w-80 ${issue.className}`}
+          >
+            <div className="font-medium">{issue.label}</div>
+            <span className="block truncate" title={issueText ?? undefined}>
+              {issue.detail}
             </span>
           </div>
         )}
@@ -245,4 +249,54 @@ export function Toolbar({
       )}
     </header>
   )
+}
+
+function classifyIssue(
+  text: string,
+  state: 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled',
+) {
+  const lower = text.toLowerCase()
+  const isRateLimit =
+    lower.includes('429') ||
+    lower.includes('rate limit') ||
+    lower.includes('retry-after')
+  const isBudget = lower.includes('budget') || lower.includes('cost limit')
+  const isProvider =
+    lower.includes('api key') ||
+    lower.includes('provider') ||
+    lower.includes('unauthorized') ||
+    lower.includes('401')
+  if (isRateLimit) {
+    return {
+      label: 'Rate limited',
+      detail: text,
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
+    }
+  }
+  if (isBudget) {
+    return {
+      label: 'Budget stopped the run',
+      detail: text,
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
+    }
+  }
+  if (isProvider) {
+    return {
+      label: 'Provider setup needed',
+      detail: text,
+      className: 'border-red-200 bg-red-50 text-red-700',
+    }
+  }
+  if (state === 'cancelled') {
+    return {
+      label: 'Run cancelled',
+      detail: text,
+      className: 'border-neutral-200 bg-neutral-50 text-neutral-700',
+    }
+  }
+  return {
+    label: 'Run failed',
+    detail: text,
+    className: 'border-red-200 bg-red-50 text-red-700',
+  }
 }

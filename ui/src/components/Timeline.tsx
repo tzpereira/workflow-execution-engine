@@ -48,6 +48,41 @@ export function Timeline({
   const completedNodes = Object.values(live.nodes).filter(
     (n) => n.status === 'succeeded' || n.status === 'cached',
   ).length
+  const budgetExceeded = live.events.some((e) => e.type === 'BudgetExceeded')
+  const budgetWarning = live.events.some((e) => e.type === 'BudgetWarning')
+  const retryCount = live.events.filter((e) => e.type === 'Retry').length
+  const notice =
+    live.state === 'cancelled'
+      ? {
+          tone: 'border-neutral-200 bg-neutral-50 text-neutral-700',
+          title: 'Run cancelled',
+          body: 'Completed artifacts remain inspectable; resume/retry controls appear when available.',
+        }
+      : budgetExceeded
+        ? {
+            tone: 'border-amber-200 bg-amber-50 text-amber-800',
+            title: 'Budget exceeded',
+            body: 'The runtime stopped before the next paid call.',
+          }
+        : failedNodes > 0
+          ? {
+              tone: 'border-red-200 bg-red-50 text-red-700',
+              title: 'Run failed',
+              body: 'Open the failed node or Logs tab for the exact event and payload.',
+            }
+          : budgetWarning
+            ? {
+                tone: 'border-amber-200 bg-amber-50 text-amber-800',
+                title: 'Budget warning',
+                body: 'This run crossed the warning threshold.',
+              }
+            : retryCount > 0
+              ? {
+                  tone: 'border-blue-200 bg-blue-50 text-blue-800',
+                  title: 'Retry in progress',
+                  body: `${retryCount} retr${retryCount === 1 ? 'y' : 'ies'} recorded so far.`,
+                }
+              : null
 
   // A running node's bar must keep growing between events — tick a `now`
   // while the run is in flight so its width stays live, not frozen at the
@@ -138,6 +173,13 @@ export function Timeline({
         </div>
       </div>
       <div className="flex-1 overflow-auto p-2 text-xs text-neutral-600">
+        {notice && (
+          <div className={`mb-2 rounded border px-2 py-1 ${notice.tone}`}>
+            <div className="font-medium">{notice.title}</div>
+            <div>{notice.body}</div>
+          </div>
+        )}
+
         {tab === 'timeline' &&
           (isWatching ? (
             <div className="space-y-1">

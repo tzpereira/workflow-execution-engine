@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { Audit } from '../core/audit'
 import { contextHashesFor, nodeIdForHash } from '../core/audit'
+import type { WorkflowMeta } from '../core/graph'
 import type { LiveState } from '../core/live'
 import {
   nodeKind,
@@ -69,47 +70,188 @@ export function Inspector({ width = 320 }: { width?: number | string }) {
             onNodeChange={(next) => updateNodeBody(selected.id, next)}
           />
         ) : (
-          <div className="space-y-3">
-            <dl className="space-y-2">
-              <Field label="id" value={meta.id} />
-              <Field label="version" value={meta.version} />
-            </dl>
-            <div>
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                Budget
-              </div>
-              {/* Generated from schemas/budget.schema.json — the exact file the
-                  engine validates against, never hand-copied fields. */}
-              <SchemaForm
-                schema={budgetSchema}
-                formData={meta.budget}
-                onChange={(b) => setMeta({ ...meta, budget: b })}
-              />
-            </div>
-            {audit?.inputs && Object.keys(audit.inputs).length > 0 && (
-              <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  Inputs (this run)
-                </div>
-                <dl className="space-y-1">
-                  {Object.entries(audit.inputs).map(([name, value]) => (
-                    <div
-                      key={name}
-                      className="flex items-baseline gap-1.5 font-mono text-xs"
-                    >
-                      <dt className="text-neutral-500">{name}</dt>
-                      <dd className="truncate text-neutral-800" title={value}>
-                        {value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-          </div>
+          <WorkflowInspector
+            meta={meta}
+            fileName={fileName}
+            nodes={nodes.map((n) => n.data.node)}
+            live={live}
+            audit={audit}
+            serverUrl={serverUrl}
+            onMetaChange={setMeta}
+          />
         )}
       </div>
     </aside>
+  )
+}
+
+function WorkflowInspector({
+  meta,
+  fileName,
+  nodes,
+  live,
+  audit,
+  serverUrl,
+  onMetaChange,
+}: {
+  meta: WorkflowMeta
+  fileName: string | null
+  nodes: WFNode[]
+  live: LiveState
+  audit: Audit | null
+  serverUrl: string
+  onMetaChange: (meta: WorkflowMeta) => void
+}) {
+  const completed = Object.values(live.nodes).filter(
+    (n) => n.status === 'succeeded' || n.status === 'cached',
+  ).length
+  const failed = Object.values(live.nodes).filter(
+    (n) => n.status === 'failed',
+  ).length
+  const cached = Object.values(live.nodes).filter(
+    (n) => n.status === 'cached',
+  ).length
+
+  return (
+    <div className="space-y-3">
+      <Section title="Run setup">
+        <div className="space-y-2 rounded border border-neutral-200 bg-neutral-50 p-2">
+          <dl className="grid grid-cols-2 gap-2">
+            <Field label="workflow" value={`${meta.id}@${meta.version}`} />
+            <Field label="source" value={fileName ?? 'not imported'} />
+            <Field label="nodes" value={String(nodes.length)} />
+            <Field label="service" value={serverUrl} />
+          </dl>
+          {nodes.length === 0 && (
+            <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+              Import a workflow or choose a template before running.
+            </p>
+          )}
+          {meta.inputs && meta.inputs.length > 0 && (
+            <div>
+              <div className="mb-1 text-[10px] font-semibold uppercase text-neutral-400">
+                Required inputs
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {meta.inputs.map((input) => (
+                  <span
+                    key={input.name}
+                    className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-neutral-600 ring-1 ring-neutral-200"
+                  >
+                    {input.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Latest execution">
+        {live.state === 'idle' && !audit ? (
+          <p className="text-xs text-neutral-400">
+            Run status, cost, cache, and failures appear here after execution.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 font-mono text-xs">
+            <WorkflowStat
+              label="state"
+              value={live.state === 'idle' ? 'idle' : `${live.state} run`}
+              tone={stateTone(live.state)}
+            />
+            <WorkflowStat
+              label="progress"
+              value={`${completed}/${nodes.length}`}
+              tone={failed > 0 ? 'text-red-700' : 'text-neutral-900'}
+            />
+            <WorkflowStat label="cached" value={String(cached)} />
+            <WorkflowStat
+              label="failed"
+              value={String(failed)}
+              tone={failed > 0 ? 'text-red-700' : undefined}
+            />
+            <WorkflowStat
+              label="cost"
+              value={`$${live.totalCostUsd.toFixed(4)} total`}
+            />
+            <WorkflowStat label="tokens" value={String(live.totalTokens)} />
+          </div>
+        )}
+      </Section>
+
+      <Section title="Budget">
+        <SchemaForm
+          schema={budgetSchema}
+          formData={meta.budget}
+          onChange={(b) => onMetaChange({ ...meta, budget: b })}
+        />
+      </Section>
+
+      {audit?.inputs && Object.keys(audit.inputs).length > 0 && (
+        <Section title="Inputs (this run)">
+          <dl className="space-y-1">
+            {Object.entries(audit.inputs).map(([name, value]) => (
+              <div
+                key={name}
+                className="flex items-baseline gap-1.5 font-mono text-xs"
+              >
+                <dt className="text-neutral-500">{name}</dt>
+                <dd className="truncate text-neutral-800" title={value}>
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Section>
+      )}
+
+      <Collapsible title="Workflow nodes">
+        {nodes.length > 0 ? (
+          <ul className="space-y-1">
+            {nodes.map((node) => (
+              <li
+                key={node.id}
+                className="flex items-center justify-between gap-2 rounded border border-neutral-100 px-2 py-1 text-xs"
+              >
+                <span className="truncate font-mono text-neutral-800">
+                  {node.id}
+                </span>
+                <span className="shrink-0 text-neutral-500">
+                  {nodeKind(node)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-neutral-400">No nodes yet.</p>
+        )}
+      </Collapsible>
+    </div>
+  )
+}
+
+function stateTone(state: LiveState['state']) {
+  if (state === 'succeeded') return 'text-emerald-700'
+  if (state === 'failed') return 'text-red-700'
+  if (state === 'cancelled') return 'text-neutral-700'
+  if (state === 'running') return 'text-blue-700'
+  return 'text-neutral-900'
+}
+
+function WorkflowStat({
+  label,
+  value,
+  tone = 'text-neutral-900',
+}: {
+  label: string
+  value: string
+  tone?: string
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase text-neutral-400">{label}</div>
+      <div className={tone}>{value}</div>
+    </div>
   )
 }
 
@@ -312,9 +454,11 @@ function Collapsible({
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-neutral-500">{label}</dt>
-      <dd className="font-mono text-neutral-900">{value}</dd>
+      <dd className="truncate font-mono text-neutral-900" title={value}>
+        {value}
+      </dd>
     </div>
   )
 }

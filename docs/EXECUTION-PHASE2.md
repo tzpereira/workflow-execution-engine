@@ -23,10 +23,9 @@ Rules:
 
 ## Status
 
-- **Current Phase 2 milestone:** M2.0 — UX Reset. The owner chose to start Phase 2 local-first product
-  hardening before pursuing the old M1.16/M1.17 release gates. The active goal is to make the local
-  workspace feel like a focused developer tool: clear run readiness, readable node cards, coherent
-  observability, and less placeholder surface.
+- **Current Phase 2 milestone:** M2.1 — Output & Observability. M2.0 is complete: the local workspace now
+  has clearer run readiness, readable node cards, a workflow-oriented Inspector, coherent run monitoring,
+  explicit empty/loading/failed/cancelled/rate-limit/budget/provider states, and less placeholder surface.
 - **Transition decision:** M1.16/M1.17 are superseded for now by this Phase 2 plan. Do not tag a public
   release or start managed hosting work until the local/self-hosted product quality gates here pass.
 
@@ -47,20 +46,20 @@ Tasks:
       inspect, retry/replay, export.
 - [x] Rework node cards so status, failure cause, cost/tokens, cache state, and primary output preview are
       visible without expanding raw data.
-- [ ] Rework Inspector layout: output first, then inputs/context/contract/events/debug.
+- [x] Rework Inspector layout: output first, then inputs/context/contract/events/debug.
 - [x] Rework Timeline/Logs/Metrics/History into a coherent observability area with stable sizing.
-- [ ] Add empty, loading, failed, cancelled, rate-limited, budget-exceeded, and no-provider states.
+- [x] Add empty, loading, failed, cancelled, rate-limited, budget-exceeded, and no-provider states.
 - [x] Validate responsive desktop and mobile layouts with screenshots.
 
 Acceptance:
 
-- [ ] A first-time user can import a practical workflow, configure inputs/provider/budget, run, inspect, and
+- [x] A first-time user can import a practical workflow, configure inputs/provider/budget, run, inspect, and
       replay without editing YAML.
-- [ ] No primary product surface shows unbounded raw JSON by default.
-- [ ] Screenshots show no overlapping controls or unreadable primary text.
+- [x] No primary product surface shows unbounded raw JSON by default.
+- [x] Screenshots show no overlapping controls or unreadable primary text.
 - [x] Verification recorded here: `pnpm --dir ui lint`; `pnpm --dir ui typecheck`; `pnpm --dir ui test`
-      (171 tests); `pnpm --dir ui build`; Chrome headless screenshots at 1440x900 and 390x844. Build still
-      reports the known Shiki/wasm chunk-size warning.
+      (171 tests); `pnpm --dir ui build`; Chrome headless screenshots at 1440x900 and 390x844 after the
+      Inspector overflow fix. Build still reports the known Shiki/wasm chunk-size warning.
 
 ---
 

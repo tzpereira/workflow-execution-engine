@@ -52,16 +52,37 @@ export function SettingsModal({
   const [status, setStatus] = useState<Record<string, boolean>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    fetchSecretsStatus(
-      serverUrl,
-      FIELDS.map((f) => f.name),
-    )
-      .then(setStatus)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+    let cancelled = false
+    void Promise.resolve()
+      .then(() => {
+        if (!cancelled) {
+          setLoading(true)
+          setError(null)
+        }
+      })
+      .then(() =>
+        fetchSecretsStatus(
+          serverUrl,
+          FIELDS.map((f) => f.name),
+        ),
+      )
+      .then((nextStatus) => {
+        if (!cancelled) setStatus(nextStatus)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [open, serverUrl])
 
   if (!open) return null
@@ -127,7 +148,17 @@ export function SettingsModal({
             written to disk, never recorded in any run's audit trail. Restarting{' '}
             <code>wee serve</code> clears everything set here.
           </p>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {loading && (
+            <div className="rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs text-neutral-500">
+              Loading runtime settings from {serverUrl}
+            </div>
+          )}
+          {error && (
+            <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+              <div className="font-medium">Settings unavailable</div>
+              <div>{error}</div>
+            </div>
+          )}
           {FIELDS.map((f) => (
             <div key={f.name}>
               <div className="flex items-center gap-1.5">
@@ -143,6 +174,15 @@ export function SettingsModal({
                 </label>
                 <span className="font-mono text-[10px] text-neutral-400">
                   {f.name}
+                </span>
+                <span
+                  className={`ml-auto rounded px-1.5 py-0.5 text-[10px] ${
+                    status[f.name]
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-neutral-100 text-neutral-500'
+                  }`}
+                >
+                  {status[f.name] ? 'set' : 'missing'}
                 </span>
               </div>
               <div className="mt-1 flex gap-1.5">
