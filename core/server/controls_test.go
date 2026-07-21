@@ -15,6 +15,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
+	"github.com/tzpereira/workflow-execution-engine/core/settings"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
@@ -294,6 +295,42 @@ func TestBundleDownloadReturnsTar(t *testing.T) {
 	}
 	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "run-b.tar") {
 		t.Errorf("content-disposition = %q, want filename run-b.tar", cd)
+	}
+}
+
+// TestEffectiveCacheAndBudgetPrecedence: per-run overrides win, then persisted
+// settings, then the server/workflow defaults (REQ-CTRL-07).
+func TestEffectiveCacheAndBudgetPrecedence(t *testing.T) {
+	ws := t.TempDir()
+	s := New(Config{Workspace: ws, DefaultCache: engine.CacheOff})
+
+	// No settings, no request value → server default.
+	if got := s.effectiveCache(""); got != engine.CacheOff {
+		t.Errorf("default cache = %q, want off", got)
+	}
+	// An explicit request value wins over the default.
+	if got := s.effectiveCache("on"); got != engine.CacheOn {
+		t.Errorf("request cache = %q, want on", got)
+	}
+
+	// Persisted settings override the server default when the request is empty.
+	if err := s.settings.Save(settings.Settings{CacheMode: "readonly", DefaultBudgetUSD: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.effectiveCache(""); got != engine.CacheReadOnly {
+		t.Errorf("settings cache = %q, want readonly", got)
+	}
+
+	wf := &domain.Workflow{Budget: domain.Budget{MaxCostUSD: 2}}
+	if b := s.effectiveBudget(wf, 9); b.MaxCostUSD != 9 {
+		t.Errorf("override budget = %v, want 9", b.MaxCostUSD)
+	}
+	if b := s.effectiveBudget(wf, 0); b.MaxCostUSD != 2 {
+		t.Errorf("workflow budget = %v, want its own 2", b.MaxCostUSD)
+	}
+	// A workflow with no cost cap of its own backfills from the persisted default.
+	if b := s.effectiveBudget(&domain.Workflow{}, 0); b.MaxCostUSD != 4 {
+		t.Errorf("backfilled budget = %v, want settings default 4", b.MaxCostUSD)
 	}
 }
 

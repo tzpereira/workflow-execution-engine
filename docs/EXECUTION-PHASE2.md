@@ -23,10 +23,13 @@ Rules:
 
 ## Status
 
-- **Current Phase 2 milestone:** M2.2 — Local Control Plane. M2.1 is complete: artifact viewers have
-  bounded semantic rendering, generated/code artifacts have language/wrap/copy/download controls, metrics
-  include usage/health/replay-cache comparison charts, and raw/debug payloads stay behind explicit
-  disclosure.
+- **Current Phase 2 milestone:** M2.3 — Workflow Authoring & Practical Examples. M2.2 is complete: `wee
+  serve` is a durable local control plane — completed executions, persisted settings, and the cache index
+  survive a restart; a run left in flight by a killed process is reconciled to cancelled-and-resumable on
+  startup (never reported as silently running); and start / cancel / resume / retry-from-node / reexecute /
+  clear-cache / export-bundle are exposed over the API and the UI (RunControls) with a transport-derived
+  progress + liveness readout. Persistence is in-workspace, progress adds no event to the frozen catalog,
+  and settings never store a secret value (ADR 0012, REQ-CTRL-01..07, NFR-CTRL-01).
 - **Transition decision:** M1.16/M1.17 are superseded for now by this Phase 2 plan. Do not tag a public
   release or start managed hosting work until the local/self-hosted product quality gates here pass.
 
@@ -105,22 +108,50 @@ non-secret settings, transport-derived progress.
 
 Tasks:
 
-- [ ] Define local service persistence: config directory, data directory, execution index, artifact store,
-      cache index, settings, and workflow catalog.
-- [ ] Persist settings reliably: provider references/base URLs, default budgets, cache mode, workspace root,
-      and template paths.
-- [ ] Add run controls: start, cancel, retry failed, retry from node, resume, replay, clear cache, export
-      execution bundle.
-- [ ] Surface long-running execution heartbeats/progress.
-- [ ] Ensure service restart preserves completed executions, resumable state, settings, and cache.
-- [ ] Add API and UI tests for retry/resume/cancel/replay flows.
+- [x] Define local service persistence: config directory, data directory, execution index, artifact store,
+      cache index, settings, and workflow catalog. (In-workspace `.workflow/` — ADR 0012; `settings.json`
+      and per-execution `runparams.json` added; executions/artifacts/cache reuse their existing homes; the
+      execution index and workflow catalog are derived views, not new stores. No OS config/data-dir split —
+      that stays M2.6.)
+- [x] Persist settings reliably: provider references/base URLs, default budgets, cache mode, workspace root,
+      and template paths. (`core/settings`, atomic temp-then-rename; secret keys stay env-var *references*,
+      never values — PRIN-10.)
+- [x] Add run controls: start, cancel, retry failed, retry from node, resume, replay, clear cache, export
+      execution bundle. (Server-owned run registry + `engine.ResumeFrom`, `cache.Delete`,
+      `replay.ExportBundle`; audit-replay is the existing `GET /api/executions/{id}`, re-execution is
+      `POST .../reexecute`.)
+- [x] Surface long-running execution heartbeats/progress. (Transport-derived: `GET .../progress` +
+      RunControls' progress bar and "idle Ns" liveness, folded from the event stream — no persisted
+      heartbeat event, owner decision 2026-07-21.)
+- [x] Ensure service restart preserves completed executions, resumable state, settings, and cache.
+      (`Server.Reconcile()` at serve startup settles interrupted runs to cancelled-and-resumable.)
+- [x] Add API and UI tests for retry/resume/cancel/replay flows.
 
 Acceptance:
 
-- [ ] Killing and restarting `wee serve` does not lose completed executions, settings, cache index, or
+- [x] Killing and restarting `wee serve` does not lose completed executions, settings, cache index, or
       pending resumable state.
-- [ ] Retrying a failed node does not repeat completed upstream work or pay for cached nodes again.
-- [ ] Verification recorded here:
+- [x] Retrying a failed node does not repeat completed upstream work or pay for cached nodes again.
+- [x] Verification recorded here: `go test ./... -race` (all green — incl. `core/settings`, the
+      `core/server` control-plane suite, `engine.TestResumeFromReexecutesNodeAndDownstream`,
+      `replay.TestExportBundleContainsSnapshotEventsArtifacts`, `cache.TestDeleteRemovesOnlyNamedKeys`);
+      `gofmt`/`go vet` clean on changed files; `pnpm --dir ui lint`; `pnpm --dir ui typecheck`;
+      `pnpm --dir ui test` (192 tests); `pnpm --dir ui build` (known Shiki/wasm chunk-size warning only).
+      Runnable walkthrough against the real `wee serve` binary: started serve, ran a tool-only workflow to
+      `succeeded`, persisted settings, started a second run and hard-killed serve (`kill -9`) mid-run, then
+      restarted. After restart — the completed run is still `succeeded`; settings round-trip intact with
+      only the env-var NAME on disk (no key value); the interrupted run reconciled to
+      `cancelled` / `running:false` (still resumable); `GET .../bundle` returned a valid tar (snapshot +
+      events + artifact).
+
+Scope notes (disclosed):
+
+- Per-run budget/cache in the UI are edited as persisted **defaults** in Settings (the server applies them
+  via request > settings > default precedence). The raw per-run override fields exist on `POST /api/run`
+  for API callers; a dedicated per-run override widget in the run flow was not added.
+- The `progress` endpoint's `runningNodes` still lists a node that started but never finished even for a
+  reconciled run; the authoritative liveness signal is `running:false` (registry membership), which the UI
+  uses to decide control visibility.
 
 ---
 
