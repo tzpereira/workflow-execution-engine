@@ -129,11 +129,15 @@ Tasks:
 
 - [ ] Improve Workflow/Worker/Contract editing with inline validation, version-bump guidance, schema-aware
       fields, and safe rollback.
-- [ ] Expand practical templates: PR Review, Test Generator, Change Risk, Bug Investigation, Release Notes,
-      Refactor Plan, Dependency Audit.
+- [ ] Expand practical templates: Change/Diff Review, Test Generator, Change Risk, Bug Investigation,
+      Release Notes, Refactor Plan, Dependency Audit.
 - [ ] Add guided inputs, expected cost, expected runtime, required tools, and read-only/mutating labels to
       every published template.
-- [ ] Ensure public-remote workflows work without cloning when they only need public HTTP/GitHub data.
+- [ ] Keep change-source logic out of Core: GitHub PR, GitLab MR, Bitbucket PR, public patch/diff URL,
+      local `git diff`, and local file inputs must be represented through generic workflow/tool
+      configuration.
+- [ ] Ensure public-remote workflows work without cloning when they only need public HTTP data, and local
+      repository workflows work without any forge account.
 - [ ] Update example READMEs with intended output, budget profile, and cache/replay behavior.
 
 Acceptance:
@@ -141,6 +145,7 @@ Acceptance:
 - [ ] A new practical example can be authored, validated, imported, run, replayed, and exported without
       hand-editing generated UI state.
 - [ ] Published templates avoid surprise spend and declare whether they can write before a user starts them.
+- [ ] The published catalog demonstrates at least two change-source shapes, one of which is not GitHub.
 - [ ] Verification recorded here:
 
 ---
@@ -187,8 +192,8 @@ Tasks:
 - [ ] Build proposed-change UI: formatted diff, affected paths, command/API preview, remaining budget, and
       explicit Approve/Reject.
 - [ ] Make unattended mutation require explicit run-level opt-in.
-- [ ] Build PR Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally open
-      PR only after approval.
+- [ ] Build Change Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally
+      open a forge PR/MR only through an explicit workflow-defined integration after approval.
 - [ ] Test normal run, retry, cancellation, resume, stale approval, duplicate approval, and rejection paths.
 
 Acceptance:

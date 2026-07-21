@@ -460,15 +460,17 @@ Acceptance:
 Deliverables:
 
 * Workflow/Worker/Contract editing becomes practical: validation inline, version bump guidance, schema-aware fields, and safe rollback to previous definitions
-* Template gallery expands around real developer jobs: PR Review, Test Generator, Change Risk, Bug Investigation, Release Notes, Refactor Plan, Dependency Audit
+* Template gallery expands around real developer jobs: Change/Diff Review, Test Generator, Change Risk, Bug Investigation, Release Notes, Refactor Plan, Dependency Audit
 * Each template has guided inputs, expected cost, expected runtime, required tools, and a read-only/mutating safety label
-* Remote public repository workflows work without cloning when the workflow only needs public HTTP/GitHub data
+* Change-source adapters stay workflow-defined, not Core-defined: public patch/diff URLs, GitHub PRs, GitLab merge requests, Bitbucket pull requests, local `git diff`, and local files should be expressible with generic HTTP/git/filesystem tools
+* Remote public repository workflows work without cloning when the workflow only needs public HTTP data; local workflows work from a checked-out repository without any forge account
 * Example READMEs show the intended output, budget profile, and when cache/replay should help
 
 Acceptance:
 
 * A new practical example can be authored, validated, imported, run, replayed, and exported without hand-editing generated UI state.
 * Published templates avoid surprise spend and declare whether they can write before a user starts them.
+* The published catalog demonstrates at least two change-source shapes, one of which is not GitHub.
 
 ---
 
@@ -498,7 +500,7 @@ Deliverables:
 * Runtime pause/resume checkpoint before filesystem writes, terminal mutations, Git mutations, or non-GET HTTP calls
 * Proposed-change view with formatted diff, affected paths, command/API preview, estimated remaining cost, and explicit Approve/Reject actions
 * Approval is the default for mutating workflows; unattended mutation requires explicit run-level opt-in
-* PR Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally open PR only after approval
+* Change Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally open a forge PR/MR only through an explicit workflow-defined integration after approval
 
 Acceptance:
 

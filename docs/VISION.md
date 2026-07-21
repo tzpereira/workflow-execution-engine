@@ -65,7 +65,7 @@ Likewise, WEE is not an AI agent framework. Models are workers inside the runtim
 
 In the places engineering work already happens — never in a chat window:
 
-- **CI** — a webhook fires the flagship PR-review workflow; the result lands as a PR comment.
+- **CI** — a webhook fires a change-review workflow; the result lands wherever that integration chooses.
 - **The terminal** — `wee run` locally, like git or terraform.
 - **Cron / hooks** — scheduled research digests, pre-push review gates.
 - **The editor's neighbor** — the UI is a client of the same event stream the CLI prints.
@@ -159,10 +159,10 @@ Sequencing: **portfolio first, revenue later.** The commercial layer must never 
 
 One demo must sell the entire project in under 3 minutes, on a real repository, with a verifiable result.
 
-### Pull Request Review & Auto-Fix
+### Change Review & Auto-Fix
 
 ```text
-PR Diff
+Change Source (local diff, patch URL, PR/MR, or file set)
   ├─ Reviewer A   (diff only — style & correctness)
   ├─ Reviewer B   (diff only — assumes the code is wrong)
   └─ Security Rev (diff only — vulnerabilities)      ← all three in parallel
@@ -177,6 +177,10 @@ PR Diff
 Why this demo: minutes not hours; verifiable result (tests pass, diff readable); every differentiator at
 once — parallel graph, context policies (diff only), contract enforcement (structured reviews), artifacts,
 cache (tweak one reviewer → only downstream re-runs), budget, timeline.
+
+GitHub is only one source adapter for the demo, not a product boundary. The same graph should work from a
+local `git diff`, a public patch URL, GitLab, Bitbucket, or a self-hosted forge by changing workflow/tool
+configuration, not Core.
 
 Secondary demos (docs, not pitch): Bug Investigation (logs → hypothesis → patch → tests → review),
 Product Requirements (research → PM → architect → reviewer → PRD), Architecture Review (spec → backend →

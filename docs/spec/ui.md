@@ -87,7 +87,7 @@ available as fallbacks.
 
 ### REQ-UI-05 — Metrics & templates
 The UI shall surface the metrics of REQ-METRIC-01/02 (cost, usage, value proxies, cache hit rate) and ship
-a curated gallery of ready-to-run, read-only workflows: PR Review, Test Generator, and Change Risk
+a curated gallery of ready-to-run, read-only workflows: Change/Diff Review, Test Generator, and Change Risk
 Analysis. Advanced examples may remain in source without being advertised as beginner-ready templates.
 - **Delivered by:** M1.14; curated and refined in M1.15. **Verified by:** `ui/src/components/MetricsPanel.test.tsx`,
   `ui/src/components/HistoryTable.test.tsx`, `ui/src/components/TemplateGallery.test.tsx`, plus manual
