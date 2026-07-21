@@ -109,7 +109,7 @@ func (e *WorkerExecutor) Execute(ctx context.Context, req NodeRequest) (NodeResu
 // yet invoked by the executor (that wiring lands with the flagship template,
 // M1.14), so the names are the version proxy — changing the allowlist still
 // invalidates the key.
-func (e *WorkerExecutor) CacheKey(node domain.Node, inputs []NodeInput) (string, bool) {
+func (e *WorkerExecutor) CacheKey(node domain.Node, inputs []NodeInput, workflowInputs map[string]string) (string, bool) {
 	w, ok := e.workers.Lookup(node.Worker)
 	if !ok {
 		return "", false
@@ -131,6 +131,7 @@ func (e *WorkerExecutor) CacheKey(node domain.Node, inputs []NodeInput) (string,
 		WorkerVersion:       w.Version,
 		ContractHash:        contractHash,
 		InputArtifactHashes: hashes,
+		WorkflowInputs:      workflowInputs,
 		Model:               w.Model,
 		ToolVersions:        w.Tools,
 		ContextPolicy:       pol,

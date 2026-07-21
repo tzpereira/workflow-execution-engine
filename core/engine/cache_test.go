@@ -185,3 +185,51 @@ func TestChangingOneNodeReExecutesOnlyItsCone(t *testing.T) {
 		t.Errorf("R/B must not re-execute: %v", miss)
 	}
 }
+
+// TestChangingWorkflowInputInvalidatesWorkerCache is the regression for the
+// PR-review path: changing a run input such as prUrl must never reuse a model
+// artifact recorded for a different target, even if the node has no upstream
+// artifacts of its own.
+func TestChangingWorkflowInputInvalidatesWorkerCache(t *testing.T) {
+	workers := engine.MapWorkerSource{
+		"reviewer@1.0.0": permissiveWorker("reviewer"),
+	}
+	prov := &echoProvider{}
+	reg := model.NewRegistry()
+	reg.Register("openai", prov)
+	ex := engine.NewWorkerExecutor(workers, reg)
+	s, log := cachingScheduler(t, ex)
+
+	wf := &domain.Workflow{
+		ID:      "input-cache",
+		Version: "1.0.0",
+		Inputs:  []domain.InputDecl{{Name: "prUrl", Required: true}},
+		Nodes:   []domain.Node{{ID: "review", Worker: "reviewer@1.0.0"}},
+		Edges:   []domain.Edge{},
+	}
+
+	if _, err := s.Run(context.Background(), wf, engine.RunOptions{
+		ExecutionID: "first",
+		Inputs:      map[string]string{"prUrl": "https://api.github.com/repos/a/a/pulls/1"},
+	}); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	if _, err := s.Run(context.Background(), wf, engine.RunOptions{
+		ExecutionID: "second",
+		Inputs:      map[string]string{"prUrl": "https://api.github.com/repos/b/b/pulls/2"},
+	}); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+
+	hits := countByType(t, log, "second", domain.CacheHit)
+	miss := countByType(t, log, "second", domain.CacheMiss)
+	if hits["review"] != 0 {
+		t.Fatalf("changed prUrl reused reviewer cache: hits=%v", hits)
+	}
+	if miss["review"] != 1 {
+		t.Fatalf("changed prUrl should be a reviewer cache miss, got misses=%v", miss)
+	}
+	if prov.count() != 2 {
+		t.Fatalf("reviewer should have made two model calls for two prUrl values, got %d", prov.count())
+	}
+}

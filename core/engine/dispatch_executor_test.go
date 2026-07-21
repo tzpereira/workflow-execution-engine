@@ -48,10 +48,10 @@ func TestDispatchExecutorCacheKeyOnlyForWorkerNodes(t *testing.T) {
 	te := engine.NewToolExecutor(tool.NewRegistry())
 	d := engine.NewDispatchExecutor(we, te)
 
-	if _, ok := d.CacheKey(domain.Node{ID: "a", Worker: "reviewer@1.0.0"}, nil); !ok {
+	if _, ok := d.CacheKey(domain.Node{ID: "a", Worker: "reviewer@1.0.0"}, nil, nil); !ok {
 		t.Error("worker-backed node should produce a cache key")
 	}
-	if _, ok := d.CacheKey(domain.Node{ID: "b", Tool: &domain.ToolCall{ToolName: "fake"}}, nil); ok {
+	if _, ok := d.CacheKey(domain.Node{ID: "b", Tool: &domain.ToolCall{ToolName: "fake"}}, nil, nil); ok {
 		t.Error("tool-backed node must never produce a cache key (REQ-WORKER-07)")
 	}
 }

@@ -66,7 +66,7 @@ type NodeExecutor interface {
 // cache; one that doesn't (stub/tool executors) simply never caches. Returning
 // ok=false means "this node is not cacheable" — always execute.
 type CacheKeyer interface {
-	CacheKey(node domain.Node, inputs []NodeInput) (key string, ok bool)
+	CacheKey(node domain.Node, inputs []NodeInput, workflowInputs map[string]string) (key string, ok bool)
 }
 
 // ToolEmitter is an optional NodeExecutor capability (ADR 0008, mirroring
@@ -105,7 +105,7 @@ func (s *Scheduler) executeNode(
 	// zero cost; on a miss we remember the key to record the entry after a
 	// successful run. cacheKey is "" when the node isn't cacheable or caching is
 	// off — then this whole block is inert.
-	cacheKey := s.cacheKeyFor(runNode, inputs, cacheMode)
+	cacheKey := s.cacheKeyFor(runNode, inputs, wfInputs, cacheMode)
 	if cacheKey != "" && (cacheMode == CacheOn || cacheMode == CacheReadOnly) {
 		if hit, ok := s.cacheHit(execID, logicalID, cacheKey); ok {
 			return hit, nil
@@ -199,7 +199,7 @@ func (s *Scheduler) executeNode(
 
 // cacheKeyFor returns the node's cache key, or "" if caching is off or the
 // executor doesn't opt the node in (not a CacheKeyer, or ok=false).
-func (s *Scheduler) cacheKeyFor(node domain.Node, inputs []NodeInput, mode CacheMode) string {
+func (s *Scheduler) cacheKeyFor(node domain.Node, inputs []NodeInput, wfInputs map[string]string, mode CacheMode) string {
 	if mode == CacheOff || s.cache == nil {
 		return ""
 	}
@@ -207,7 +207,7 @@ func (s *Scheduler) cacheKeyFor(node domain.Node, inputs []NodeInput, mode Cache
 	if !ok {
 		return ""
 	}
-	key, ok := keyer.CacheKey(node, inputs)
+	key, ok := keyer.CacheKey(node, inputs, wfInputs)
 	if !ok {
 		return ""
 	}

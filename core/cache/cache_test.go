@@ -45,6 +45,7 @@ func TestKeyChangesOnAnyFieldChange(t *testing.T) {
 		"worker version": func(i *cache.Inputs) { i.WorkerVersion = "1.0.1" },
 		"contract hash":  func(i *cache.Inputs) { i.ContractHash = "def" },
 		"input hash":     func(i *cache.Inputs) { i.InputArtifactHashes = []string{"h1", "h3"} },
+		"workflow input": func(i *cache.Inputs) { i.WorkflowInputs = map[string]string{"prUrl": "https://example.com/other"} },
 		"model":          func(i *cache.Inputs) { i.Model.Model = "gpt-4o" },
 		"model params":   func(i *cache.Inputs) { i.Model.Params = map[string]any{"temperature": 1} },
 		"tools":          func(i *cache.Inputs) { i.ToolVersions = []string{"git"} },

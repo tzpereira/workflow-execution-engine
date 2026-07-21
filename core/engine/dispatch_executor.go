@@ -52,9 +52,9 @@ func (d *DispatchExecutor) ExecuteWithEmit(ctx context.Context, req NodeRequest,
 // CacheKey implements CacheKeyer. Tool-backed nodes never cache
 // (REQ-WORKER-07, ADR 0008) — a Tool is opaque to the engine, which cannot
 // verify its Execute doesn't read ambient state.
-func (d *DispatchExecutor) CacheKey(node domain.Node, inputs []NodeInput) (string, bool) {
+func (d *DispatchExecutor) CacheKey(node domain.Node, inputs []NodeInput, workflowInputs map[string]string) (string, bool) {
 	if node.Tool != nil {
 		return "", false
 	}
-	return d.workers.CacheKey(node, inputs)
+	return d.workers.CacheKey(node, inputs, workflowInputs)
 }

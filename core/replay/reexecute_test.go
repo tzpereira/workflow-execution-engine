@@ -49,7 +49,7 @@ func (e *cachingExecutor) Execute(ctx context.Context, req engine.NodeRequest) (
 	return engine.NodeResult{Content: content, Type: domain.ArtifactJSON, CostUSD: 0.05, Tokens: 11}, nil
 }
 
-func (e *cachingExecutor) CacheKey(node domain.Node, inputs []engine.NodeInput) (string, bool) {
+func (e *cachingExecutor) CacheKey(node domain.Node, inputs []engine.NodeInput, workflowInputs map[string]string) (string, bool) {
 	e.mu.Lock()
 	ver := e.contractVersion[node.Worker]
 	e.mu.Unlock()
@@ -57,7 +57,7 @@ func (e *cachingExecutor) CacheKey(node domain.Node, inputs []engine.NodeInput) 
 	for _, in := range inputs {
 		hashes = append(hashes, in.Hash)
 	}
-	return cache.Key(cache.Inputs{WorkerID: node.Worker, ContractHash: ver, InputArtifactHashes: hashes}), true
+	return cache.Key(cache.Inputs{WorkerID: node.Worker, ContractHash: ver, InputArtifactHashes: hashes, WorkflowInputs: workflowInputs}), true
 }
 
 func (e *cachingExecutor) callCount(id string) int {

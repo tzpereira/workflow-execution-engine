@@ -27,6 +27,7 @@ type Inputs struct {
 	WorkerVersion       string               `json:"workerVersion"`
 	ContractHash        string               `json:"contractHash"`
 	InputArtifactHashes []string             `json:"inputArtifactHashes"`
+	WorkflowInputs      map[string]string    `json:"workflowInputs,omitempty"`
 	Model               domain.ModelConfig   `json:"model"`
 	ToolVersions        []string             `json:"toolVersions"`
 	ContextPolicy       domain.ContextPolicy `json:"contextPolicy"`

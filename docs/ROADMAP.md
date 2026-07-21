@@ -170,7 +170,7 @@ Delivers: REQ-CACHE-01..03, REQ-CACHE-04 (core modes).
 
 Deliverables:
 
-* Cache key = SHA-256 over canonical JSON of: {workerId@version, contractHash, resolved input artifact hashes, model+params, tool versions, contextPolicy}
+* Cache key = SHA-256 over canonical JSON of: {workerId@version, contractHash, resolved workflow inputs, resolved input artifact hashes, model+params, tool versions, contextPolicy}
 * Cache storage reuses artifact store; cache index maps key → artifact set + recorded events
 * Cache modes: `--cache=on|off|readonly`
 * CacheHit replays the node's recorded artifacts and cost=0 into the new execution

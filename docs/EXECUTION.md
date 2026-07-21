@@ -859,7 +859,7 @@ re-executes it and its downstream.
 
 ### Tasks
 
-- [x] Write `core/cache/key.go`: `Key(workerID, workerVersion, contractHash string, inputArtifactHashes []string, modelParams, toolVersions []string, contextPolicy domain.ContextPolicy) string` —
+- [x] Write `core/cache/key.go`: `Key(workerID, workerVersion, contractHash string, workflowInputs map[string]string, inputArtifactHashes []string, modelParams, toolVersions []string, contextPolicy domain.ContextPolicy) string` —
       SHA-256 over the canonical JSON (via `core/canonical`) of all those fields concatenated.
 - [x] Write `core/cache/store.go`: an index (simple file-based key→value, e.g. a JSON or bolt-style file
       under `.workflow/cache/index`) mapping a cache key to the set of artifact hashes and events recorded the
