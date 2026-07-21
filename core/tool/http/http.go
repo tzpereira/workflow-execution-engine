@@ -12,7 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
+	"regexp"
 	"strings"
 	"time"
 
@@ -48,7 +48,18 @@ func (t *Tool) InputSchema() []byte {
   "properties": {
     "method": { "enum": ["GET", "POST"] },
     "url": { "type": "string" },
-    "urlTransform": { "enum": ["github-pr-diff"] },
+    "urlRewrite": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["match", "replace"],
+        "properties": {
+          "match": { "type": "string" },
+          "replace": { "type": "string" }
+        }
+      }
+    },
     "failOnStatus": { "type": "boolean" },
     "headers": { "type": "object", "additionalProperties": { "type": "string" } },
     "body": { "type": "string" }
@@ -71,10 +82,15 @@ func (t *Tool) OutputSchema() []byte {
 type request struct {
 	Method       string            `json:"method"`
 	URL          string            `json:"url"`
-	Transform    string            `json:"urlTransform"`
+	Rewrite      []rewriteRule     `json:"urlRewrite"`
 	FailOnStatus bool              `json:"failOnStatus"`
 	Headers      map[string]string `json:"headers"`
 	Body         string            `json:"body"`
+}
+
+type rewriteRule struct {
+	Match   string `json:"match"`
+	Replace string `json:"replace"`
 }
 
 // Execute checks the allowlist, then makes the request. A disallowed host fails
@@ -85,7 +101,7 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 		return nil, fmt.Errorf("http: decode input: %w", err)
 	}
 
-	requestURL, err := transformURL(req.URL, req.Transform)
+	requestURL, err := rewriteURL(req.URL, req.Rewrite)
 	if err != nil {
 		return nil, err
 	}
@@ -130,54 +146,20 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 	return out, nil
 }
 
-func transformURL(raw, mode string) (string, error) {
-	if mode == "" {
+func rewriteURL(raw string, rules []rewriteRule) (string, error) {
+	if len(rules) == 0 {
 		return raw, nil
 	}
-	if mode != "github-pr-diff" {
-		return "", fmt.Errorf("http: unsupported urlTransform %q", mode)
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "", fmt.Errorf("http: parse url: %w", err)
-	}
-	owner, repo, number, ok := githubPRParts(u)
-	if !ok {
-		return "", fmt.Errorf("http: urlTransform %q expects a GitHub PR URL like https://github.com/OWNER/REPO/pull/N or https://api.github.com/repos/OWNER/REPO/pulls/N", mode)
-	}
-	return fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%s", url.PathEscape(owner), url.PathEscape(repo), number), nil
-}
-
-func githubPRParts(u *url.URL) (owner, repo, number string, ok bool) {
-	parts := strings.Split(strings.Trim(u.EscapedPath(), "/"), "/")
-	for i, p := range parts {
-		unescaped, err := url.PathUnescape(p)
+	for _, rule := range rules {
+		re, err := regexp.Compile(rule.Match)
 		if err != nil {
-			return "", "", "", false
+			return "", fmt.Errorf("http: compile urlRewrite match %q: %w", rule.Match, err)
 		}
-		parts[i] = unescaped
-	}
-	switch strings.ToLower(u.Hostname()) {
-	case "github.com":
-		if len(parts) < 4 || parts[2] != "pull" {
-			return "", "", "", false
+		if re.MatchString(raw) {
+			return re.ReplaceAllString(raw, rule.Replace), nil
 		}
-		owner, repo, number = parts[0], parts[1], strings.TrimSuffix(parts[3], ".diff")
-	case "api.github.com":
-		if len(parts) < 5 || parts[0] != "repos" || parts[3] != "pulls" {
-			return "", "", "", false
-		}
-		owner, repo, number = parts[1], parts[2], parts[4]
-	default:
-		return "", "", "", false
 	}
-	if owner == "" || repo == "" {
-		return "", "", "", false
-	}
-	if _, err := strconv.Atoi(number); err != nil {
-		return "", "", "", false
-	}
-	return owner, repo, number, true
+	return "", fmt.Errorf("http: url %q did not match any urlRewrite rule", raw)
 }
 
 func displayURL(u *url.URL) string {

@@ -37,3 +37,7 @@ tools implement the same interface.
 - **Delivered by:** M1.5 (filesystem, terminal, git, http). **Verified by:** per-tool test suites in
   `core/tool/*`; the flagship demo's Test Runner/Commit nodes wiring terminal/git as real graph nodes lands
   in `examples/` once the tool-backed executor exists (M1.6a); the M1.14 template gallery packages it.
+
+The HTTP tool may apply declarative per-call URL rewrite rules before enforcing its domain allowlist, and
+may fail the call on non-2xx responses when the workflow opts in. Domain-specific URL knowledge belongs in
+workflow definitions, not in the HTTP tool implementation.

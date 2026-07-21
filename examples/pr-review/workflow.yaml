@@ -15,7 +15,11 @@ nodes:
       input:
         method: GET
         url: "${input:prUrl}"
-        urlTransform: github-pr-diff
+        urlRewrite:
+          - match: '^https://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:/.*)?$'
+            replace: "https://api.github.com/repos/$1/$2/pulls/$3"
+          - match: '^https://api\.github\.com/repos/([^/]+)/([^/]+)/pulls/([0-9]+)(?:/.*)?$'
+            replace: "https://api.github.com/repos/$1/$2/pulls/$3"
         failOnStatus: true
         headers:
           Accept: "application/vnd.github.diff"

@@ -89,7 +89,7 @@ func TestSubdomainSuffixMatch(t *testing.T) {
 	}
 }
 
-func TestGitHubPRDiffTransformAllowsHumanURLThroughAPIAllowlist(t *testing.T) {
+func TestURLRewriteAllowsHumanURLThroughAPIAllowlist(t *testing.T) {
 	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
@@ -109,7 +109,12 @@ func TestGitHubPRDiffTransformAllowsHumanURLThroughAPIAllowlist(t *testing.T) {
 	out, err := tool.Execute(context.Background(), json.RawMessage(`{
 		"method": "GET",
 		"url": "https://github.com/bitcoin/bitcoin/pull/35750/changes",
-		"urlTransform": "github-pr-diff",
+		"urlRewrite": [
+			{
+				"match": "^https://github\\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:/.*)?$",
+				"replace": "https://api.github.com/repos/$1/$2/pulls/$3"
+			}
+		],
 		"headers": {"Accept": "application/vnd.github.diff"},
 		"failOnStatus": true
 	}`))
@@ -126,6 +131,26 @@ func TestGitHubPRDiffTransformAllowsHumanURLThroughAPIAllowlist(t *testing.T) {
 	}
 	if r.Status != 200 || r.Body != "diff --git a/a b/a" {
 		t.Errorf("got status=%d body=%q", r.Status, r.Body)
+	}
+}
+
+func TestURLRewriteRequiresMatchingRule(t *testing.T) {
+	tool := httptool.New([]string{"api.github.com"}, nil)
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{
+		"method": "GET",
+		"url": "https://example.com/not-a-pr",
+		"urlRewrite": [
+			{
+				"match": "^https://github\\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:/.*)?$",
+				"replace": "https://api.github.com/repos/$1/$2/pulls/$3"
+			}
+		]
+	}`))
+	if err == nil {
+		t.Fatal("expected an unmatched rewrite rule to fail before any request")
+	}
+	if !strings.Contains(err.Error(), "did not match any urlRewrite rule") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
