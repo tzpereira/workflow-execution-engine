@@ -1,7 +1,7 @@
 # Spec — Interface (Commercial Client)
 
-**Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.16) · **Principles:** PRIN-02, PRIN-06 ·
-**Implementation:** `ui/` (React + TypeScript)
+**Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.15; approval surface REQ-UI-06 in M2.5) ·
+**Principles:** PRIN-02, PRIN-06 · **Implementation:** `ui/` (React + TypeScript)
 
 The interface is **not** the product — it is the best client of the Core. It consumes the same event
 stream as `wee run --json` (via `wee serve`), and is never a second source of truth. A workflow built in
@@ -100,4 +100,5 @@ paths, checkpoint status, and remaining budget, and shall require an explicit Ap
 closing or reconnecting the client shall preserve the pending state and shall never imply approval.
 - **Rationale:** review and proposal can be automated, but repository writes need informed human control
   until a user deliberately opts into unattended execution.
-- **Delivered by:** M1.16. **Verified by:** _pending_.
+- **Delivered by:** M2.5 (Safe Mutations; M1.16 superseded — see EXECUTION-PHASE2.md Status).
+  **Verified by:** _pending_.

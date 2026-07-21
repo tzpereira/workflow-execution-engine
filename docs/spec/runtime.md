@@ -1,7 +1,7 @@
 # Spec — Workflow Runtime
 
-**Prefix:** `REQ-RUNTIME` · **Status:** DELIVERED (M1.3) except resume-budget note; M1.16 pending ·
-**Principles:** PRIN-01, PRIN-02, PRIN-05 · **Implementation:** `core/engine/`
+**Prefix:** `REQ-RUNTIME` · **Status:** DELIVERED (M1.3) except resume-budget note; approval (REQ-RUNTIME-07)
+pending in M2.5 · **Principles:** PRIN-01, PRIN-02, PRIN-05 · **Implementation:** `core/engine/`
 
 The runtime executes a workflow graph deterministically: goroutine-native scheduling, dependency-driven
 dispatch, bounded concurrency. The *engine* owns control flow — retries, branching, halting are engine
@@ -49,7 +49,8 @@ log alone, treat every node with a recorded `WorkerFinished` as done (reusing it
 execute only the remainder, appending to the same log.
 - **Rationale:** PRIN-01 (the record is the state), PRIN-05 (finished work is never paid for twice).
 - **Known limitation (accepted, MVP):** budget accounting restarts from zero on resume — prior spend is not
-  recounted. Revisit in M2.0.
+  recounted. Still open: M2.0 did not address it, and M2.2's control-plane work leaves it unchanged by
+  design (ADR 0012 Consequences).
 - **Delivered by:** M1.3. **Verified by:** `TestResumeSkipsFinishedNodes`.
 
 ### REQ-RUNTIME-07 — Persistent human approval before mutation
@@ -58,4 +59,5 @@ an approval checkpoint in the execution record, and continue only after an expli
 execution and checkpoint; rejection shall terminate the path without invoking the tool.
 - **Rationale:** a model may propose a change, but control of repository mutation remains with the human by
   default (PRIN-05). Persistence prevents a server restart or disconnected UI from changing the decision.
-- **Delivered by:** M1.16. **Verified by:** _pending_.
+- **Delivered by:** M2.5 (Safe Mutations; M1.16 superseded — see EXECUTION-PHASE2.md Status).
+  **Verified by:** _pending_.
