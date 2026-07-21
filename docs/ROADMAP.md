@@ -3,11 +3,13 @@
 Two phases only.
 
 * **Phase 1 — MVP**: everything needed for practical, trustworthy local workflows and portfolio credibility. Core open source + minimal commercial interface.
-* **Phase 2 — Final Product**: everything needed for teams to pay. Hosted execution, collaboration, hardening.
+* **Phase 2 — Local-First Product**: everything needed for developers and small teams to use WEE weekly from a local or self-hosted service: usability, control, observability, robust execution, safe mutations, and packaging. Hosted operation comes later as a convenience layer over the same product.
 
-Each milestone lists: deliverables, acceptance criteria, dependencies, and a `Delivers:` line naming the
-requirement IDs (from [spec/](spec/README.md)) it fulfills — the roadmap sequences requirements, it does not
-restate them. Laws in [CONSTITUTION.md](CONSTITUTION.md) bind every milestone.
+Each Phase 1 milestone lists: deliverables, acceptance criteria, dependencies, and a `Delivers:` line naming
+the requirement IDs (from [spec/](spec/README.md)) it fulfills. Phase 2 milestones are product-hardening
+milestones; when they add or change normative behavior, the corresponding spec IDs must be added before
+implementation. The roadmap sequences requirements, it does not restate them. Laws in
+[CONSTITUTION.md](CONSTITUTION.md) bind every milestone.
 
 Sequencing rule: **nothing in the Interface starts before the Core event/artifact model is stable** (M1.6). The UI consumes contracts, it never defines them.
 
@@ -392,171 +394,167 @@ Acceptance (Phase 1 exit):
 
 ---
 
-## PHASE 2 — FINAL PRODUCT
+## PHASE 2 — LOCAL-FIRST PRODUCT
 
-Goal: teams pay. Hosted execution, shared cache, collaboration, and the hardening that hosting demands. The Core stays open source and self-hostable; commercial value is in operation and coordination, never in withheld features.
+Goal: a developer or small team can download `wee`, run it locally or self-host it on their own machine/VM, and trust it for real engineering workflows every week. Phase 2 prioritizes product quality before cloud: usability, observability, control, robust execution, safe repository mutation, and packaging. The Core stays open source and self-hostable; hosted operation remains a later convenience layer over the same runtime, never a separate product.
 
-Exit criterion: **a 5-person team uses the hosted product for a real workflow weekly, with shared cache hits across members, and pays for it.**
+Exit criterion: **a real developer can install WEE, run three practical workflows against public or local repositories, understand outputs/costs/failures without raw JSON, retry/replay safely, and trust any mutating workflow because it pauses for explicit approval before writing.**
 
 ---
 
-### M2.0 — Core Hardening (pre-hosting prerequisites)
+### M2.0 — UX Reset
 
 Deliverables:
 
-* Engine long-run stability: soak tests (1k-node graphs, 24h executions), memory profiling, leak fixes
-* Deterministic scheduling audit: given same graph + same completion order, identical event sequence
-* Structured error taxonomy across engine (machine-readable codes)
-* Artifact store: garbage collection with retention policies, size quotas, large-file streaming
-* Secrets handling: env/keychain references in definitions, never serialized, redacted in events/exports
-* Sandbox upgrade for Terminal tool: container-based execution option (required before running untrusted workflows in cloud)
-* Native (non-OpenAI-compatible) local model providers if demand appears — OpenAI-compatible self-hosted endpoints (Ollama, vLLM) already work since M1.4 via REQ-MODEL-04; this covers anything that speaks neither vendor API
+* Replace the remaining boilerplate interface with a developer-tool shell: dense, scan-friendly, stable layout
+* Redesign the canvas, Inspector, Timeline, Logs, Metrics, History, Template gallery, Settings, and empty states as one coherent workspace
+* Make run setup guided: provider configuration, workflow inputs, budget, cache mode, and workspace root are visible before execution
+* Make failures legible at the point of action: node card, timeline row, inspector, and logs all agree on status and cause
+* Remove dead UI paths, unused tabs, placeholder components, and examples that do not support the local-first product story
 
 Acceptance:
 
-* Soak suite green in CI weekly.
-* No secret material can appear in any artifact, event, export, or cache entry (automated scans).
+* First-time user can import a practical workflow, configure inputs/provider/budget, run, inspect, and replay without editing YAML.
+* No primary product surface shows unbounded raw JSON by default.
+* Responsive desktop and mobile screenshots show no overlapping controls or unreadable primary text.
 
 ---
 
-### M2.1 — Remote Execution Service (Hosted Runtime)
+### M2.1 — Output & Observability
 
 Deliverables:
 
-* Control plane in Go (evolves `workflow serve` from M1.12): REST + WebSocket API — submit workflow, stream events, fetch artifacts, cancel, resume
-* Execution runners: the same static Go binary in minimal containers (scratch/distroless images, ~15MB) pulling jobs from queue; horizontal scaling; per-execution isolation
-* Managed API keys option: platform-held provider keys, metered per token with margin (the usage-based revenue line)
-* BYO-key mode: encrypted at rest, scoped per workspace
-* Server-side budget enforcement (cannot be bypassed by client)
-* Execution history retention tiers (free: 7 days; paid: configurable)
-* Regions: single region v1; architecture region-aware
+* Semantic viewers for every artifact type: code, diff, markdown/report, JSON tree, HTTP response, test result, metrics, risk/analysis
+* Syntax-highlighted code viewer with language detection, copy/download, line wrapping controls, and bounded height
+* Diff viewer that makes generated fixes and proposed mutations reviewable before any write
+* Charts for cost, tokens, duration, cache hits, retries, failures, contract violations, and savings attribution
+* Execution comparison: replay/divergence output visible without leaving the UI
+* Logs stay filterable and structured; raw event payloads remain available as an explicit debug fallback
 
 Acceptance:
 
-* CLI gains `--remote`: identical UX, identical event stream, execution runs in cloud.
-* Isolation test: hostile workflow (fork bombs, network scans, path escapes) contained by sandbox.
+* A user can answer "what happened, what did it cost, what was reused, and why did this node fail?" from the UI in under one minute.
+* Large artifacts stay readable and bounded; no artifact can expand the layout into unusability.
 
 ---
 
-### M2.2 — Remote Node Cache
+### M2.2 — Local Control Plane
 
 Deliverables:
 
-* Remote content-addressed cache, workspace-scoped, layered over local cache (local → remote → miss)
-* Team-shared: one member's execution warms everyone's cache (the Tier-1 selling point)
-* Integrity: signed cache entries; key includes engine version to prevent cross-version poisoning
-* Cache analytics: hit rate per team, $ saved counter (marketing surface in-product)
-* Privacy controls: per-node `cache: private` opt-out
+* `wee serve` becomes a durable local service: executions, artifacts, cache, settings, and workflow catalog survive restarts
+* Run controls: start, cancel, retry failed, retry from node, resume, replay, clear cache for workflow/node, export execution bundle
+* Budget and cache controls are editable before run and visible during run
+* Settings persist reliably: provider keys/references, base URLs, default budget, workspace root, template paths
+* Long-running executions surface heartbeats/progress and never look silently stuck
 
 Acceptance:
 
-* Member A runs workflow; member B's first run hits ≥ the shared nodes at cost $0 for those nodes.
-* "$ saved by cache this month" visible on team dashboard and correct.
+* Killing and restarting `wee serve` does not lose completed executions, settings, cache index, or pending resumable state.
+* Retrying a failed node does not repeat completed upstream work or pay for cached nodes again.
 
 ---
 
-### M2.3 — Accounts, Workspaces & Billing
+### M2.3 — Workflow Authoring & Practical Examples
 
 Deliverables:
 
-* Auth: email + OAuth (GitHub first — the audience lives there); sessions, API tokens for CLI (`workflow login`)
-* Workspace model: personal (free) and team workspaces; members, invitations
-* RBAC v1: Owner / Editor / Viewer (Viewer: run + inspect; Editor: modify definitions; Owner: billing + members)
-* Billing: Stripe; plans per Business Model — Hosted usage-based + Team per-seat ($15–20); usage dashboards, invoices, spending limits/alerts
-* Free tier: local everything forever + limited hosted executions/month (funnel)
+* Workflow/Worker/Contract editing becomes practical: validation inline, version bump guidance, schema-aware fields, and safe rollback to previous definitions
+* Template gallery expands around real developer jobs: PR Review, Test Generator, Change Risk, Bug Investigation, Release Notes, Refactor Plan, Dependency Audit
+* Each template has guided inputs, expected cost, expected runtime, required tools, and a read-only/mutating safety label
+* Remote public repository workflows work without cloning when the workflow only needs public HTTP/GitHub data
+* Example READMEs show the intended output, budget profile, and when cache/replay should help
 
 Acceptance:
 
-* Full self-serve: sign up → create team → invite → subscribe → run remote, no human involved.
-* Downgrade/cancel paths work; data export available on exit (no lock-in).
+* A new practical example can be authored, validated, imported, run, replayed, and exported without hand-editing generated UI state.
+* Published templates avoid surprise spend and declare whether they can write before a user starts them.
 
 ---
 
-### M2.4 — Collaboration
+### M2.4 — Robust Runtime
 
 Deliverables:
 
-* Workflow sharing: private (workspace), link-shared, public
-* Execution sharing: read-only links rendering full timeline/inspector/artifacts (respecting artifact redaction rules)
-* Version comparison: side-by-side diff of two workflow versions (graph diff + contract diff), and of two executions of the same workflow (divergence view from M1.7 generalized)
-* Shared template library per workspace; org-curated templates
-* Commenting v1: comments anchored to nodes and executions (no realtime co-editing — explicitly deferred)
-* Audit log per workspace (who ran/edited/shared what)
+* Structured error taxonomy across engine/tools/providers with machine-readable codes and human-readable remediation
+* Provider resilience: 429/5xx retry policy, Retry-After support, timeout controls, partial-output handling, and clear provider diagnostics
+* Cancellation/resume audit: cancellation propagates through model/tool calls, writes terminal events, and leaves resumable state when possible
+* Artifact limits: size quotas, large output streaming, truncation summaries, retention controls, and garbage collection
+* Secrets handling hardened: env/keychain references, redaction scans across events/artifacts/cache/export
+* Deterministic scheduling audit for reproducible event ordering where completion order is the same
 
 Acceptance:
 
-* An execution link sent to a stakeholder with no account answers "what happened and why" without any explanation call.
-* Graph diff correctly highlights added/removed/modified nodes and contract changes.
+* A failure caused by rate limits, missing files, provider config, contract violation, timeout, or budget limit points to the exact node and likely fix.
+* Soak and stress tests run in CI or scheduled CI without leaks or unbounded storage growth.
 
 ---
 
-### M2.5 — Interface Maturity
+### M2.5 — Safe Mutations
 
 Deliverables:
 
-* Multi-workspace navigation (the one exception to "one workspace": a switcher, not page sprawl)
+* ADR defining persistent approval checkpoints, event semantics, CLI behavior, and which tool operations count as mutations
+* Runtime pause/resume checkpoint before filesystem writes, terminal mutations, Git mutations, or non-GET HTTP calls
+* Proposed-change view with formatted diff, affected paths, command/API preview, estimated remaining cost, and explicit Approve/Reject actions
+* Approval is the default for mutating workflows; unattended mutation requires explicit run-level opt-in
+* PR Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally open PR only after approval
+
+Acceptance:
+
+* No mutating `ToolCalled` event exists before a matching approval event across normal run, retry, cancellation, and resume.
+* Closing the UI or restarting `wee serve` while approval is pending cannot turn the pause into approval or lose the execution.
+
+---
+
+### M2.6 — Self-Hosted Packaging
+
+Deliverables:
+
+* Single-binary install path polished: `wee init`, `wee serve`, `wee run`, `wee inspect`, `wee replay`, `wee cache`
+* Docker image and Docker Compose for a small self-hosted service
+* Config directory, data directory, migration path, backup/restore commands, and upgrade notes
+* CLI output feels like a developer tool: fast startup, helpful `--help`, clear progress, stable `--json`, actionable errors
+* Accessibility pass and performance budget: canvas interactive at 200 nodes; event stream remains responsive during large outputs
+
+Acceptance:
+
+* A user can install from release assets or run Docker Compose, start the service, run a template, stop/restart, and keep history/cache intact.
+* A senior engineer can understand local/self-hosted operation from README plus one example.
+
+---
+
+### M2.7 — Team Self-Hosted
+
+Deliverables:
+
+* Multi-user self-hosted workspaces with simple auth, API tokens for CLI, and local RBAC: Owner / Editor / Viewer
+* Shared execution history, shared node cache, shared template library, and execution links inside the self-hosted instance
+* Version comparison for workflows and executions: graph diff, contract diff, divergence view
 * Team dashboard: recent executions, cost by workflow/member, cache savings, failure trends
-* Advanced timeline: zoom, compare two executions overlaid, filter lanes
-* Contract editor upgrades: visual JSON Schema builder, contract test-run against fixture inputs ("dry-run this Worker")
-* Workflow-level scheduled runs (cron) and webhook triggers (GitHub PR opened → flagship workflow) — the automation hook that makes it sticky
-* Accessibility pass (keyboard-complete, contrast, screen-reader landmarks)
-* Performance budget: canvas interactive <1s at 200 nodes
+* Audit log: who ran, edited, approved, rejected, shared, or deleted what
 
 Acceptance:
 
-* GitHub webhook → automatic PR review workflow → result posted back as PR comment (via HTTP tool), fully self-serve setup.
+* Member A runs a workflow; Member B's run reuses shared cache where keys match and shows the saved cost.
+* An execution link answers "what happened and why" for another team member without a separate explanation.
 
 ---
 
-### M2.6 — Ecosystem & Extensibility
+### M2.8 — Managed Runtime Readiness
 
 Deliverables:
 
-* **TypeScript SDK** (deferred from M1.10): authoring-only — generates canonical YAML/JSON executed by the Go engine (via `workflow serve` locally or remote API); typed via codegen from `schemas/`; published to npm
-* Custom tool packaging: `workflow tool init` scaffold; native tools as Go plugins/modules, cross-language tools via subprocess protocol (JSON over stdio, schema-validated) — a tool can be written in any language
-* Tool registry v1: discoverable list (curated, not a marketplace — marketplace remains a non-goal)
-* Plugin points: event sinks (Datadog/OTel exporter, Slack notifier), artifact storage backends (S3), model providers
-* OpenTelemetry-native tracing: every execution exportable as OTel traces (observability story for eng orgs)
-* Public API stability contract: versioned API, deprecation policy, changelog discipline
-
-Acceptance:
-
-* Third party builds and publishes a working tool (in a non-Go language, via the subprocess protocol) + an OTel exporter using only public docs.
-* Flagship demo expressible in the TS SDK; generated YAML hash-identical to the handwritten equivalent.
-
----
-
-### M2.7 — Reliability, Security & Compliance Baseline
-
-Deliverables:
-
-* SLOs: control plane 99.9%, event stream latency p95 < 500ms; status page
-* Backups + disaster recovery runbook (tested restore)
-* Security: pen test on hosted platform, dependency scanning, SSO groundwork (SAML deferred to enterprise-later, per non-goals)
-* Data controls: workspace data deletion, artifact retention policies, region pinning groundwork
-* SOC 2 readiness checklist started (not certification — sequencing: only if enterprise pull is real)
-
-Acceptance:
-
-* Restore drill from backup completes < 1h with zero artifact loss.
-* Pen test criticals: zero open.
-
----
-
-### M2.8 — Launch: Commercial GA
-
-Deliverables:
-
-* Pricing page live matching Business Model tiers
-* Onboarding flows: solo dev (local→remote upsell) and team (invite→shared cache aha-moment)
-* Case study: one real team, real workflow, real numbers (cache savings, review time saved)
-* v1.0.0 of Core: API stability commitment
-* Support: docs-first, community (Discord/GitHub Discussions), email for paid
+* Hosted/managed architecture plan for operating the same self-hosted product: control plane, runners, isolation, key management, retention, billing hooks
+* Security baseline for managed operation: dependency scanning, backups, restore drill, data deletion, incident runbook, pen-test plan
+* Pricing/onboarding drafts based on the local-first value loop: solo local user → self-hosted team → managed convenience
+* Case study target: one real team, real workflow, real numbers for cache savings and review time saved
+* Public API stability plan and release criteria for v1.0.0
 
 Acceptance (Phase 2 exit):
 
-* ≥1 paying team using it weekly on real work.
-* Churn-critical loop verified: run → share → teammate joins → shared cache saves money → renewal.
+* A small team uses the self-hosted product weekly on real work with shared cache savings visible.
+* Managed runtime can be started as a business decision without changing the product architecture.
 
 ---
 
@@ -569,17 +567,14 @@ M1.0 → M1.1 → M1.2 → M1.3 → M1.4 → M1.5 → M1.6 → M1.7 → M1.8 →
                                             └── (freeze) → M1.11 → M1.12 → M1.13 → M1.14 → M1.15 → M1.16 → M1.17
 
 Phase 2:
-M2.0 → M2.1 → M2.2 ─┐
-        M2.3 ───────┼→ M2.4 → M2.5 → M2.8
-        M2.6 (parallel after M2.1)
-        M2.7 (parallel, must close before M2.8)
+M2.0 → M2.1 → M2.2 → M2.3 → M2.4 → M2.5 → M2.6 → M2.7 → M2.8
 ```
 
 ---
 
 ## Standing Rules (both phases)
 
-1. **Core never depends on the Interface or the cloud.** Every Phase 2 capability must degrade gracefully to local/self-hosted.
+1. **Core never depends on the Interface or managed hosting.** Every Phase 2 capability must work locally or self-hosted first.
 2. **No feature ships without events.** If it doesn't emit events, it isn't observable, and it doesn't merge.
 3. **No definition ships without a version and a hash.**
 4. **Every milestone ends with a runnable example**, not a document.

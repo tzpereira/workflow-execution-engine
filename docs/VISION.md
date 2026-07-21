@@ -110,7 +110,7 @@ versioning, tools, CLI, SDK, metrics, security, UI.
 
 ---
 
-## Business Model
+## Distribution & Business Model
 
 The Core is open source. Forever. BYO API key.
 
@@ -119,18 +119,25 @@ savings accounting all live in the free core. Paywalling the discipline would in
 become the thing we're the counterweight to. Individual developers running the CLI locally never pay; that
 audience is distribution, not revenue.
 
-Revenue comes from what teams cannot easily self-host:
+The product starts local/self-hosted. A developer downloads `wee`, runs the service on their machine or a
+team-owned VM, points it at their own provider keys or local models, and keeps source code, artifacts, cache,
+and execution history inside their own environment. That is not a demo mode; it is the primary product
+shape.
 
-### Tier 1 — Hosted Execution (usage-based)
+Hosted execution is a later convenience layer, not the thesis. Revenue comes from operating the same product
+for teams that do not want to run it themselves, plus coordination features that become more valuable when a
+team shares workflows:
 
-- Cloud-hosted runtime
-- Remote node cache (one person's execution warms the whole team's cache)
+### Tier 1 — Managed Runtime (usage-based)
+
+- Hosted operation of the same runtime
+- Shared node cache (one person's execution warms the whole team's cache)
 - Managed API keys with margin on compute/tokens
 - Execution history retention
 
 ### Tier 2 — Team (per seat, ~$15–20/seat/month)
 
-- Everything in Hosted
+- Everything in Managed Runtime
 - **Savings report** — the managed proof of the economy the OSS core delivers: avoided-spend dashboards
   (cache, context pruning, engine-owned loops) per team/period, built on the auditable savings accounting
   of the core (REQ-METRIC-03). Credible precisely because the event log is tamper-evident.

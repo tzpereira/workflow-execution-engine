@@ -25,11 +25,16 @@ The runtime, not the model, decides how work executes.
 
 ## Status
 
-Phase 1 (MVP) is in development.
+Phase 1 (MVP) is in development and is being closed as a local-first product proof.
 
-M1.15 of M1.17 is in progress.
+M1.15 is in progress. The old M1.16/M1.17 release gates may be superseded by the Phase 2 local-first
+product-hardening plan before any public release.
 
 There is no stable binary or API yet.
+
+The next product arc is Phase 2: a local/self-hosted service focused on usability, control, observability,
+robust execution, safe mutations, and packaging. Hosted/managed operation is intentionally later; the
+primary product should work when a user downloads `wee` and runs it in their own environment.
 
 ## Quickstart
 
@@ -123,7 +128,8 @@ Start with [AGENTS.md](AGENTS.md), the index for the project's documentation:
 - vision: why the project exists
 - specs: testable requirements
 - roadmap: milestones and sequencing
-- execution plan: implementation strategy
+- execution plan: implementation strategy for Phase 1
+- execution plan, Phase 2: [docs/EXECUTION-PHASE2.md](docs/EXECUTION-PHASE2.md)
 - ADRs: architectural decisions
 - glossary: shared terminology
 

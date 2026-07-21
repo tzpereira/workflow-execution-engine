@@ -3,7 +3,8 @@
 > The **how** layer. Laws: [CONSTITUTION.md](CONSTITUTION.md). Requirements (the *what*, as `REQ-*`/`NFR-*`
 > IDs): [spec/](spec/README.md). Sequencing: [ROADMAP.md](ROADMAP.md). Tasks below cite the requirement IDs
 > they implement; on detail conflicts between prose documents, the **spec** wins, and this file wins on
-> operational detail (commands, file paths, order). It covers **Phase 1 only** (M1.0 → M1.17).
+> operational detail (commands, file paths, order). It covers **Phase 1 only** (M1.0 → M1.17). The Phase 2
+> local-first product-hardening playbook lives in [EXECUTION-PHASE2.md](EXECUTION-PHASE2.md).
 
 ## 0. How to use this document (read first)
 
@@ -45,8 +46,11 @@ Rules:
   read-only by default: PR Review, Test Generator, and Change Risk Analysis. Semantic output viewers,
   bounded previews, per-node usage charts, output-first Inspector disclosure, and the reduced workspace
   tab set are implemented and mechanically verified. Real provider runs for the two new templates and a
-  first-time-user pass remain before M1.15 closes. M1.16 is reserved for persistent human approval before
-  repository mutations; release work moved to M1.17. Earlier M1.14a/b/c/d work is complete and locally
+  first-time-user pass remain before M1.15 closes. The owner has signaled that M1.16/M1.17, as originally
+  written, should not force a release before the product feels meaningfully usable. The intended next arc is
+  now Phase 2 local-first product hardening: usability, control, observability, robust execution, safe
+  mutations, and packaging. M1.16/M1.17 remain recorded below as the previous Phase 1 gates until the owner
+  explicitly closes, supersedes, or rewrites them. Earlier M1.14a/b/c/d work is complete and locally
   verified. M1.14a: workflow-level Inputs,
   closing M1.9's disclosed `--input` gap (ADR 0011). M1.14b: resizable Inspector/Timeline panels, inline
   artifact preview on a node's own canvas card with an expand modal, Timeline maximize. M1.14c: in-UI
@@ -1656,6 +1660,10 @@ legible outputs, and no raw-data sprawl in the primary UI.
 
 ## M1.16 — Human-Controlled Mutations
 
+> Transition note: this milestone is preserved as the original Phase 1 safety gate. The current product
+> direction moves safe mutations into Phase 2 after UX, observability, control, and robustness improve. Do
+> not start this milestone unless the owner explicitly chooses to finish the original Phase 1 release path.
+
 **Goal:** a workflow may prepare a change autonomously, but repository mutation remains a deliberate,
 auditable human decision by default.
 **Depends on:** M1.15.
@@ -1695,6 +1703,11 @@ auditable human decision by default.
 
 ## M1.17 — Release Readiness
 
+> Transition note: this milestone is preserved as the original Phase 1 release gate. The owner does not want
+> to go live before the local/self-hosted product is more usable, observable, controllable, and robust. Do
+> not tag or publish a release from this checklist unless the owner explicitly reactivates the original
+> Phase 1 release path.
+
 **Goal:** package the product only after its reliable path and safety boundary are both demonstrable.
 **Depends on:** M1.16.
 **Delivers:** Phase 1 exit criterion.
@@ -1723,7 +1736,9 @@ auditable human decision by default.
 
 ## Definition of "Phase 1 done"
 
-All 18 milestones above (M1.0–M1.17) checked off, all acceptance checklists and both recordings
-exist, `v0.1.0` is tagged and released. At that point, and not before, open ROADMAP.md's Phase 2 section and
-begin scoping a follow-up execution plan for it — this document does not cover Phase 2 by design (see the
-top of this file).
+Original release path: all 18 milestones above (M1.0–M1.17) checked off, all acceptance checklists and both
+recordings exist, `v0.1.0` is tagged and released.
+
+Current transition path: the owner may explicitly close M1.15 as the MVP proof and supersede M1.16/M1.17 in
+favor of [EXECUTION-PHASE2.md](EXECUTION-PHASE2.md). If that happens, record the decision here and in
+[ROADMAP.md](ROADMAP.md) before starting M2.0. Do not silently run both plans at once.

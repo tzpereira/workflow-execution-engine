@@ -26,16 +26,18 @@ prompt builder. If you're about to describe it that way, stop and read
    lifecycle, as diagrams. Non-normative; when it drifts from `core/`, the code wins — fix the diagram.
 4. [docs/spec/README.md](docs/spec/README.md) — the testable **what**: one file per capability, `REQ-*`/
    `NFR-*` IDs, EARS-format requirements. This is the source of truth on behavior; prose docs defer to it.
-5. [docs/ROADMAP.md](docs/ROADMAP.md) — the **when**: two phases, milestones, `Delivers:` lines mapping
-   milestones to requirement IDs.
-6. [docs/EXECUTION.md](docs/EXECUTION.md) — the **how**: task-by-task playbook for Phase 1 (M1.0–M1.15).
+5. [docs/ROADMAP.md](docs/ROADMAP.md) — the **when**: Phase 1 MVP and Phase 2 local-first product
+   hardening, with milestones and `Delivers:` lines mapping milestones to requirement IDs where applicable.
+6. [docs/EXECUTION.md](docs/EXECUTION.md) — the **how**: task-by-task playbook for Phase 1 (M1.0–M1.17).
    **Read its `## Status` section first** — it names the current milestone and is the resumable state of
    the project. Do not start a milestone whose predecessor isn't checked off and verified.
-7. [docs/adr/](docs/adr/) — irreversible decisions (language/runtime, serialization, content-addressing,
+7. [docs/EXECUTION-PHASE2.md](docs/EXECUTION-PHASE2.md) — the next active product-hardening playbook once
+   Phase 1 is closed or explicitly superseded by the owner.
+8. [docs/adr/](docs/adr/) — irreversible decisions (language/runtime, serialization, content-addressing,
    contract validation, model-provider integration, event-log hash-chain). A pinned ADR is not
    re-litigated mid-implementation.
-8. [docs/glossary.md](docs/glossary.md) — canonical vocabulary and the forbidden-AI-vocabulary table.
-9. [.claude/skills/agent-harness-design/SKILL.md](.claude/skills/agent-harness-design/SKILL.md) —
+9. [docs/glossary.md](docs/glossary.md) — canonical vocabulary and the forbidden-AI-vocabulary table.
+10. [.claude/skills/agent-harness-design/SKILL.md](.claude/skills/agent-harness-design/SKILL.md) —
    harness-design principles this AGENTS.md/CLAUDE.md setup itself follows (source: Anthropic + OpenAI,
    2026). Invocable directly as a Claude Code skill. The decision to structure docs this way is
    [ADR 0001](docs/adr/0001-harness-oriented-docs.md).
@@ -46,7 +48,7 @@ prompt builder. If you're about to describe it that way, stop and read
 - Commit by logical unit of work, not by milestone squash and not by file: prefix milestone-scoped commits
   `M<phase>.<n>: <summary>`; a fix or chore found along the way gets its own conventional prefix (`fix:`,
   `chore:`) instead.
-- Never invent scope — if ROADMAP/spec don't ask for it, it doesn't belong in Phase 1.
+- Never invent scope — if ROADMAP/spec don't ask for it, it doesn't belong in the current phase.
 - Irreversible or contested choices get an ADR before they're pinned.
 - Third-party dependencies are vetted (PRIN-07) before entering `go.mod` — findings + recommendation
   presented, decision is the project owner's, never a unilateral swap.
@@ -60,7 +62,7 @@ prompt builder. If you're about to describe it that way, stop and read
 `Execution`/`Artifacts`/`Context` instead. CI greps for this — see M1.0 acceptance criteria in
 EXECUTION.md.
 
-## Non-goals (Phase 1) — see CONSTITUTION.md for the full list
+## Non-goals — see CONSTITUTION.md for the full list
 
 Chat interface · RAG · vector DBs · multi-tenancy/billing/marketplace · fine-tuning · autonomous
 long-running loops · knowledge bases.
