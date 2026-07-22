@@ -112,7 +112,7 @@ export default function App() {
             title="Restore bottom panel"
             aria-label="Restore bottom panel"
           >
-            ▴
+            <PanelIcon name="restore-bottom" />
           </button>
         </div>
       ) : (
@@ -179,7 +179,7 @@ function PanelActions({
         title={`Minimize ${panel}`}
         aria-label={`Minimize ${panel}`}
       >
-        ▕
+        <PanelIcon name="minimize-right" />
       </button>
       <button
         type="button"
@@ -188,7 +188,7 @@ function PanelActions({
         title={maximized ? `Restore ${panel}` : `Maximize ${panel}`}
         aria-label={maximized ? `Restore ${panel}` : `Maximize ${panel}`}
       >
-        {maximized ? '▸' : '◧'}
+        <PanelIcon name={maximized ? 'restore-right' : 'maximize-right'} />
       </button>
     </div>
   )
@@ -210,9 +210,73 @@ function PanelRail({
         title={`Restore ${side} panel`}
         aria-label={`Restore ${side} panel`}
       >
-        ◨
+        <PanelIcon name="restore-right" />
       </button>
     </div>
+  )
+}
+
+function PanelIcon({
+  name,
+}: {
+  name:
+    | 'minimize-right'
+    | 'maximize-right'
+    | 'restore-right'
+    | 'restore-bottom'
+}) {
+  if (name === 'minimize-right') {
+    return (
+      <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+        <path
+          d="M4 3.5h8M4 8h8M4 12.5h8"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.5"
+        />
+      </svg>
+    )
+  }
+  if (name === 'maximize-right') {
+    return (
+      <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+        <path
+          d="M6 3.5H3.5V6M10 3.5h2.5V6M6 12.5H3.5V10M10 12.5h2.5V10"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
+      </svg>
+    )
+  }
+  if (name === 'restore-bottom') {
+    return (
+      <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+        <path
+          d="M4 10l4-4 4 4M3.5 13h9"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+      <path
+        d="M5 3.5h7.5V11M3.5 5v7.5H11"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
   )
 }
 

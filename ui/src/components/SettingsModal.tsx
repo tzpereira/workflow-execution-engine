@@ -531,7 +531,7 @@ export function SettingsModal({
                   </select>
                 </label>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="mt-4 flex items-center justify-end gap-2 border-t border-neutral-200 pt-3">
                 <button
                   type="button"
                   className="btn btn-primary"
