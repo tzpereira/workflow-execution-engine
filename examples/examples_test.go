@@ -143,6 +143,45 @@ func TestReleaseNotesIsReadOnlyGenericPatchURLShape(t *testing.T) {
 	}
 }
 
+// TestDependencyAuditIsReadOnlyLocalFileShape locks in M2.3's local-file
+// change-source shape: a read-only filesystem read, no network anywhere in
+// the graph — the only non-HTTP, non-git shape in this gallery — and
+// gallery-eligible (read-only) without waiting on M2.5.
+func TestDependencyAuditIsReadOnlyLocalFileShape(t *testing.T) {
+	v, err := validate.NewValidator()
+	if err != nil {
+		t.Fatalf("NewValidator: %v", err)
+	}
+
+	wf := readWorkflow(t, "dependency-audit/workflow.yaml")
+	if err := v.Validate(validate.KindWorkflow, wf, nil); err != nil {
+		t.Errorf("workflow.yaml failed schema validation:\n%v", err)
+	}
+	if err := validate.Graph(&wf, nil); err != nil {
+		t.Errorf("workflow.yaml failed graph validation:\n%v", err)
+	}
+	if len(wf.Nodes) != 2 || wf.Nodes[0].Tool == nil || wf.Nodes[1].Worker == "" {
+		t.Fatal("dependency-audit should stay a two-node, one-model-call local-file path")
+	}
+	if wf.Nodes[0].Tool.ToolName != "filesystem" {
+		t.Errorf("read node tool = %q, want filesystem", wf.Nodes[0].Tool.ToolName)
+	}
+	if op, _ := wf.Nodes[0].Tool.Input["op"].(string); op != "read" {
+		t.Errorf("read node filesystem op = %q, want read (read-only)", op)
+	}
+	if facts := registry.DeriveTemplateFacts(wf); facts.WriteCapable {
+		t.Error("dependency-audit must be read-only (WriteCapable == false) to be gallery-eligible without the M2.5 approval gate")
+	}
+
+	worker := readWorker(t, "dependency-audit/audit.worker.yaml")
+	if err := v.Validate(validate.KindWorker, worker, nil); err != nil {
+		t.Errorf("audit.worker.yaml failed schema validation:\n%v", err)
+	}
+	if _, err := validate.CompileSchema(worker.Contract.OutputSchema); err != nil {
+		t.Errorf("audit output schema does not compile: %v", err)
+	}
+}
+
 // TestPublishedTemplateCatalogIsReadOnly is the structural half of M2.3's
 // "published templates ... declare whether they can write before a user
 // starts them": every .tar in the published gallery must decode to
@@ -234,7 +273,7 @@ func TestSecondaryDemosAreValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewValidator: %v", err)
 	}
-	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk", "refactor-plan", "release-notes"} {
+	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk", "refactor-plan", "release-notes", "dependency-audit"} {
 		validateExampleDir(t, v, dir)
 	}
 }

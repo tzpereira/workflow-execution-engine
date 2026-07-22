@@ -1,0 +1,4 @@
+# Point workspaceRoot at the repository whose manifest you want audited.
+# No http/terminal allowlist is needed: this workflow's only tool call is a
+# read-only filesystem read.
+workspaceRoot: ${WEE_WORKSPACE_ROOT:-.}

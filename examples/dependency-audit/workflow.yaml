@@ -1,0 +1,37 @@
+# Read-only dependency audit from a LOCAL manifest file — the local-file
+# change-source shape (M2.3): no network at all, unlike every other template
+# in this gallery. filesystem op:read is read-only (no writes anywhere in
+# this graph), so this workflow is gallery-eligible immediately
+# (WriteCapable == false, core/registry.DeriveTemplateFacts) — no M2.5
+# approval-gate wait, and no forge account of any kind is needed.
+#
+# Deliberately does NOT call a live vulnerability-lookup API (an unverified
+# external dependency/response-shape assumption is exactly the kind of risk
+# PRIN-07's vetting discipline cautions against) — see README.md for that
+# disclosed scope boundary and the natural extension it names.
+id: dependency-audit
+version: 1.0.0
+inputs:
+  - name: manifestPath
+    required: true
+    description: Path (relative to the workspace root) to a dependency manifest — e.g. go.mod, package.json
+
+nodes:
+  - id: read-manifest
+    tool:
+      toolName: filesystem
+      input:
+        op: read
+        path: "${input:manifestPath}"
+
+  - id: audit
+    worker: audit@1.0.0
+
+edges:
+  - { from: read-manifest, to: audit }
+
+budget:
+  maxCostUsd: 0.03
+  maxTokens: 30000
+  maxDurationMs: 90000
+  maxRetriesPerNode: 1

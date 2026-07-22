@@ -1,0 +1,55 @@
+# One bounded audit call. The filesystem tool's read op emits a JSON artifact
+# ({"content":string}, core/tool/filesystem), so the policy admits
+# read-manifest by node id — same pattern as pr-review/reviewer.worker.yaml.
+id: audit
+version: 1.0.0
+objective: Read a dependency manifest and flag entries worth a closer look — not a live vulnerability scan, only well-known, widely-documented concerns you have high confidence about.
+constraints:
+  - This is not a live vulnerability database check; never state a CVE, version number, or advisory you cannot ground in the manifest itself.
+  - Flag a dependency only when the concern is well-known and widely documented, not a guess.
+  - When uncertain about a dependency, omit it rather than speculate.
+  - Never invent a dependency that is not present in the manifest.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [read-manifest]
+contract:
+  goal: Produce a concise, honestly-bounded dependency audit a developer can act on immediately.
+  rules:
+    - Return at most ten findings, highest-confidence concern first.
+    - Every finding names the dependency, a concern category, and one grounded reason.
+  successCriteria:
+    - Every finding names a dependency actually present in the manifest.
+    - No finding claims live vulnerability data this Worker was never given.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [summary, findings]
+    properties:
+      summary:
+        type: string
+        maxLength: 300
+      findings:
+        type: array
+        maxItems: 10
+        items:
+          type: object
+          additionalProperties: false
+          required: [dependency, concern, note]
+          properties:
+            dependency:
+              type: string
+              maxLength: 100
+            concern:
+              enum: [outdated, deprecated, unclear-necessity, license, none]
+            note:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 700
