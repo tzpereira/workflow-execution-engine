@@ -34,9 +34,8 @@ Rules:
   examples, CLI reference, and `docs/self-hosted.md` document install, run, stop/restart persistence,
   backup/restore, and upgrades. Verified with `go test ./...`, `go test ./... -race`, `go vet ./...`,
   `go build -o /tmp/wee-m2.6 ./cli`, `pnpm --dir ui typecheck`, `pnpm --dir ui test`,
-  `pnpm --dir ui lint`, `pnpm --dir ui build`, and `docker compose -f compose.yaml config`. Docker image
-  build remains manually pending on a running Docker daemon in this workspace. Next sequential milestone:
-  **M2.7 — Team Self-Hosted**.
+  `pnpm --dir ui lint`, `pnpm --dir ui build`, `docker compose -f compose.yaml config`, and
+  `docker build -t wee:m2.6-check .`. Next sequential milestone: **M2.7 — Team Self-Hosted**.
 - **M2.10 is implemented pending visual/live walkthrough** (2026-07-22): The UI now has semantic design
   tokens with light/dark theme resolution and an explicit toolbar toggle; shared status/signal mapping;
   themed canvas grid, non-overlapping node placement, and relayout; workspace document tabs with dirty
@@ -375,8 +374,7 @@ Acceptance:
 - [x] Verification recorded here:
   `go test ./...`; `go test ./... -race`; `go vet ./...`; `go build -o /tmp/wee-m2.6 ./cli`;
   `pnpm --dir ui typecheck`; `pnpm --dir ui test`; `pnpm --dir ui lint`; `pnpm --dir ui build`;
-  `docker compose -f compose.yaml config`. `docker build -t wee:m2.6-check .` could not run because the
-  local Docker daemon was not running.
+  `docker compose -f compose.yaml config`; `docker build -t wee:m2.6-check .`.
 
 ---
 
