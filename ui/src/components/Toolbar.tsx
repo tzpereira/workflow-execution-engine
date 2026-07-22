@@ -207,6 +207,9 @@ export function Toolbar({
           >
             Import
           </button>
+          <button type="button" className="btn" onClick={onOpenTemplates}>
+            Templates
+          </button>
           <button
             type="button"
             className="btn"
@@ -220,9 +223,7 @@ export function Toolbar({
           >
             Export
           </button>
-          <button type="button" className="btn" onClick={onOpenTemplates}>
-            Templates
-          </button>
+          <span className="mx-1 hidden h-4 w-px bg-neutral-200 md:block" />
           <button
             type="button"
             className="btn"
@@ -231,18 +232,25 @@ export function Toolbar({
           >
             Settings
           </button>
+          {notificationsSlot}
           <button
             type="button"
-            className="btn"
+            className="btn toolbar-icon-button"
+            onClick={onOpenHelp}
+            title="Help"
+            aria-label="Help"
+          >
+            <InfoIcon />
+          </button>
+          <button
+            type="button"
+            className="btn toolbar-icon-button"
             onClick={onToggleTheme}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
           >
-            {theme === 'dark' ? 'Light' : 'Dark'}
+            <ThemeIcon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
-          <button type="button" className="btn" onClick={onOpenHelp}>
-            Help
-          </button>
-          {notificationsSlot}
           <button
             type="button"
             className="btn"
@@ -261,6 +269,63 @@ export function Toolbar({
         />
       )}
     </header>
+  )
+}
+
+function ThemeIcon({ name }: { name: 'sun' | 'moon' }) {
+  if (name === 'sun') {
+    return (
+      <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+        <circle
+          cx="8"
+          cy="8"
+          r="2.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.58 3.58l1.06 1.06M11.36 11.36l1.06 1.06M12.42 3.58l-1.06 1.06M4.64 11.36l-1.06 1.06"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.4"
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+      <path
+        d="M12.3 10.4A5.1 5.1 0 0 1 5.6 3.7a5.6 5.6 0 1 0 6.7 6.7Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  )
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
+      <circle
+        cx="8"
+        cy="8"
+        r="5.75"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 7.25v4M8 4.6h.01"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </svg>
   )
 }
 

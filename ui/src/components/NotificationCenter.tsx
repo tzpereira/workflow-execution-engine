@@ -12,7 +12,8 @@ import { fetchSettings } from '../liveClient'
 import { useLive } from '../liveStore'
 
 export function NotificationCenter({
-  notificationApi = globalThis.Notification as BrowserNotificationAPI | undefined,
+  notificationApi = globalThis.Notification as
+    BrowserNotificationAPI | undefined,
 }: {
   notificationApi?: BrowserNotificationAPI
 }) {
@@ -84,10 +85,16 @@ export function NotificationCenter({
         <div className="fixed bottom-4 right-4 z-50 w-80 rounded border border-neutral-200 bg-white p-3 text-sm shadow-lg">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="font-semibold text-neutral-900">{latest.title}</div>
+              <div className="font-semibold text-neutral-900">
+                {latest.title}
+              </div>
               <div className="mt-1 text-xs text-neutral-600">{latest.body}</div>
             </div>
-            <button type="button" className="btn" onClick={() => dismiss(latest.id)}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => dismiss(latest.id)}
+            >
               dismiss
             </button>
           </div>
@@ -96,7 +103,7 @@ export function NotificationCenter({
       <div className="relative">
         <button
           type="button"
-          className="btn relative flex h-7 w-7 items-center justify-center p-0"
+          className="btn toolbar-icon-button relative"
           onClick={() => {
             markAllRead()
             setOpen((o) => !o)
@@ -114,7 +121,9 @@ export function NotificationCenter({
         {open && (
           <div className="absolute right-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-1.5rem)] rounded border border-neutral-200 bg-white p-2 text-sm shadow-lg">
             <div className="mb-2 flex items-center justify-between gap-2 border-b border-neutral-200 pb-2">
-              <div className="font-semibold text-neutral-900">Notifications</div>
+              <div className="font-semibold text-neutral-900">
+                Notifications
+              </div>
               <button
                 type="button"
                 className="btn"
@@ -125,17 +134,30 @@ export function NotificationCenter({
               </button>
             </div>
             {items.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-neutral-500">No notifications yet.</p>
+              <p className="px-1 py-2 text-xs text-neutral-500">
+                No notifications yet.
+              </p>
             ) : (
               <ul className="max-h-80 space-y-1 overflow-auto">
                 {items.map((item) => (
-                  <li key={item.id} className="rounded border border-neutral-100 p-2">
+                  <li
+                    key={item.id}
+                    className="rounded border border-neutral-100 p-2"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-medium text-neutral-900">{item.title}</div>
-                        <div className="mt-0.5 text-xs text-neutral-600">{item.body}</div>
+                        <div className="font-medium text-neutral-900">
+                          {item.title}
+                        </div>
+                        <div className="mt-0.5 text-xs text-neutral-600">
+                          {item.body}
+                        </div>
                       </div>
-                      <button type="button" className="btn" onClick={() => dismiss(item.id)}>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => dismiss(item.id)}
+                      >
                         dismiss
                       </button>
                     </div>

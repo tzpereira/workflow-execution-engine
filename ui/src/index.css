@@ -94,7 +94,18 @@ body {
 }
 
 .toolbar-controls .btn {
+  display: inline-flex;
+  height: 32px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+}
+
+.toolbar-controls .toolbar-icon-button {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
 }
 
 .empty-canvas-hint {
@@ -113,6 +124,10 @@ body {
   .toolbar-controls .server-address,
   .toolbar-controls .btn {
     width: auto;
+  }
+
+  .toolbar-controls .toolbar-icon-button {
+    width: 32px;
   }
 
   .toolbar-controls .server-address {
@@ -192,9 +207,19 @@ body {
 .canvas-grid {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(circle, color-mix(in srgb, var(--color-text-subtle) 30%, transparent) 1px, transparent 1px),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 70%, transparent), transparent);
-  background-size: 18px 18px, 100% 100%;
+    radial-gradient(
+      circle,
+      color-mix(in srgb, var(--color-text-subtle) 30%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface) 70%, transparent),
+      transparent
+    );
+  background-size:
+    18px 18px,
+    100% 100%;
 }
 
 .command-item[data-selected='true'] {
