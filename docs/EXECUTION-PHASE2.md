@@ -137,6 +137,12 @@ Tasks:
 - [x] Ensure service restart preserves completed executions, resumable state, settings, and cache.
       (`Server.Reconcile()` at serve startup settles interrupted runs to cancelled-and-resumable.)
 - [x] Add API and UI tests for retry/resume/cancel/replay flows.
+- [x] Multi-execution run tabs: watching or loading a second execution opens it in its own tab
+      (`RunTabs.tsx`, `liveStore.ts`) instead of tearing down the first — each tab keeps its own live
+      stream, connection state, and audit; switching tabs never stops another tab's stream.
+- [x] Settings modal per-field save/clear feedback: each secret field and the durable-settings form report
+      saving/saved/failed/cleared/unsaved-changes inline, and the first-save vs. already-set button reads
+      Save vs. Replace (REQ-CTRL-05 surfaced; M2.9/REQ-CONN-04 later renames this to Update).
 
 Acceptance:
 
@@ -147,7 +153,8 @@ Acceptance:
       `core/server` control-plane suite, `engine.TestResumeFromReexecutesNodeAndDownstream`,
       `replay.TestExportBundleContainsSnapshotEventsArtifacts`, `cache.TestDeleteRemovesOnlyNamedKeys`);
       `gofmt`/`go vet` clean on changed files; `pnpm --dir ui lint`; `pnpm --dir ui typecheck`;
-      `pnpm --dir ui test` (192 tests); `pnpm --dir ui build` (known Shiki/wasm chunk-size warning only).
+      `pnpm --dir ui test` (194 tests, up from 192 with the run-tabs and settings-feedback additions);
+      `pnpm --dir ui build` (known Shiki/wasm chunk-size warning only).
       Runnable walkthrough against the real `wee serve` binary: started serve, ran a tool-only workflow to
       `succeeded`, persisted settings, started a second run and hard-killed serve (`kill -9`) mid-run, then
       restarted. After restart — the completed run is still `succeeded`; settings round-trip intact with
