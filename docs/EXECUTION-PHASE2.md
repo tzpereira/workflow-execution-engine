@@ -516,6 +516,10 @@ polluting the hash-chained log or pulling delivery into Core.
 
 Tasks:
 
+- [x] Shell polish carried forward from M2.10 owner review: Settings connection categories stack vertically
+      with category-local add controls; Settings closes with Escape and stays keyboard-friendly; command
+      palette selected rows remain legible in dark mode; right Inspector and bottom monitor panels are
+      resizable plus icon-only minimizable/maximizable with text only in hover/tooltips.
 - [ ] Fold notification triggers from the existing event stream — **no new event type**, no writes to
       `events.jsonl`.
 - [ ] Build the in-app notification center (transient toasts + persistent, dismissible list).
@@ -534,4 +538,6 @@ Acceptance:
 - [ ] A user backgrounds a long run and is notified on completion/failure per their rules; quiet hours
       suppress as configured.
 - [ ] The event catalog and hash chain are unchanged; no off-machine delivery path exists in `core/engine`.
-- [ ] Verification recorded here:
+- [ ] Verification recorded here: shell-polish subset verified with `pnpm --dir ui typecheck` and
+      `pnpm --dir ui test -- SettingsModal CommandPalette Timeline App ResizeHandle` (209 tests in the
+      selected Vitest run); full M2.11 notification verification pending.

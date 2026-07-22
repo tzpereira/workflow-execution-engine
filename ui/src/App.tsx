@@ -37,6 +37,9 @@ export default function App() {
     600,
   )
   const [timelineMaximized, setTimelineMaximized] = useState(false)
+  const [timelineMinimized, setTimelineMinimized] = useState(false)
+  const [inspectorMaximized, setInspectorMaximized] = useState(false)
+  const [inspectorMinimized, setInspectorMinimized] = useState(false)
   const selectedNodeId = useWorkspace((s) => s.selectedNodeId)
   const selectNode = useWorkspace((s) => s.selectNode)
 
@@ -68,28 +71,65 @@ export default function App() {
           <Canvas />
         </main>
         <div className="hidden md:contents">
-          <ResizeHandle
-            axis="x"
-            onDelta={(d) => setInspectorWidth(inspectorWidth - d)}
-          />
-          <Inspector width={inspectorWidth} />
+          {!inspectorMinimized && !inspectorMaximized && (
+            <ResizeHandle
+              axis="x"
+              onDelta={(d) => setInspectorWidth(inspectorWidth - d)}
+            />
+          )}
+          {inspectorMinimized ? (
+            <PanelRail
+              side="right"
+              onRestore={() => setInspectorMinimized(false)}
+            />
+          ) : (
+            <Inspector
+              width={inspectorMaximized ? '70vw' : inspectorWidth}
+              actions={
+                <PanelActions
+                  panel="right panel"
+                  maximized={inspectorMaximized}
+                  onMinimize={() => setInspectorMinimized(true)}
+                  onToggleMaximize={() => setInspectorMaximized((m) => !m)}
+                />
+              }
+            />
+          )}
         </div>
       </div>
-      {!timelineMaximized && (
+      {!timelineMaximized && !timelineMinimized && (
         <ResizeHandle
           axis="y"
           onDelta={(d) => setTimelineHeight(timelineHeight - d)}
         />
       )}
-      <div
-        className="shrink-0"
-        style={{ height: timelineMaximized ? '70vh' : timelineHeight }}
-      >
-        <Timeline
-          maximized={timelineMaximized}
-          onToggleMaximize={() => setTimelineMaximized((m) => !m)}
-        />
-      </div>
+      {timelineMinimized ? (
+        <div className="flex h-9 shrink-0 items-center justify-end border-t border-neutral-200 bg-white px-2">
+          <button
+            type="button"
+            className="btn flex h-7 w-7 items-center justify-center p-0"
+            onClick={() => setTimelineMinimized(false)}
+            title="Restore bottom panel"
+            aria-label="Restore bottom panel"
+          >
+            ▴
+          </button>
+        </div>
+      ) : (
+        <div
+          className="shrink-0"
+          style={{ height: timelineMaximized ? '70vh' : timelineHeight }}
+        >
+          <Timeline
+            maximized={timelineMaximized}
+            onToggleMaximize={() => setTimelineMaximized((m) => !m)}
+            onToggleMinimize={() => {
+              setTimelineMaximized(false)
+              setTimelineMinimized(true)
+            }}
+          />
+        </div>
+      )}
       {selectedNodeId && (
         <div className="fixed inset-x-0 bottom-0 top-20 z-30 md:hidden">
           <button
@@ -115,6 +155,63 @@ export default function App() {
       <TemplateGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+    </div>
+  )
+}
+
+function PanelActions({
+  panel,
+  maximized,
+  onMinimize,
+  onToggleMaximize,
+}: {
+  panel: string
+  maximized: boolean
+  onMinimize: () => void
+  onToggleMaximize: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        className="btn flex h-6 w-6 items-center justify-center p-0"
+        onClick={onMinimize}
+        title={`Minimize ${panel}`}
+        aria-label={`Minimize ${panel}`}
+      >
+        ▕
+      </button>
+      <button
+        type="button"
+        className="btn flex h-6 w-6 items-center justify-center p-0"
+        onClick={onToggleMaximize}
+        title={maximized ? `Restore ${panel}` : `Maximize ${panel}`}
+        aria-label={maximized ? `Restore ${panel}` : `Maximize ${panel}`}
+      >
+        {maximized ? '▸' : '◧'}
+      </button>
+    </div>
+  )
+}
+
+function PanelRail({
+  side,
+  onRestore,
+}: {
+  side: 'right'
+  onRestore: () => void
+}) {
+  return (
+    <div className="flex w-9 shrink-0 items-start justify-center border-l border-neutral-200 bg-white p-1">
+      <button
+        type="button"
+        className="btn flex h-7 w-7 items-center justify-center p-0"
+        onClick={onRestore}
+        title={`Restore ${side} panel`}
+        aria-label={`Restore ${side} panel`}
+      >
+        ◨
+      </button>
     </div>
   )
 }

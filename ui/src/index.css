@@ -197,6 +197,15 @@ body {
   background-size: 18px 18px, 100% 100%;
 }
 
+.command-item[data-selected='true'] {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.command-item[data-selected='true'] span {
+  color: var(--color-text);
+}
+
 :root[data-theme='dark'] .bg-white {
   background-color: var(--color-surface) !important;
 }

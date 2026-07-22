@@ -137,7 +137,7 @@ function Item({
   return (
     <Command.Item
       onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-800 data-[selected=true]:bg-neutral-100"
+      className="command-item flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-800 data-[selected=true]:bg-neutral-100"
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-neutral-200 bg-neutral-50 text-[10px]" aria-hidden="true">
         {icon ?? '•'}

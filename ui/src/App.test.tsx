@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import App from './App'
@@ -20,5 +20,21 @@ describe('App', () => {
     expect(screen.getAllByText('demo').length).toBeGreaterThan(0)
     expect(screen.getByRole('main', { name: /canvas/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument()
+  })
+
+  it('minimizes and restores the right and bottom panels with icon controls', () => {
+    useWorkspace.getState().importText(
+      'id: demo\nversion: 1.0.0\nnodes:\n  - id: a\n    worker: wa@1.0.0\nedges: []\nbudget:\n  maxCostUsd: 1\n  maxTokens: 1\n  maxDurationMs: 1\n  maxRetriesPerNode: 0\n',
+      'yaml',
+    )
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize right panel' }))
+    expect(screen.getByRole('button', { name: 'Restore right panel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restore right panel' }))
+    expect(screen.getByRole('button', { name: 'Maximize right panel' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize bottom panel' }))
+    expect(screen.getByRole('button', { name: 'Restore bottom panel' })).toBeInTheDocument()
   })
 })

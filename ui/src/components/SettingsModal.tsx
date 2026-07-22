@@ -102,6 +102,15 @@ export function SettingsModal({
 
   useEffect(() => {
     if (!open) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onOpenChange])
+
+  useEffect(() => {
+    if (!open) return
     let cancelled = false
     void Promise.resolve()
       .then(() => {
@@ -246,13 +255,16 @@ export function SettingsModal({
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 pt-24"
       onClick={close}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
     >
       <div
         className="w-[42rem] max-w-[94vw] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2.5">
-          <span className="text-sm font-semibold text-neutral-900">
+          <span id="settings-title" className="text-sm font-semibold text-neutral-900">
             Settings
           </span>
           <button type="button" className="btn" onClick={close}>
@@ -283,7 +295,7 @@ export function SettingsModal({
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              <div className="space-y-2">
                 <ConnectionCategory
                   title="Model providers"
                   description="Run workers through configured model APIs."

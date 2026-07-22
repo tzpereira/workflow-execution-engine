@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 
 import type { Audit } from '../core/audit'
@@ -36,7 +37,13 @@ function dirOf(fileName: string | null): string {
 // duration, and its own event history (REQ-UI-03) — or the workflow's own
 // metadata and Budget form when nothing is selected. Everything here is a
 // panel, never a modal (M1.13's one hard rule).
-export function Inspector({ width = 320 }: { width?: number | string }) {
+export function Inspector({
+  width = 320,
+  actions,
+}: {
+  width?: number | string
+  actions?: ReactNode
+}) {
   const selectedId = useWorkspace((s) => s.selectedNodeId)
   const nodes = useWorkspace((s) => s.nodes)
   const fileName = useWorkspace((s) => s.fileName)
@@ -55,8 +62,9 @@ export function Inspector({ width = 320 }: { width?: number | string }) {
       className="flex h-full shrink-0 flex-col border-l border-neutral-200 bg-white"
       style={{ width }}
     >
-      <div className="border-b border-neutral-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-        {selected ? 'Node' : 'Workflow'}
+      <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        <span>{selected ? 'Node' : 'Workflow'}</span>
+        {actions}
       </div>
       <div className="flex-1 overflow-auto p-3 text-sm">
         {selected ? (

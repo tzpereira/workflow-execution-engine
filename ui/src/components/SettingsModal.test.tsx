@@ -155,6 +155,18 @@ describe('SettingsModal', () => {
     expect(await screen.findByText('boom')).toBeInTheDocument()
   })
 
+  it('closes with Escape', async () => {
+    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({})
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
+    const onOpenChange = vi.fn()
+    render(<SettingsModal open onOpenChange={onOpenChange} />)
+
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('loads durable settings and persists edits to disk (REQ-CTRL-05)', async () => {
     vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
       OPENAI_API_KEY: false,

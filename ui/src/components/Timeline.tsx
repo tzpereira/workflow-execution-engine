@@ -20,9 +20,11 @@ type Tab = 'timeline' | 'logs' | 'metrics' | 'history'
 export function Timeline({
   maximized = false,
   onToggleMaximize,
+  onToggleMinimize,
 }: {
   maximized?: boolean
   onToggleMaximize?: () => void
+  onToggleMinimize?: () => void
 }) {
   const [tab, setTab] = useState<Tab>('timeline')
   const nodes = useWorkspace((s) => s.nodes)
@@ -135,14 +137,26 @@ export function Timeline({
             </div>
           )}
           <RunControls />
+          {onToggleMinimize && (
+            <button
+              type="button"
+              className="btn flex h-7 w-7 items-center justify-center p-0"
+              onClick={onToggleMinimize}
+              title="Minimize bottom panel"
+              aria-label="Minimize bottom panel"
+            >
+              ▔
+            </button>
+          )}
           {onToggleMaximize && (
             <button
               type="button"
-              className="btn"
+              className="btn flex h-7 w-7 items-center justify-center p-0"
               onClick={onToggleMaximize}
               title={maximized ? 'Restore panel height' : 'Maximize this panel'}
+              aria-label={maximized ? 'Restore bottom panel' : 'Maximize bottom panel'}
             >
-              {maximized ? 'restore' : 'maximize'}
+              {maximized ? '▾' : '▴'}
             </button>
           )}
         </div>
