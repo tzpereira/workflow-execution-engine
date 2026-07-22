@@ -11,4 +11,7 @@ https://api.github.com/repos/OWNER/REPO/compare/BASE...HEAD
 ```
 
 Requires `OPENAI_API_KEY`. `GITHUB_AUTH_HEADER` is optional and raises GitHub's
-shared-IP rate limit when configured in Settings.
+shared-IP rate limit when configured in Settings. Budget is capped at $0.08 /
+40k tokens / 120 seconds. Re-running against an unchanged `compareUrl` reuses
+both cached artifacts for free; the HTTP fetch itself is not cached and
+always refreshes.

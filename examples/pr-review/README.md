@@ -25,8 +25,9 @@ the shared IP has quota; setting `GITHUB_AUTH_HEADER` to `Bearer <token>` raises
 that limit and the workflow sends it without recording the credential. The
 workflow normalizes the PR URL to GitHub's diff API, fails fast on non-2xx HTTP
 responses, caps output at 700 tokens, allows one transient retry, and stops
-after 90 seconds. Re-running an unchanged PR reuses the model artifact from
-cache; the HTTP fetch itself is free and intentionally refreshed.
+after 90 seconds. Budget is capped at $0.03 / 30k tokens overall. Re-running
+an unchanged PR reuses the model artifact from cache; the HTTP fetch itself
+is free and intentionally refreshed.
 
 `pr-review-autofix` remains the advanced workflow. Treat it as a separate,
 human-selected step after reviewing this result; local writes and Git actions

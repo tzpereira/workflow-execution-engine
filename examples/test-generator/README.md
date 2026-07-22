@@ -11,4 +11,6 @@ https://raw.githubusercontent.com/OWNER/REPO/REF/path/to/file.go
 ```
 
 Requires `OPENAI_API_KEY`. It makes two bounded `gpt-4o-mini` calls and allows
-one transient retry per node.
+one transient retry per node. Budget is capped at $0.08 / 40k tokens / 120
+seconds. Re-running against an unchanged `sourceUrl` reuses both cached
+artifacts for free; the HTTP fetch itself is not cached and always refreshes.
