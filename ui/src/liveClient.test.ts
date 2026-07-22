@@ -330,6 +330,11 @@ describe('fetchTemplates', () => {
         workflowId: 'pr-review-autofix',
         version: '1.0.0',
         nodeCount: 8,
+        tools: ['http'],
+        writeCapable: true,
+        expectedCostUsd: 0.1,
+        expectedDurationMs: 60000,
+        inputs: [],
       },
     ]
     const fetchMock = vi.fn(async (url: string) => {

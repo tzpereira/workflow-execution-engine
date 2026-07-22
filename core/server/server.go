@@ -344,7 +344,8 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // Template is one row of GET /api/templates — enough for the gallery card
-// (M1.14, REQ-UI-05): name, workflow identity, and node count. The bundle
+// (M1.14, REQ-UI-05; cost/tools/write-capable/inputs added M2.3, REQ-UI-16's
+// "declare whether they can write before a user starts them"). The bundle
 // itself is only decoded (registry.Import), never registered against
 // anything persistent — listing is read-only.
 type Template struct {
@@ -352,6 +353,7 @@ type Template struct {
 	WorkflowID string `json:"workflowId"`
 	Version    string `json:"version"`
 	NodeCount  int    `json:"nodeCount"`
+	registry.TemplateFacts
 }
 
 func (s *Server) handleListTemplates(w http.ResponseWriter, _ *http.Request) {
@@ -382,10 +384,11 @@ func (s *Server) handleListTemplates(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 		out = append(out, Template{
-			Name:       strings.TrimSuffix(e.Name(), ".tar"),
-			WorkflowID: wf.ID,
-			Version:    wf.Version,
-			NodeCount:  len(wf.Nodes),
+			Name:          strings.TrimSuffix(e.Name(), ".tar"),
+			WorkflowID:    wf.ID,
+			Version:       wf.Version,
+			NodeCount:     len(wf.Nodes),
+			TemplateFacts: registry.DeriveTemplateFacts(wf),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

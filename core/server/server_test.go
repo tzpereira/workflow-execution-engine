@@ -445,6 +445,14 @@ func TestListTemplatesReadsBundlesFromTemplatesDir(t *testing.T) {
 	if got.Name != "demo" || got.WorkflowID != "demo-template" || got.Version != "1.0.0" || got.NodeCount != 1 {
 		t.Errorf("template = %+v, want name=demo workflowId=demo-template version=1.0.0 nodeCount=1", got)
 	}
+	// M2.3: the row also carries registry.DeriveTemplateFacts(wf) — a
+	// worker-only (no tool) node must read as read-only with no tools.
+	if got.WriteCapable {
+		t.Error("WriteCapable = true, want false for a worker-only node")
+	}
+	if len(got.Tools) != 0 {
+		t.Errorf("Tools = %v, want empty for a worker-only node", got.Tools)
+	}
 }
 
 func TestImportTemplateWritesRunnableFilesAndReturnsWorkflow(t *testing.T) {

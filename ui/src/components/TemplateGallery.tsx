@@ -4,6 +4,11 @@ import { importTemplate } from '../liveClient'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 
+function formatDuration(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s`
+  return `${ms}ms`
+}
+
 // TemplateGallery is the one-click-import surface M1.14/REQ-UI-05 asks for —
 // every template is a real `wee export` bundle (no UI-only format), listed
 // via GET /api/templates and materialized via POST /api/templates/{name}/
@@ -117,19 +122,44 @@ export function TemplateGallery({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium text-neutral-900">{t.name}</div>
-                  <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                    read-only
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                      t.writeCapable
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    {t.writeCapable ? 'write-capable' : 'read-only'}
                   </span>
                 </div>
                 <div className="mt-0.5 font-mono text-xs text-neutral-500">
                   {t.workflowId}@{t.version}
                 </div>
-                <div className="mt-1 flex gap-2 text-xs text-neutral-400">
+                <div className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-400">
                   <span>
                     {t.nodeCount} node{t.nodeCount === 1 ? '' : 's'}
                   </span>
-                  <span>bounded spend</span>
+                  <span>≤ ${t.expectedCostUsd.toFixed(2)}</span>
+                  <span>≤ {formatDuration(t.expectedDurationMs)}</span>
+                  <span>{t.tools.length > 0 ? t.tools.join(', ') : 'no tools'}</span>
                 </div>
+                {t.inputs.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5 border-t border-neutral-100 pt-1.5">
+                    {t.inputs.map((input) => (
+                      <li key={input.name} className="text-xs text-neutral-500">
+                        <span className="font-mono text-neutral-700">
+                          {input.name}
+                        </span>
+                        {input.required && (
+                          <span className="ml-1 text-[10px] text-red-600">
+                            required
+                          </span>
+                        )}
+                        {input.description && <span> — {input.description}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {importingName === t.name && (
                   <div className="mt-1 text-xs text-neutral-400">
                     importing…

@@ -30,12 +30,29 @@ export interface NodeRecord {
 
 /** Template mirrors core/server.Template — one row of GET /api/templates
  *  (M1.14's gallery): a `wee export` bundle's identity, nothing more (no
- *  UI-only/proprietary template format — the bundle IS the template). */
+ *  UI-only/proprietary template format — the bundle IS the template).
+ *  tools/writeCapable/expectedCostUsd/expectedDurationMs/inputs (M2.3) mirror
+ *  core/registry.TemplateFacts, embedded in the Go struct — derived from the
+ *  workflow itself, never a hand-maintained manifest. */
 export interface Template {
   name: string
   workflowId: string
   version: string
   nodeCount: number
+  tools: string[]
+  writeCapable: boolean
+  expectedCostUsd: number
+  expectedDurationMs: number
+  inputs: TemplateInput[]
+}
+
+/** TemplateInput mirrors core/registry.TemplateInput — one declared workflow
+ *  input, enough to guide a user before they import/run a template. */
+export interface TemplateInput {
+  name: string
+  required: boolean
+  description: string
+  default: string
 }
 
 /** ImportedTemplate mirrors core/server.importTemplateResponse — POST

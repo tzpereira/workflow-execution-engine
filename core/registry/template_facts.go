@@ -12,22 +12,23 @@ import (
 // them ad hoc in each place. WriteCapable is a provisional, presentation-layer
 // classification for template curation (M2.3) — it is not the canonical
 // "what counts as a mutation" taxonomy; M2.5's charter is to define that via
-// ADR and may supersede this.
+// ADR and may supersede this. JSON tags let callers (core/server's Template
+// API row) serialize these fields directly, without a duplicate DTO.
 type TemplateFacts struct {
-	Tools              []string
-	WriteCapable       bool
-	ExpectedCostUsd    float64
-	ExpectedDurationMs int64
-	Inputs             []TemplateInput
+	Tools              []string        `json:"tools"`
+	WriteCapable       bool            `json:"writeCapable"`
+	ExpectedCostUsd    float64         `json:"expectedCostUsd"`
+	ExpectedDurationMs int64           `json:"expectedDurationMs"`
+	Inputs             []TemplateInput `json:"inputs"`
 }
 
 // TemplateInput mirrors one domain.InputDecl — enough for a gallery or CLI to
 // guide a user before they run the template.
 type TemplateInput struct {
-	Name        string
-	Required    bool
-	Description string
-	Default     string
+	Name        string `json:"name"`
+	Required    bool   `json:"required"`
+	Description string `json:"description"`
+	Default     string `json:"default"`
 }
 
 // DeriveTemplateFacts computes TemplateFacts for wf. It needs no Registry

@@ -99,6 +99,11 @@ func TestExportRoundTrips(t *testing.T) {
 	if !strings.Contains(out, "hello-1.0.0.tar") {
 		t.Errorf("expected the bundle path in output, got: %q", out)
 	}
+	// M2.3: export also declares read-only/write-capable + tools — a
+	// worker-only node (no Tool) must read as read-only with no tools.
+	if !strings.Contains(out, "read-only") || !strings.Contains(out, "tools: none") {
+		t.Errorf("expected a read-only/tools:none declaration line, got: %q", out)
+	}
 	info, err := os.Stat("hello-1.0.0.tar")
 	if err != nil || info.Size() == 0 {
 		t.Errorf("export did not produce a non-empty bundle: %v", err)

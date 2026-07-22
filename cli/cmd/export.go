@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -61,6 +62,23 @@ func runExport(cmd *cobra.Command, path, outPath string) error {
 	if err := os.WriteFile(outPath, archive, 0o644); err != nil {
 		return fmt.Errorf("write bundle: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "exported %s@%s → %s (%d bytes)\n", wf.ID, wf.Version, outPath, len(archive))
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "exported %s@%s → %s (%d bytes)\n", wf.ID, wf.Version, outPath, len(archive))
+
+	// M2.3: declare the same read-only/write-capable, cost, and tool facts a
+	// UI gallery card would show, so a CLI-only user gets the safety
+	// declaration too (REQ-UI-16's "declare whether they can write" isn't
+	// scoped to the UI).
+	facts := registry.DeriveTemplateFacts(*wf)
+	writeLabel := "read-only"
+	if facts.WriteCapable {
+		writeLabel = "write-capable"
+	}
+	tools := "none"
+	if len(facts.Tools) > 0 {
+		tools = strings.Join(facts.Tools, ", ")
+	}
+	fmt.Fprintf(out, "  %s · expected cost ≤ $%.2f · expected duration ≤ %dms · tools: %s\n",
+		writeLabel, facts.ExpectedCostUsd, facts.ExpectedDurationMs, tools)
 	return nil
 }

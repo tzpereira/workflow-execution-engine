@@ -51,6 +51,13 @@ describe('TemplateGallery', () => {
           workflowId: 'pr-review',
           version: '1.1.0',
           nodeCount: 2,
+          tools: ['http'],
+          writeCapable: false,
+          expectedCostUsd: 0.03,
+          expectedDurationMs: 90000,
+          inputs: [
+            { name: 'prUrl', required: true, description: 'PR diff URL', default: '' },
+          ],
         },
       ],
     })
@@ -58,6 +65,35 @@ describe('TemplateGallery', () => {
 
     expect(screen.getByText('pr-review')).toBeInTheDocument()
     expect(screen.getByText('2 nodes')).toBeInTheDocument()
+    expect(screen.getByText('read-only')).toBeInTheDocument()
+    expect(screen.getByText('≤ $0.03')).toBeInTheDocument()
+    expect(screen.getByText('≤ 90s')).toBeInTheDocument()
+    expect(screen.getByText('http')).toBeInTheDocument()
+    expect(screen.getByText('prUrl')).toBeInTheDocument()
+    expect(screen.getByText('required')).toBeInTheDocument()
+    expect(screen.getByText(/PR diff URL/)).toBeInTheDocument()
+  })
+
+  it('shows a write-capable badge for a template with a write-capable tool call', () => {
+    useLive.setState({
+      templates: [
+        {
+          name: 'bug-investigation',
+          workflowId: 'bug-investigation',
+          version: '1.0.0',
+          nodeCount: 5,
+          tools: ['filesystem', 'terminal'],
+          writeCapable: true,
+          expectedCostUsd: 0.3,
+          expectedDurationMs: 120000,
+          inputs: [],
+        },
+      ],
+    })
+    render(<TemplateGallery open onOpenChange={() => {}} />)
+
+    expect(screen.getByText('write-capable')).toBeInTheDocument()
+    expect(screen.getByText('filesystem, terminal')).toBeInTheDocument()
   })
 
   it('shows a placeholder when no templates are configured', () => {
@@ -73,6 +109,11 @@ describe('TemplateGallery', () => {
           workflowId: 'pr-review-autofix',
           version: '1.0.0',
           nodeCount: 1,
+          tools: [],
+          writeCapable: false,
+          expectedCostUsd: 0,
+          expectedDurationMs: 0,
+          inputs: [],
         },
       ],
     })
@@ -112,6 +153,11 @@ describe('TemplateGallery', () => {
           workflowId: 'pr-review-autofix',
           version: '1.0.0',
           nodeCount: 1,
+          tools: [],
+          writeCapable: false,
+          expectedCostUsd: 0,
+          expectedDurationMs: 0,
+          inputs: [],
         },
       ],
     })
