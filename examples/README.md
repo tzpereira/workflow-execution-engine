@@ -6,10 +6,34 @@ validates every file against `schemas/`) so the examples cannot drift from the
 domain model.
 
 The published UI gallery deliberately contains only read-only workflows that
-are useful on first run: `pr-review`, `test-generator`, and `change-risk`.
-Examples that write files or use Git remain available as source references, but
-will not return to the beginner gallery until the persisted human-approval gate
-in M1.16 is delivered.
+are useful on first run: `pr-review`, `test-generator`, `change-risk`,
+`refactor-plan`, `release-notes`, and `dependency-audit`. Examples that write
+files or use Git mutations remain available as source references, but will
+not return to the beginner gallery until the persisted human-approval gate in
+M2.5 is delivered. Read-only-ness is a structural guarantee, not a naming
+convention: `core/registry.DeriveTemplateFacts` classifies every published
+`.tar`, and `examples_test.go`'s `TestPublishedTemplateCatalogIsReadOnly`
+fails CI if a write-capable workflow is ever added to `templates/`.
+
+Between them, the gallery now demonstrates four distinct change-source
+shapes (M2.3, VISION's "GitHub is only one source adapter, not a product
+boundary"): a GitHub PR/compare/file fetch over `api.github.com`
+(`pr-review`, `change-risk`, `test-generator`), a **local `git diff`**
+that never reaches a remote (`refactor-plan`), a **generic public patch/diff
+URL** with no forge-specific code (`release-notes`), and a **local
+filesystem read** with no network at all (`dependency-audit`).
+
+The remaining two shapes M2.3's task list names — a GitLab merge request and
+a Bitbucket pull request — are not built as separate templates here, to avoid
+depending on a live third-party API this repo can't continuously verify
+(PRIN-07). They reduce to the exact same mechanism `pr-review` already
+proves: GitLab exposes a merge request's diff at
+`.../merge_requests/<iid>.diff` and Bitbucket exposes one at
+`.../pullrequests/{id}/diff` — both a plain `http` `GET`, optionally paired
+with a `urlRewrite` rule the same way `pr-review` normalizes a browser PR URL
+into GitHub's API form. Point `release-notes` at either (add the host to its
+`wee.yaml`'s `http.allow`) and it works unmodified — no Core change, because
+the change source was always workflow configuration, never Core's.
 
 ## `pr-review/`
 
@@ -56,3 +80,25 @@ Demonstrates remote GitHub access with **zero new tool code** — the generic
 `${env:...}` secret-reference placeholder (M1.6a) are all it takes. See its own
 [README](github-pr-review/README.md) for the documented, deliberately-unsolved
 v1 gaps (diff truncation on very large PRs, no rate-limit/pagination handling).
+
+## `refactor-plan/`
+
+The **local `git diff`** change-source shape (M2.3). Same two-node shape as
+`pr-review`, but node 1 is a read-only `git diff` instead of `http` +
+GitHub — proof the change source is workflow configuration, not Core. Needs
+no network access and no forge account; point it at any local git checkout
+with uncommitted changes. See its [README](refactor-plan/README.md).
+
+## `release-notes/`
+
+The **generic public patch/diff URL** change-source shape (M2.3): a plain
+`http` `GET` with no `urlRewrite` and no GitHub-specific media type, unlike
+`pr-review`/`change-risk`'s `api.github.com` JSON calls — works with any host
+`wee.yaml` allows. See its [README](release-notes/README.md).
+
+## `dependency-audit/`
+
+The **local file** change-source shape (M2.3): a read-only filesystem read
+of a dependency manifest, no network at all. Deliberately does not call a
+live vulnerability-lookup API — see its [README](dependency-audit/README.md)
+for that disclosed scope boundary.
