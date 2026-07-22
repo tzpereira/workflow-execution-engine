@@ -66,6 +66,7 @@ export default function App() {
         onOpenHelp={() => setHelpOpen(true)}
         theme={theme.resolved}
         onToggleTheme={theme.toggleTheme}
+        notificationsSlot={<NotificationCenter />}
       />
       <div className="flex min-h-0 flex-1">
         <main className="min-w-0 flex-1" aria-label="Canvas">
@@ -155,7 +156,6 @@ export default function App() {
       />
       <TemplateGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <NotificationCenter />
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
     </div>
   )

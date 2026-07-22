@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { downloadText } from '../download'
 import { signal, type SignalKey } from '../core/status'
@@ -18,6 +19,7 @@ export function Toolbar({
   onOpenHelp = () => {},
   theme = 'light',
   onToggleTheme = () => {},
+  notificationsSlot,
 }: {
   onOpenPalette: () => void
   onOpenTemplates: () => void
@@ -25,6 +27,7 @@ export function Toolbar({
   onOpenHelp?: () => void
   theme?: 'light' | 'dark'
   onToggleTheme?: () => void
+  notificationsSlot?: ReactNode
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const meta = useWorkspace((s) => s.meta)
@@ -239,6 +242,7 @@ export function Toolbar({
           <button type="button" className="btn" onClick={onOpenHelp}>
             Help
           </button>
+          {notificationsSlot}
           <button
             type="button"
             className="btn"

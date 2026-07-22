@@ -93,7 +93,7 @@ export function NotificationCenter({
           </div>
         </div>
       )}
-      <div className="fixed right-3 top-24 z-40">
+      <div className="relative">
         <button
           type="button"
           className="btn relative flex h-8 w-8 items-center justify-center p-0"
@@ -112,7 +112,7 @@ export function NotificationCenter({
           )}
         </button>
         {open && (
-          <div className="mt-2 w-96 max-w-[calc(100vw-1.5rem)] rounded border border-neutral-200 bg-white p-2 text-sm shadow-lg">
+          <div className="absolute right-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-1.5rem)] rounded border border-neutral-200 bg-white p-2 text-sm shadow-lg">
             <div className="mb-2 flex items-center justify-between gap-2 border-b border-neutral-200 pb-2">
               <div className="font-semibold text-neutral-900">Notifications</div>
               <button
