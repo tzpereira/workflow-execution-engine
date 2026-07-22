@@ -7,10 +7,7 @@ same files, so switching later costs nothing.
 
 ```sh
 go build -o wee ./cli
-mkdir -p ~/wee-quickstart && cd ~/wee-quickstart
-wee init                       # scaffolds .workflow/ and a runnable examples/hello.yaml
-export OPENAI_API_KEY=sk-...
-wee run examples/hello.yaml
+./wee cli                      # zero-config, no provider key, polished terminal output
 ```
 
 For the full walkthrough — validate, cache, replay, export, exit codes, every command grounded in real

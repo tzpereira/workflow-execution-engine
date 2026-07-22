@@ -8,7 +8,8 @@ terminal, no UI required. The CLI is a pure client of the engine and its event s
 
 ### REQ-CLI-01 — Command surface
 The binary shall provide `run`, `replay`, `inspect`, `validate`, `export`, `cache`, `init`, `list`,
-(M1.12) `serve`, and (M2.6) `backup` — each wrapping its core package, with filled-in help text.
+(M1.12) `serve`, (M2.6) `backup`, and the polished zero-config `cli` entrypoint — each wrapping its core
+package, with filled-in help text.
 - **Delivered by:** M1.9 (+`serve` in M1.12 — `cli/cmd/serve.go`, wrapping `core/server`; see
   [spec/ui.md](ui.md) REQ-UI-02 and [ADR 0010](../adr/0010-websocket-transport.md)). Note: `export` takes a
   workflow *file*, not a bare `<name>@<version>` — M1.8's registry is in-memory, so there is no persistent
@@ -17,7 +18,7 @@ The binary shall provide `run`, `replay`, `inspect`, `validate`, `export`, `cach
   `cmd.TestExportRoundTrips`, `cmd.TestListShowsWorkflowAndExecution`, `cmd.TestCacheClear`,
   `cmd.TestValidateAcceptsGoodWorkflow`, `cmd.TestServeCommandRegistered`,
   `cmd.TestRunStarterExecutesInBackground`, `cmd.TestBackupCreateRestoreRoundTrip`,
-  `cmd.TestBackupRestoreRefusesNonEmptyWithoutForce`.
+  `cmd.TestBackupRestoreRefusesNonEmptyWithoutForce`, `cmd.TestCLICommandRunsZeroConfigExperience`.
 
 ### REQ-CLI-02 — Zero-config first run
 `wee init && wee run examples/hello.yaml` shall work with only the default provider's key in the

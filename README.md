@@ -53,6 +53,7 @@ Build the CLI and run the first workflow:
 
 ```sh
 go build -o wee ./cli
+./wee cli
 ```
 
 Then follow [docs/TUTORIAL.md](docs/TUTORIAL.md).
@@ -61,6 +62,7 @@ The tutorial is a copy-pasteable terminal walkthrough covering:
 
 ```text
 run
+cli
 inspect
 replay
 cache

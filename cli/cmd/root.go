@@ -55,6 +55,7 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true, // Main prints the error with the right prefix and exit code
 	}
 	root.AddCommand(newValidateCmd())
+	root.AddCommand(newCLICmd())
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newRunCmd())
 	root.AddCommand(newReplayCmd())

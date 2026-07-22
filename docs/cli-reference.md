@@ -19,6 +19,21 @@ wee init
 
 No flags besides `-h`.
 
+## `wee cli`
+
+Runs the zero-config CLI experience: a temporary tool-only workflow, rendered with the human Lip Gloss
+status view, no provider key required. The temporary workspace is removed unless `--keep` is set.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--keep` | | keep the generated temporary workflow/workspace so follow-up inspect/replay commands can be run |
+| `-h`, `--help` | | help for cli |
+
+```sh
+wee cli
+wee cli --keep
+```
+
 ## `wee validate <workflow.yaml>`
 
 Checks a workflow file two ways: against the JSON Schema (shape, required fields, exactly-one-of

@@ -53,6 +53,7 @@ Usage:
 Available Commands:
   backup      Back up or restore the workspace state directory
   cache       Inspect and manage the node cache
+  cli         Run the zero-config CLI experience
   completion  Generate the autocompletion script for the specified shell
   export      Export a workflow and its Workers as a portable bundle
   help        Help about any command
@@ -73,6 +74,17 @@ Use "wee [command] --help" for more information about a command.
 ---
 
 ## 2. Your first run — zero config, no API key
+
+The shortest path is the polished CLI smoke run:
+
+```sh
+wee cli
+```
+
+It creates a temporary tool-only workflow, records the execution, prints the artifact, and cleans up. Use
+`wee cli --keep` if you want to inspect/replay the generated workspace afterwards.
+
+For the manual version, here is the same shape laid bare.
 
 A workflow is a YAML (or JSON) file. This one has a single **tool-backed** node that runs `echo` through
 the sandboxed `terminal` tool — no model, no key, fully deterministic.
@@ -419,6 +431,7 @@ Either way you'll see one JSON text frame per `domain.Event` — byte-identical 
 | Command | What it does |
 |---|---|
 | `wee init` | Scaffold `.workflow/` and a runnable `examples/hello.yaml` + Worker. |
+| `wee cli` | Run the zero-config, no-key CLI experience with polished terminal output. |
 | `wee validate <file>` | Check a workflow against the schema and graph rules. |
 | `wee run <file>` | Run (or `--resume <id>`) a workflow, streaming events live. |
 | `wee run <file> --json` | Same, but emit line-delimited event JSON (what `wee serve` also streams). |
