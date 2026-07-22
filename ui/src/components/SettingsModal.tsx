@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 
 import type { Settings } from '../core/audit'
-import { fetchSecretsStatus, fetchSettings, saveSettings, setSecret, unsetSecret } from '../liveClient'
+import {
+  fetchSecretsStatus,
+  fetchSettings,
+  saveSettings,
+  setSecret,
+  unsetSecret,
+} from '../liveClient'
 import { useLive } from '../liveStore'
 
 // The settings this project ships examples for. API keys are secrets; the
@@ -55,11 +61,12 @@ export function SettingsModal({
   const [busy, setBusy] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldFeedback, setFieldFeedback] = useState<Record<string, string>>({})
   // Durable, non-secret settings (persisted to settings.json, REQ-CTRL-05) —
   // distinct from the in-memory secrets above.
   const [settings, setSettings] = useState<Settings>({})
   const [settingsBusy, setSettingsBusy] = useState(false)
-  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [settingsFeedback, setSettingsFeedback] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -110,22 +117,27 @@ export function SettingsModal({
 
   async function saveDurable() {
     setSettingsBusy(true)
-    setSettingsSaved(false)
+    setSettingsFeedback('Saving settings…')
     setError(null)
     try {
       const saved = await saveSettings(serverUrl, settings)
       setSettings(saved)
-      setSettingsSaved(true)
+      setSettingsFeedback('Settings saved.')
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const message = e instanceof Error ? e.message : String(e)
+      setSettingsFeedback(`Save failed: ${message}`)
+      setError(message)
     } finally {
       setSettingsBusy(false)
     }
   }
 
   function patchBaseUrl(provider: string, url: string) {
-    setSettingsSaved(false)
-    setSettings((s) => ({ ...s, providerBaseUrls: { ...s.providerBaseUrls, [provider]: url } }))
+    setSettingsFeedback('Unsaved changes.')
+    setSettings((s) => ({
+      ...s,
+      providerBaseUrls: { ...s.providerBaseUrls, [provider]: url },
+    }))
   }
 
   if (!open) return null
@@ -140,29 +152,42 @@ export function SettingsModal({
     const value =
       field && 'normalize' in field
         ? field.normalize(drafts[name] ?? '')
-        : drafts[name]
+        : (drafts[name] ?? '').trim()
     if (!value) return
     setBusy(name)
+    setFieldFeedback((f) => ({ ...f, [name]: 'Saving…' }))
     setError(null)
     try {
       await setSecret(serverUrl, name, value)
       setStatus((s) => ({ ...s, [name]: true }))
       setDrafts((d) => ({ ...d, [name]: '' }))
+      setFieldFeedback((f) => ({ ...f, [name]: 'Saved.' }))
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const message = e instanceof Error ? e.message : String(e)
+      setFieldFeedback((f) => ({ ...f, [name]: `Save failed: ${message}` }))
+      setError(message)
     } finally {
       setBusy(null)
     }
   }
 
   async function clear(name: string) {
+    setDrafts((d) => ({ ...d, [name]: '' }))
+    if (!status[name]) {
+      setFieldFeedback((f) => ({ ...f, [name]: 'Draft cleared.' }))
+      return
+    }
     setBusy(name)
+    setFieldFeedback((f) => ({ ...f, [name]: 'Clearing…' }))
     setError(null)
     try {
       await unsetSecret(serverUrl, name)
       setStatus((s) => ({ ...s, [name]: false }))
+      setFieldFeedback((f) => ({ ...f, [name]: 'Cleared.' }))
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const message = e instanceof Error ? e.message : String(e)
+      setFieldFeedback((f) => ({ ...f, [name]: `Clear failed: ${message}` }))
+      setError(message)
     } finally {
       setBusy(null)
     }
@@ -174,7 +199,7 @@ export function SettingsModal({
       onClick={close}
     >
       <div
-        className="w-[28rem] max-w-[90vw] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl"
+        className="w-[42rem] max-w-[94vw] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2.5">
@@ -185,12 +210,7 @@ export function SettingsModal({
             close
           </button>
         </div>
-        <div className="max-h-96 space-y-3 overflow-auto p-3">
-          <p className="text-xs text-neutral-500">
-            Held only in this server's memory for the current session — never
-            written to disk, never recorded in any run's audit trail. Restarting{' '}
-            <code>wee serve</code> clears everything set here.
-          </p>
+        <div className="max-h-[70vh] space-y-4 overflow-auto p-3">
           {loading && (
             <div className="rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs text-neutral-500">
               Loading runtime settings from {serverUrl}
@@ -202,81 +222,118 @@ export function SettingsModal({
               <div>{error}</div>
             </div>
           )}
-          {FIELDS.map((f) => (
-            <div key={f.name}>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${status[f.name] ? 'bg-emerald-500' : 'bg-neutral-300'}`}
-                  aria-hidden="true"
-                />
-                <label
-                  className="text-xs font-medium text-neutral-700"
-                  htmlFor={`secret-${f.name}`}
-                >
-                  {f.label}
-                </label>
-                <span className="font-mono text-[10px] text-neutral-400">
-                  {f.name}
-                </span>
-                <span
-                  className={`ml-auto rounded px-1.5 py-0.5 text-[10px] ${
-                    status[f.name]
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-neutral-100 text-neutral-500'
-                  }`}
-                >
-                  {status[f.name] ? 'set' : 'missing'}
-                </span>
+          <div className="space-y-2">
+            <div>
+              <div className="text-xs font-semibold text-neutral-900">
+                Runtime envs
               </div>
-              <div className="mt-1 flex gap-1.5">
-                <input
-                  id={`secret-${f.name}`}
-                  type={f.secret ? 'password' : 'text'}
-                  value={drafts[f.name] ?? ''}
-                  onChange={(e) =>
-                    setDrafts((d) => ({ ...d, [f.name]: e.target.value }))
-                  }
-                  placeholder={
-                    status[f.name]
-                      ? 'set - enter a new value to replace'
-                      : f.placeholder
-                  }
-                  className="flex-1 rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy === f.name || !drafts[f.name]}
-                  onClick={() => void save(f.name)}
-                >
-                  {busy === f.name ? 'saving' : 'save'}
-                </button>
-                {status[f.name] && (
+              <p className="mt-0.5 text-xs text-neutral-500">
+                Applied to this running server process only. Restarting{' '}
+                <code>wee serve</code> clears these values.
+              </p>
+            </div>
+            {FIELDS.map((f) => (
+              <div
+                key={f.name}
+                className="rounded border border-neutral-200 bg-neutral-50 p-2"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${status[f.name] ? 'bg-emerald-500' : 'bg-neutral-300'}`}
+                    aria-hidden="true"
+                  />
+                  <label
+                    className="text-xs font-medium text-neutral-700"
+                    htmlFor={`secret-${f.name}`}
+                  >
+                    {f.label}
+                  </label>
+                  <span className="font-mono text-[10px] text-neutral-400">
+                    {f.name}
+                  </span>
+                  <span
+                    className={`ml-auto rounded px-1.5 py-0.5 text-[10px] ${
+                      status[f.name]
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-neutral-100 text-neutral-500'
+                    }`}
+                  >
+                    {status[f.name] ? 'set' : 'missing'}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex gap-1.5">
+                  <input
+                    id={`secret-${f.name}`}
+                    type={f.secret ? 'password' : 'text'}
+                    value={drafts[f.name] ?? ''}
+                    onChange={(e) =>
+                      setDrafts((d) => ({ ...d, [f.name]: e.target.value }))
+                    }
+                    placeholder={
+                      status[f.name]
+                        ? 'set - enter a new value to replace'
+                        : f.placeholder
+                    }
+                    className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-1.5 py-1 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy === f.name || !(drafts[f.name] ?? '').trim()}
+                    onClick={() => void save(f.name)}
+                  >
+                    {busy === f.name
+                      ? 'Saving'
+                      : status[f.name]
+                        ? 'Replace'
+                        : 'Save'}
+                  </button>
                   <button
                     type="button"
                     className="btn"
-                    disabled={busy === f.name}
+                    disabled={
+                      busy === f.name || (!status[f.name] && !drafts[f.name])
+                    }
                     onClick={() => void clear(f.name)}
                   >
-                    clear
+                    Clear
                   </button>
+                </div>
+                {fieldFeedback[f.name] && (
+                  <div
+                    className={`mt-1 text-[11px] ${
+                      fieldFeedback[f.name].includes('failed')
+                        ? 'text-red-700'
+                        : 'text-neutral-500'
+                    }`}
+                    role="status"
+                  >
+                    {fieldFeedback[f.name]}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
           <div className="border-t border-neutral-200 pt-3">
             <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-xs font-semibold text-neutral-900">Durable settings</span>
-              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">saved to disk</span>
+              <span className="text-xs font-semibold text-neutral-900">
+                Durable settings
+              </span>
+              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
+                saved to disk
+              </span>
             </div>
             <p className="mb-2 text-xs text-neutral-500">
-              Persisted in the workspace and applied to runs — they survive a <code>wee serve</code> restart.
-              No secret values are ever stored here.
+              Persisted in the workspace and applied to runs — they survive a{' '}
+              <code>wee serve</code> restart. No secret values are ever stored
+              here.
             </p>
             <div className="space-y-2">
               <label className="block">
-                <span className="text-[11px] font-medium text-neutral-700">OpenAI base URL</span>
+                <span className="text-[11px] font-medium text-neutral-700">
+                  OpenAI base URL
+                </span>
                 <input
                   type="text"
                   value={settings.providerBaseUrls?.openai ?? ''}
@@ -286,7 +343,9 @@ export function SettingsModal({
                 />
               </label>
               <label className="block">
-                <span className="text-[11px] font-medium text-neutral-700">Anthropic base URL</span>
+                <span className="text-[11px] font-medium text-neutral-700">
+                  Anthropic base URL
+                </span>
                 <input
                   type="text"
                   value={settings.providerBaseUrls?.anthropic ?? ''}
@@ -297,27 +356,40 @@ export function SettingsModal({
               </label>
               <div className="flex gap-2">
                 <label className="flex-1">
-                  <span className="text-[11px] font-medium text-neutral-700">Default budget (USD)</span>
+                  <span className="text-[11px] font-medium text-neutral-700">
+                    Default budget (USD)
+                  </span>
                   <input
                     type="number"
                     min={0}
                     step={0.01}
                     value={settings.defaultBudgetUsd ?? ''}
                     onChange={(e) => {
-                      setSettingsSaved(false)
-                      setSettings((s) => ({ ...s, defaultBudgetUsd: e.target.value === '' ? undefined : Number(e.target.value) }))
+                      setSettingsFeedback('Unsaved changes.')
+                      setSettings((s) => ({
+                        ...s,
+                        defaultBudgetUsd:
+                          e.target.value === ''
+                            ? undefined
+                            : Number(e.target.value),
+                      }))
                     }}
                     placeholder="0 = use each workflow's own"
                     className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
                   />
                 </label>
                 <label className="flex-1">
-                  <span className="text-[11px] font-medium text-neutral-700">Cache mode</span>
+                  <span className="text-[11px] font-medium text-neutral-700">
+                    Cache mode
+                  </span>
                   <select
                     value={settings.cacheMode ?? ''}
                     onChange={(e) => {
-                      setSettingsSaved(false)
-                      setSettings((s) => ({ ...s, cacheMode: e.target.value || undefined }))
+                      setSettingsFeedback('Unsaved changes.')
+                      setSettings((s) => ({
+                        ...s,
+                        cacheMode: e.target.value || undefined,
+                      }))
                     }}
                     className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
                     aria-label="Cache mode"
@@ -330,10 +402,28 @@ export function SettingsModal({
                 </label>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" className="btn btn-primary" disabled={settingsBusy} onClick={() => void saveDurable()}>
-                  {settingsBusy ? 'saving' : 'Save settings'}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={settingsBusy}
+                  onClick={() => void saveDurable()}
+                >
+                  {settingsBusy ? 'Saving settings' : 'Save settings'}
                 </button>
-                {settingsSaved && <span className="text-[11px] text-emerald-600">saved</span>}
+                {settingsFeedback && (
+                  <span
+                    className={`text-[11px] ${
+                      settingsFeedback.includes('failed')
+                        ? 'text-red-700'
+                        : settingsFeedback.includes('Unsaved')
+                          ? 'text-amber-700'
+                          : 'text-emerald-600'
+                    }`}
+                    role="status"
+                  >
+                    {settingsFeedback}
+                  </span>
+                )}
               </div>
             </div>
           </div>
