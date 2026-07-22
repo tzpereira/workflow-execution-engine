@@ -243,4 +243,23 @@ executable, auditable, reproducible systems.
 The success criterion is not having the most capable AI. It is enabling organizations to encode how they
 work into workflows that are observable, composable, versioned, cost-controlled, and reusable.
 
+### Self-authoring workflow
+
+WEE should eventually dogfood itself for workflow creation. A user should be able to open a guided Workspace,
+describe the process they want to execute, and have WEE run an internal authoring Workflow that proposes the
+first draft: Workflow graph, Worker names and objectives, Tool nodes, Context Policies, Contracts, model
+provider/model choices, budgets, and the minimal connections the graph needs.
+
+This must stay inside the product's discipline:
+
+- The output is a versioned Workflow bundle the user can inspect, edit, validate, export, and run.
+- Suggested Workers and Contracts are drafts, not magic; the UI shows why each Context Policy, Tool, model,
+  and budget was chosen.
+- Cost and context are bounded during authoring just as they are during execution.
+- The authored Workflow is auditable from the moment it is generated: definitions carry versions and hashes,
+  and subsequent changes happen through the same authoring surfaces as hand-built Workflows.
+
+In other words: WEE may help users create Workflows conversationally, but the durable artifact is always
+software — a governed, replayable process definition — never an unstructured transcript.
+
 **The product should make users feel they are programming organizations, not prompting models.**
