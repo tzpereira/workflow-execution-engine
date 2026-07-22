@@ -6,6 +6,16 @@ import { fetchWorkerVersions, saveWorker } from '../liveClient'
 import type { Worker } from '../core/model'
 import { worker as workerSchema } from '../schemas'
 
+const MODEL_OPTIONS: Record<string, string[]> = {
+  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
+  anthropic: [
+    'claude-sonnet-4-5',
+    'claude-sonnet-4-0',
+    'claude-opus-4-1',
+    'claude-haiku-3-5',
+  ],
+}
+
 // WorkerEditor is M1.14c's Worker/Contract half — objective, constraints,
 // tools, and Contract's rules/successCriteria/maxRetries/outputSchema,
 // editable directly in the Inspector instead of only in hand-edited YAML.
@@ -165,6 +175,13 @@ export function WorkerEditor({
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean)
+  }
+
+  function modelsForProvider(provider: string, current: string): string[] {
+    const known = MODEL_OPTIONS[provider] ?? []
+    return known.includes(current) || current.length === 0
+      ? known
+      : [current, ...known]
   }
 
   async function onSave() {
@@ -408,12 +425,14 @@ export function WorkerEditor({
           </span>
           <select
             value={draft.model.provider}
-            onChange={(e) =>
+            onChange={(e) => {
+              const provider = e.target.value
+              const model = MODEL_OPTIONS[provider]?.[0] ?? draft.model.model
               setDraft({
                 ...draft,
-                model: { ...draft.model, provider: e.target.value },
+                model: { ...draft.model, provider, model },
               })
-            }
+            }}
             className="mt-0.5 rounded border border-neutral-300 px-1.5 py-1 text-xs"
           >
             <option value="openai">openai</option>
@@ -424,8 +443,7 @@ export function WorkerEditor({
           <span className="text-[11px] uppercase tracking-wide text-neutral-500">
             Model
           </span>
-          <input
-            type="text"
+          <select
             value={draft.model.model}
             onChange={(e) =>
               setDraft({
@@ -434,7 +452,15 @@ export function WorkerEditor({
               })
             }
             className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
-          />
+          >
+            {modelsForProvider(draft.model.provider, draft.model.model).map(
+              (model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ),
+            )}
+          </select>
         </label>
         <label className="block">
           <span className="text-[11px] uppercase tracking-wide text-neutral-500">
