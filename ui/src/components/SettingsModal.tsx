@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import type { Connection, Settings } from '../core/audit'
+import type { NotificationEventKey } from '../core/audit'
+import { mergeNotificationSettings } from '../core/notifications'
 import {
   fetchSecretsStatus,
   fetchSettings,
@@ -251,6 +253,8 @@ export function SettingsModal({
     }
   }
 
+  const notifications = mergeNotificationSettings(settings.notifications)
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 pt-24"
@@ -319,12 +323,163 @@ export function SettingsModal({
                   <summary className="cursor-pointer text-xs font-semibold text-neutral-900">
                     Notifications
                   </summary>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Run finish/failure and threshold channels land in M2.11.
-                  </p>
-                  <button type="button" className="btn mt-2" disabled>
-                    Configure in M2.11
-                  </button>
+                  <div className="mt-2 space-y-2 text-xs">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={notifications.enabled}
+                        onChange={(e) =>
+                          patchNotifications({ enabled: e.target.checked })
+                        }
+                      />
+                      In-app notifications
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={notifications.browserEnabled}
+                        onChange={(e) =>
+                          patchNotifications({
+                            browserEnabled: e.target.checked,
+                          })
+                        }
+                      />
+                      Browser notifications after permission
+                    </label>
+                    <div className="grid grid-cols-2 gap-1">
+                      {([
+                        ['finished', 'finished'],
+                        ['failed', 'failed'],
+                        ['cancelled', 'cancelled'],
+                        ['budget-warning', 'budget warning'],
+                        ['budget-exceeded', 'budget exceeded'],
+                        ['contract-violation', 'contract violation'],
+                      ] satisfies Array<[NotificationEventKey, string]>).map(([key, label]) => (
+                        <label key={key} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={notifications.events?.[key] !== false}
+                            onChange={(e) =>
+                              patchNotifications({
+                                events: {
+                                  ...notifications.events,
+                                  [key]: e.target.checked,
+                                },
+                              })
+                            }
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label>
+                        <span className="text-[11px] font-medium text-neutral-700">
+                          Min cost
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={notifications.thresholds?.minCostUsd ?? ''}
+                          onChange={(e) =>
+                            patchNotifications({
+                              thresholds: {
+                                ...notifications.thresholds,
+                                minCostUsd:
+                                  e.target.value === ''
+                                    ? undefined
+                                    : Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                        />
+                      </label>
+                      <label>
+                        <span className="text-[11px] font-medium text-neutral-700">
+                          Min duration sec
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={notifications.thresholds?.minDurationSec ?? ''}
+                          onChange={(e) =>
+                            patchNotifications({
+                              thresholds: {
+                                ...notifications.thresholds,
+                                minDurationSec:
+                                  e.target.value === ''
+                                    ? undefined
+                                    : Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                        />
+                      </label>
+                    </div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={notifications.thresholds?.onFailureOnly ?? false}
+                        onChange={(e) =>
+                          patchNotifications({
+                            thresholds: {
+                              ...notifications.thresholds,
+                              onFailureOnly: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      Failure only
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={notifications.quietHours?.enabled ?? false}
+                          onChange={(e) =>
+                            patchNotifications({
+                              quietHours: {
+                                ...notifications.quietHours,
+                                enabled: e.target.checked,
+                              },
+                            })
+                          }
+                        />
+                        Quiet
+                      </label>
+                      <input
+                        aria-label="Quiet hours start"
+                        type="time"
+                        value={notifications.quietHours?.start ?? '22:00'}
+                        onChange={(e) =>
+                          patchNotifications({
+                            quietHours: {
+                              ...notifications.quietHours,
+                              start: e.target.value,
+                            },
+                          })
+                        }
+                        className="rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                      />
+                      <input
+                        aria-label="Quiet hours end"
+                        type="time"
+                        value={notifications.quietHours?.end ?? '07:00'}
+                        onChange={(e) =>
+                          patchNotifications({
+                            quietHours: {
+                              ...notifications.quietHours,
+                              end: e.target.value,
+                            },
+                          })
+                        }
+                        className="rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
                 </details>
               </div>
               {(settings.connections ?? []).length === 0 && (
@@ -562,6 +717,17 @@ export function SettingsModal({
       </div>
     </div>
   )
+
+  function patchNotifications(patch: NonNullable<Settings['notifications']>) {
+    setSettingsFeedback('Unsaved changes.')
+    setSettings((s) => ({
+      ...s,
+      notifications: {
+        ...mergeNotificationSettings(s.notifications),
+        ...patch,
+      },
+    }))
+  }
 }
 
 function normalizeGitHubAuthHeader(value: string) {

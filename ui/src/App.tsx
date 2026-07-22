@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { CommandPalette } from './components/CommandPalette'
 import { Inspector } from './components/Inspector'
+import { NotificationCenter } from './components/NotificationCenter'
 import { ResizeHandle } from './components/ResizeHandle'
 import { RunTabs } from './components/RunTabs'
 import { SettingsModal } from './components/SettingsModal'
@@ -154,6 +155,7 @@ export default function App() {
       />
       <TemplateGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <NotificationCenter />
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
     </div>
   )

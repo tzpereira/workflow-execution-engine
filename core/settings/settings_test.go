@@ -29,6 +29,13 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 			SecretEnv: "MOONSHOT_API_KEY",
 			Defaults:  map[string]string{"model": "moonshot-v1-8k"},
 		}},
+		Notifications: settings.NotificationSettings{
+			Enabled:        true,
+			BrowserEnabled: true,
+			Events:         map[string]bool{"failed": true, "finished": false},
+			Thresholds:     settings.NotificationThresholds{MinCostUSD: 1.2, MinDurationSec: 30},
+			QuietHours:     settings.NotificationQuietHours{Enabled: true, Start: "22:00", End: "07:00"},
+		},
 	}
 	if err := settings.New(ws).Save(want); err != nil {
 		t.Fatalf("save: %v", err)
@@ -42,7 +49,11 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		got.WorkspaceRoot != want.WorkspaceRoot || got.ProviderBaseURLs["openai"] != want.ProviderBaseURLs["openai"] ||
 		got.ProviderKeyEnv["openai"] != want.ProviderKeyEnv["openai"] || len(got.TemplatePaths) != 1 ||
 		len(got.Connections) != 1 || got.Connections[0].ID != "kimi" ||
-		got.Connections[0].SecretEnv != "MOONSHOT_API_KEY" {
+		got.Connections[0].SecretEnv != "MOONSHOT_API_KEY" ||
+		!got.Notifications.Enabled || !got.Notifications.BrowserEnabled ||
+		got.Notifications.Events["finished"] ||
+		got.Notifications.Thresholds.MinDurationSec != 30 ||
+		got.Notifications.QuietHours.Start != "22:00" {
 		t.Fatalf("round-trip mismatch:\n got=%+v\nwant=%+v", got, want)
 	}
 }

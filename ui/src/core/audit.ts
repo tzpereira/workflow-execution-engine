@@ -90,7 +90,33 @@ export interface Settings {
   workspaceRoot?: string
   templatePaths?: string[]
   connections?: Connection[]
+  notifications?: NotificationSettings
 }
+
+export interface NotificationSettings {
+  enabled?: boolean
+  browserEnabled?: boolean
+  events?: Partial<Record<NotificationEventKey, boolean>>
+  thresholds?: {
+    minCostUsd?: number
+    minDurationSec?: number
+    onFailureOnly?: boolean
+  }
+  quietHours?: {
+    enabled?: boolean
+    start?: string
+    end?: string
+  }
+}
+
+export type NotificationEventKey =
+  | 'finished'
+  | 'failed'
+  | 'cancelled'
+  | 'budget-warning'
+  | 'budget-exceeded'
+  | 'contract-violation'
+  | 'approval-needed'
 
 export interface Connection {
   id: string

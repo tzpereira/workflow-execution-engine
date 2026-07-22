@@ -193,6 +193,29 @@ describe('SettingsModal', () => {
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument()
   })
 
+  it('persists notification rules as non-secret settings', async () => {
+    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({})
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
+    const saveSpy = vi
+      .spyOn(liveClient, 'saveSettings')
+      .mockImplementation(async (_url, settings) => settings)
+    render(<SettingsModal open onOpenChange={() => {}} />)
+
+    fireEvent.click(await screen.findByText('Notifications'))
+    fireEvent.click(screen.getByLabelText('Browser notifications after permission'))
+    fireEvent.change(screen.getByLabelText('Quiet hours start'), {
+      target: { value: '21:00' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalled())
+    expect(saveSpy.mock.calls.at(-1)?.[1].notifications).toMatchObject({
+      browserEnabled: true,
+      quietHours: { start: '21:00' },
+    })
+    expect(JSON.stringify(saveSpy.mock.calls.at(-1)?.[1])).not.toContain('sk-')
+  })
+
   it('adds provider connections from presets and keeps secret values write-only (REQ-CONN-04/05)', async () => {
     vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
       OPENAI_API_KEY: false,

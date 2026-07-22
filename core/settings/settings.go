@@ -51,6 +51,31 @@ type Settings struct {
 	// providers and change sources (M2.9, ADR 0013). SecretEnv is an env-var
 	// NAME, never the secret value.
 	Connections []Connection `json:"connections,omitempty"`
+	// Notifications are local UI/browser preferences only (M2.11, ADR 0014).
+	// They contain toggles, thresholds, and quiet hours; never payloads,
+	// artifacts, or delivery secrets.
+	Notifications NotificationSettings `json:"notifications,omitempty"`
+}
+
+// NotificationSettings persists non-secret local notification preferences.
+type NotificationSettings struct {
+	Enabled        bool                   `json:"enabled,omitempty"`
+	BrowserEnabled bool                   `json:"browserEnabled,omitempty"`
+	Events         map[string]bool        `json:"events,omitempty"`
+	Thresholds     NotificationThresholds `json:"thresholds,omitempty"`
+	QuietHours     NotificationQuietHours `json:"quietHours,omitempty"`
+}
+
+type NotificationThresholds struct {
+	MinCostUSD     float64 `json:"minCostUsd,omitempty"`
+	MinDurationSec int     `json:"minDurationSec,omitempty"`
+	OnFailureOnly  bool    `json:"onFailureOnly,omitempty"`
+}
+
+type NotificationQuietHours struct {
+	Enabled bool   `json:"enabled,omitempty"`
+	Start   string `json:"start,omitempty"`
+	End     string `json:"end,omitempty"`
 }
 
 // ConnectionKind describes the two connection families M2.9 introduces.
