@@ -99,7 +99,6 @@ export function SettingsModal({
   const [settings, setSettings] = useState<Settings>({})
   const [settingsBusy, setSettingsBusy] = useState(false)
   const [settingsFeedback, setSettingsFeedback] = useState<string | null>(null)
-  const [connectionPreset, setConnectionPreset] = useState(CONNECTION_PRESETS[0].id)
 
   useEffect(() => {
     if (!open) return
@@ -175,8 +174,8 @@ export function SettingsModal({
     }))
   }
 
-  function addConnection() {
-    const preset = CONNECTION_PRESETS.find((p) => p.id === connectionPreset)
+  function addConnection(presetId: string) {
+    const preset = CONNECTION_PRESETS.find((p) => p.id === presetId)
     if (!preset) return
     setSettingsFeedback('Unsaved changes.')
     setSettings((s) => {
@@ -283,23 +282,38 @@ export function SettingsModal({
                     Named provider and source references. Values stay write-only.
                   </p>
                 </div>
-                <div className="flex gap-1.5">
-                  <select
-                    value={connectionPreset}
-                    onChange={(e) => setConnectionPreset(e.target.value)}
-                    className="rounded border border-neutral-300 px-1.5 py-1 text-xs"
-                    aria-label="Connection preset"
-                  >
-                    {CONNECTION_PRESETS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" className="btn" onClick={addConnection}>
-                    Add connection
+              </div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <ConnectionCategory
+                  title="Model providers"
+                  description="Run workers through configured model APIs."
+                  presets={CONNECTION_PRESETS.filter(
+                    (p) => p.kind === 'model-provider',
+                  )}
+                  connections={settings.connections ?? []}
+                  onAdd={addConnection}
+                  defaultOpen
+                />
+                <ConnectionCategory
+                  title="Change sources"
+                  description="Read PRs, patches, and local repository context."
+                  presets={CONNECTION_PRESETS.filter(
+                    (p) => p.kind === 'change-source',
+                  )}
+                  connections={settings.connections ?? []}
+                  onAdd={addConnection}
+                />
+                <details className="rounded border border-neutral-200 bg-neutral-50 p-2">
+                  <summary className="cursor-pointer text-xs font-semibold text-neutral-900">
+                    Notifications
+                  </summary>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Run finish/failure and threshold channels land in M2.11.
+                  </p>
+                  <button type="button" className="btn mt-2" disabled>
+                    Configure in M2.11
                   </button>
-                </div>
+                </details>
               </div>
               {(settings.connections ?? []).length === 0 && (
                 <div className="rounded border border-neutral-200 bg-neutral-50 px-2 py-2 text-xs text-neutral-500">
@@ -543,6 +557,48 @@ function normalizeGitHubAuthHeader(value: string) {
   if (!trimmed) return ''
   if (/^(bearer|token)\s+/i.test(trimmed)) return trimmed
   return `Bearer ${trimmed}`
+}
+
+function ConnectionCategory({
+  title,
+  description,
+  presets,
+  connections,
+  onAdd,
+  defaultOpen = false,
+}: {
+  title: string
+  description: string
+  presets: Connection[]
+  connections: Connection[]
+  onAdd: (id: string) => void
+  defaultOpen?: boolean
+}) {
+  const configured = new Set(connections.map((c) => c.id))
+  return (
+    <details
+      className="rounded border border-neutral-200 bg-neutral-50 p-2"
+      open={defaultOpen}
+    >
+      <summary className="cursor-pointer text-xs font-semibold text-neutral-900">
+        {title}
+      </summary>
+      <p className="mt-1 text-xs text-neutral-500">{description}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {presets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="btn"
+            onClick={() => onAdd(preset.id)}
+            disabled={configured.has(preset.id)}
+          >
+            {configured.has(preset.id) ? 'Added' : `Add ${preset.label}`}
+          </button>
+        ))}
+      </div>
+    </details>
+  )
 }
 
 function normalizeSecretValue(name: string, value: string) {

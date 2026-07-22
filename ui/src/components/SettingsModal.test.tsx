@@ -27,6 +27,10 @@ describe('SettingsModal', () => {
     expect(screen.queryByLabelText('Anthropic API key')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('GitHub token')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Workspace root')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Connection preset')).not.toBeInTheDocument()
+    expect(screen.getByText('Model providers')).toBeInTheDocument()
+    expect(screen.getByText('Change sources')).toBeInTheDocument()
+    expect(screen.getByText('Notifications')).toBeInTheDocument()
   })
 
   it('saves a connection secret, then shows it as set and clears the draft input', async () => {
@@ -39,7 +43,7 @@ describe('SettingsModal', () => {
       .mockResolvedValue(undefined)
     render(<SettingsModal open onOpenChange={() => {}} />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add OpenAI' }))
     const input = await screen.findByLabelText('OpenAI secret')
     fireEvent.change(input, { target: { value: 'sk-live-example' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -65,10 +69,8 @@ describe('SettingsModal', () => {
       .mockResolvedValue(undefined)
     render(<SettingsModal open onOpenChange={() => {}} />)
 
-    fireEvent.change(await screen.findByLabelText('Connection preset'), {
-      target: { value: 'github' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    fireEvent.click(await screen.findByText('Change sources'))
+    fireEvent.click(screen.getByRole('button', { name: 'Add GitHub' }))
     fireEvent.change(await screen.findByLabelText('GitHub secret'), {
       target: { value: 'github_pat_example' },
     })
@@ -196,10 +198,7 @@ describe('SettingsModal', () => {
       .mockResolvedValue(undefined)
     render(<SettingsModal open onOpenChange={() => {}} />)
 
-    fireEvent.change(await screen.findByLabelText('Connection preset'), {
-      target: { value: 'kimi' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Kimi / Moonshot' }))
     expect(await screen.findByLabelText('kimi label')).toHaveValue(
       'Kimi / Moonshot',
     )
