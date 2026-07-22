@@ -27,6 +27,15 @@ Rules:
 
 ## Status
 
+- **M2.9 is implemented pending live walkthrough** (2026-07-22): Connections now persist as non-secret
+  reference bundles in workspace settings; provider connections bind to the existing provider registry
+  (Kimi/Moonshot as an OpenAI-compatible provider id, no new provider package); source connections are
+  consumed by generic tool inputs via `${connection:id.field}` placeholders; runs record connection
+  references in the frozen snapshot and never secret values; the settings UI has an add-connection preset
+  surface plus set/unset Save/Update/Clear lifecycle and no longer expands fixed `OPENAI_API_KEY` /
+  `ANTHROPIC_API_KEY` / source-token rows before a connection is added. Mechanically verified with Go/UI
+  tests below. A real paid Kimi/provider run and a live non-GitHub source walkthrough remain the only
+  unrecorded acceptance proof if the owner wants live third-party validation before closing M2.9.
 - **M2.3 is complete** (2026-07-22): Worker/Contract editing has real inline validation (server + client)
   and legible version-bump/rollback; the gallery now derives cost/tools/write-capable/guided-inputs
   structurally instead of hand-maintained strings; the catalog demonstrates four change-source shapes
@@ -402,30 +411,37 @@ unambiguous secret lifecycle, while keeping forges out of Core.
 
 Tasks:
 
-- [ ] Define the Connection record in `core/settings` (id, label, kind, endpoint/base-URL fields, non-secret
+- [x] Define the Connection record in `core/settings` (id, label, kind, endpoint/base-URL fields, non-secret
       defaults, secret env/keychain **reference**); persist in `.workflow/settings.json` temp-then-rename
       (NFR-CTRL-01).
-- [ ] Provider connections bound to the existing `Provider` registry (REQ-MODEL-01); ship Kimi/Moonshot as an
+- [x] Provider connections bound to the existing `Provider` registry (REQ-MODEL-01); ship Kimi/Moonshot as an
       OpenAI-compatible base-URL preset (REQ-MODEL-04) — **no new provider package**.
-- [ ] Source connections (GitHub, GitLab, Bitbucket, local repo path, public patch/diff URL) as references
+- [x] Source connections (GitHub, GitLab, Bitbucket, local repo path, public patch/diff URL) as references
       consumed by the generic HTTP/git/filesystem tools; add an import-boundary test asserting **no
       forge-named package under `core/`**.
-- [ ] Build the "add connection" surface with presets (base URL, token header shape, typical scopes) as
+- [x] Build the "add connection" surface with presets (base URL, token header shape, typical scopes) as
       client metadata only.
-- [ ] Secret lifecycle in the settings/connections UI: set/unset badge, **Save** on first set, **Update**
-      once set, **Clear**; never read a stored value back into a field/DOM/log.
-- [ ] Resolve connections by id at run start; record **references** (never secrets) in the frozen snapshot
+- [x] Secret lifecycle in the settings/connections UI: set/unset badge, **Save** on first set, **Update**
+      once set, **Clear**; never read a stored value back into a field/DOM/log. The old always-expanded
+      runtime-env list is gone; secret controls now appear only inside configured Connections, and
+      workspace root moved to Runtime defaults as non-secret settings.
+- [x] Resolve connections by id at run start; record **references** (never secrets) in the frozen snapshot
       (REQ-EVENT-04).
-- [ ] API + UI tests for add/edit/remove, provider+source resolution, and the never-persist-secret guarantee
+- [x] API + UI tests for add/edit/remove, provider+source resolution, and the never-persist-secret guarantee
       (grep-of-written-files, in the style of `openai.TestNoKeyMaterialInExecutionRecord`).
 
 Acceptance:
 
 - [ ] A user adds a new model provider (including Kimi) and a non-GitHub source without editing code, and
-      runs a workflow against each.
-- [ ] No secret value reaches settings/snapshot/events/export/logs or the DOM; `core/` contains no
+      runs a workflow against each. (Mechanical path verified; live third-party walkthrough not run in this
+      session.)
+- [x] No secret value reaches settings/snapshot/events/export/logs or the DOM; `core/` contains no
       forge-named package.
-- [ ] Verification recorded here:
+- [x] Verification recorded here: `go test ./...`; `go test ./... -race`; `pnpm --dir ui lint`;
+      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (200 tests); `pnpm --dir ui build` (known large
+      Shiki/wasm chunk warning only). Follow-up UI cleanup verified with `pnpm --dir ui lint`;
+      `pnpm --dir ui typecheck`; `pnpm --dir ui test -- SettingsModal`. Not yet run in this pass: a live
+      provider/source walkthrough.
 
 ## M2.10 — Professional Shell & Visual System
 

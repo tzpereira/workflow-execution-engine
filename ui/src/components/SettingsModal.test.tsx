@@ -16,48 +16,33 @@ describe('SettingsModal', () => {
     expect(screen.queryByText('Settings')).not.toBeInTheDocument()
   })
 
-  it('loads and shows set/not-set status per field without ever displaying a value', async () => {
-    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
-      OPENAI_API_KEY: true,
-      ANTHROPIC_API_KEY: false,
-      GITHUB_AUTH_HEADER: false,
-      WEE_WORKSPACE_ROOT: false,
-    })
+  it('starts clean without expanded provider/env-var rows', async () => {
+    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({})
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
     render(<SettingsModal open onOpenChange={() => {}} />)
 
-    await waitFor(() =>
-      expect(
-        screen.getByPlaceholderText('set - enter a new value to replace'),
-      ).toBeInTheDocument(),
-    )
-    expect(screen.getByPlaceholderText('sk-ant-...')).toBeInTheDocument()
-    expect(
-      screen.getByPlaceholderText('ghp_... or github_pat_...'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByPlaceholderText('/path/to/local/repo-checkout'),
-    ).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Clear' })).toHaveLength(4)
+    expect(await screen.findByText('No connections configured yet.')).toBeInTheDocument()
+    expect(screen.queryByText('Runtime envs')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('OpenAI API key')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Anthropic API key')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('GitHub token')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Workspace root')).toBeInTheDocument()
   })
 
-  it('saves a value, then shows it as set and clears the draft input', async () => {
+  it('saves a connection secret, then shows it as set and clears the draft input', async () => {
     vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
       OPENAI_API_KEY: false,
-      ANTHROPIC_API_KEY: false,
-      GITHUB_AUTH_HEADER: false,
-      WEE_WORKSPACE_ROOT: false,
     })
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
     const setSecretSpy = vi
       .spyOn(liveClient, 'setSecret')
       .mockResolvedValue(undefined)
     render(<SettingsModal open onOpenChange={() => {}} />)
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText('sk-...')).toBeInTheDocument(),
-    )
 
-    const input = screen.getByLabelText('OpenAI API key')
+    fireEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+    const input = await screen.findByLabelText('OpenAI secret')
     fireEvent.change(input, { target: { value: 'sk-live-example' } })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(setSecretSpy).toHaveBeenCalledWith(
@@ -72,23 +57,22 @@ describe('SettingsModal', () => {
 
   it('accepts a raw GitHub token and saves the Authorization header value tools expect', async () => {
     vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
-      OPENAI_API_KEY: false,
-      ANTHROPIC_API_KEY: false,
       GITHUB_AUTH_HEADER: false,
-      WEE_WORKSPACE_ROOT: false,
     })
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
     const setSecretSpy = vi
       .spyOn(liveClient, 'setSecret')
       .mockResolvedValue(undefined)
     render(<SettingsModal open onOpenChange={() => {}} />)
-    await waitFor(() =>
-      expect(screen.getByLabelText('GitHub token')).toBeInTheDocument(),
-    )
 
-    fireEvent.change(screen.getByLabelText('GitHub token'), {
+    fireEvent.change(await screen.findByLabelText('Connection preset'), {
+      target: { value: 'github' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    fireEvent.change(await screen.findByLabelText('GitHub secret'), {
       target: { value: 'github_pat_example' },
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[2])
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(setSecretSpy).toHaveBeenCalledWith(
@@ -99,51 +83,50 @@ describe('SettingsModal', () => {
     )
   })
 
-  it('saves the workspace root as plain text runtime config', async () => {
-    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
-      OPENAI_API_KEY: false,
-      ANTHROPIC_API_KEY: false,
-      GITHUB_AUTH_HEADER: false,
-      WEE_WORKSPACE_ROOT: false,
-    })
-    const setSecretSpy = vi
-      .spyOn(liveClient, 'setSecret')
-      .mockResolvedValue(undefined)
+  it('saves the workspace root as a durable non-secret default', async () => {
+    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({})
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
+    const saveSettingsSpy = vi
+      .spyOn(liveClient, 'saveSettings')
+      .mockImplementation(async (_url, settings) => settings)
     render(<SettingsModal open onOpenChange={() => {}} />)
-    await waitFor(() =>
-      expect(screen.getByLabelText('Workspace root')).toBeInTheDocument(),
-    )
 
-    fireEvent.change(screen.getByLabelText('Workspace root'), {
+    fireEvent.change(await screen.findByLabelText('Workspace root'), {
       target: { value: '/tmp/bitcoin' },
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[3])
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
 
     await waitFor(() =>
-      expect(setSecretSpy).toHaveBeenCalledWith(
-        'http://127.0.0.1:7676',
-        'WEE_WORKSPACE_ROOT',
-        '/tmp/bitcoin',
-      ),
+      expect(saveSettingsSpy.mock.calls.at(-1)?.[1]).toMatchObject({
+        workspaceRoot: '/tmp/bitcoin',
+      }),
     )
   })
 
   it('clears a set secret', async () => {
     vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
       OPENAI_API_KEY: true,
-      ANTHROPIC_API_KEY: false,
-      GITHUB_AUTH_HEADER: false,
-      WEE_WORKSPACE_ROOT: false,
+    })
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({
+      connections: [
+        {
+          id: 'openai',
+          label: 'OpenAI',
+          kind: 'model-provider',
+          type: 'openai',
+          secretEnv: 'OPENAI_API_KEY',
+        },
+      ],
     })
     const unsetSecretSpy = vi
       .spyOn(liveClient, 'unsetSecret')
       .mockResolvedValue(undefined)
     render(<SettingsModal open onOpenChange={() => {}} />)
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Clear' })[0]).toBeEnabled(),
+      expect(screen.getByRole('button', { name: 'Clear' })).toBeEnabled(),
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Clear' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
 
     await waitFor(() =>
       expect(unsetSecretSpy).toHaveBeenCalledWith(
@@ -153,7 +136,7 @@ describe('SettingsModal', () => {
     )
     await waitFor(() =>
       expect(
-        screen.getAllByRole('button', { name: 'Clear' })[0],
+        screen.getByRole('button', { name: 'Clear' }),
       ).toBeDisabled(),
     )
     expect(await screen.findByText('Cleared.')).toBeInTheDocument()
@@ -194,6 +177,55 @@ describe('SettingsModal', () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalled())
     expect(saveSpy.mock.calls[0][1]).toMatchObject({ defaultBudgetUsd: 2.5 })
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument()
+  })
+
+  it('adds provider connections from presets and keeps secret values write-only (REQ-CONN-04/05)', async () => {
+    vi.spyOn(liveClient, 'fetchSecretsStatus').mockResolvedValue({
+      OPENAI_API_KEY: false,
+      ANTHROPIC_API_KEY: false,
+      GITHUB_AUTH_HEADER: false,
+      WEE_WORKSPACE_ROOT: false,
+      MOONSHOT_API_KEY: false,
+    })
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
+    const saveSettingsSpy = vi
+      .spyOn(liveClient, 'saveSettings')
+      .mockImplementation(async (_url, settings) => settings)
+    const setSecretSpy = vi
+      .spyOn(liveClient, 'setSecret')
+      .mockResolvedValue(undefined)
+    render(<SettingsModal open onOpenChange={() => {}} />)
+
+    fireEvent.change(await screen.findByLabelText('Connection preset'), {
+      target: { value: 'kimi' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    expect(await screen.findByLabelText('kimi label')).toHaveValue(
+      'Kimi / Moonshot',
+    )
+
+    fireEvent.change(screen.getByLabelText('Kimi / Moonshot secret'), {
+      target: { value: 'moonshot-secret' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' }).at(-1)!)
+    await waitFor(() =>
+      expect(setSecretSpy).toHaveBeenCalledWith(
+        'http://127.0.0.1:7676',
+        'MOONSHOT_API_KEY',
+        'moonshot-secret',
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => expect(saveSettingsSpy).toHaveBeenCalled())
+    expect(saveSettingsSpy.mock.calls.at(-1)?.[1].connections?.[0]).toMatchObject({
+      id: 'kimi',
+      type: 'openai-compatible',
+      secretEnv: 'MOONSHOT_API_KEY',
+    })
+    expect(JSON.stringify(saveSettingsSpy.mock.calls.at(-1)?.[1])).not.toContain(
+      'moonshot-secret',
+    )
   })
 
   it('shows durable settings save failures next to the button', async () => {

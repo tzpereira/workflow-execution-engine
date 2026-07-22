@@ -89,6 +89,17 @@ export interface Settings {
   cacheMode?: string
   workspaceRoot?: string
   templatePaths?: string[]
+  connections?: Connection[]
+}
+
+export interface Connection {
+  id: string
+  label: string
+  kind: 'model-provider' | 'change-source'
+  type: string
+  baseUrl?: string
+  secretEnv?: string
+  defaults?: Record<string, string>
 }
 
 /** Audit mirrors core/server.Audit (replay.Timeline plus the derived State). */
@@ -105,6 +116,7 @@ export interface Audit {
   /** The resolved value (supplied or default) behind each of the workflow's
    *  declared Inputs (REQ-INPUT-01) — what this run was actually run against. */
   inputs?: Record<string, string>
+  connectionRefs?: Record<string, Connection>
   state: string
 }
 

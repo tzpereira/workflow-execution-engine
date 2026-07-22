@@ -205,7 +205,8 @@ integrations, showing each secret as set/unset with **Save** on first set and **
 **Clear**, and shall never render a stored secret value.
 - **Rationale:** the owner's ask for a clearer settings/connections experience; enforces REQ-CONN-04 /
   NFR-SEC-01 in the interface.
-- **Delivered by:** M2.9. **Verified by:** _pending_.
+- **Delivered by:** M2.9. **Verified by:** `SettingsModal adds provider connections from presets...`,
+  `SettingsModal starts clean without expanded provider/env-var rows`.
 
 ### NFR-UI-01 — Accessibility (WCAG 2.1 AA)
 The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast in both themes, appropriate
