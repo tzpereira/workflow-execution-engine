@@ -50,6 +50,14 @@ and names in code must not drift apart.
   it records endpoints and non-secret defaults plus the env/keychain *reference*
   for its secret, never the value. Change sources are consumed by the generic
   HTTP/git/filesystem Tools, so forges never become Core concepts (ADR 0013).
+- **Notification** — A client-side, Event-derived alert that an Execution
+  finished, failed, or crossed a threshold — shown in-app and, opt-in, through
+  the browser/OS. Notifications are computed from the existing Event stream
+  (nothing is written to the log), gated by configurable rules, and carry status
+  and metrics only, never Artifact content or secrets. Delivery to channels off
+  the local machine is a Workflow-defined integration, not an engine feature
+  (ADR 0014).
+
 ## Naming philosophy — forbidden vocabulary
 
 Names are engineering, not decoration. This project uses engineering vocabulary
