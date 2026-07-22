@@ -527,8 +527,9 @@ Tasks:
       values preserved as selectable options, and the Worker model controls keep labels stacked above inputs
       instead of crowded inline. Toolbar actions are grouped by workflow order; icon actions have consistent
       height; the theme toggle is icon-only (sun/moon, one at a time) and Help is an info icon, both with
-      accessible labels. Keyboard authoring now includes Cmd/Ctrl+Z undo, Cmd/Ctrl+W add Worker node, and
-      Cmd/Ctrl+T add Tool node.
+      accessible labels. Canvas MiniMap and zoom/fit controls follow the same light/dark tokens as the main
+      shell. Keyboard authoring now includes Cmd/Ctrl+Z undo, Cmd/Ctrl+W add Worker node, and Cmd/Ctrl+T add
+      Tool node.
 - [x] Fold notification triggers from the existing event stream — **no new event type**, no writes to
       `events.jsonl`.
 - [x] Build the in-app notification center (transient toasts + persistent, dismissible list).
@@ -552,6 +553,6 @@ Acceptance:
       selected Vitest run). Notification implementation verified with `go test ./...`; `pnpm --dir ui lint`;
       `pnpm --dir ui typecheck`; `pnpm --dir ui test` (216 tests); `pnpm --dir ui build` (known chunk-size
       warning only). Follow-up manual-authoring polish verified with `pnpm --dir ui lint`;
-      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (224 tests); `pnpm --dir ui build` (known chunk-size
+      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (225 tests); `pnpm --dir ui build` (known chunk-size
       warning only). Browser/OS delivery is verified against an injectable fake Notification API; a manual
       OS permission walkthrough is the remaining optional live/browser proof.

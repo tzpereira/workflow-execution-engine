@@ -222,6 +222,43 @@ body {
     100% 100%;
 }
 
+.wee-flow .react-flow__controls {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.wee-flow .react-flow__controls-button {
+  width: 32px;
+  height: 32px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  fill: currentColor;
+}
+
+.wee-flow .react-flow__controls-button:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.wee-flow .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.wee-flow .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.wee-flow-minimap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface) !important;
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-sm);
+}
+
 .command-item[data-selected='true'] {
   background: var(--color-surface-muted);
   color: var(--color-text);

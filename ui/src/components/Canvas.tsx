@@ -52,6 +52,7 @@ export function Canvas() {
         </button>
       </div>
       <ReactFlow
+        className="wee-flow"
         nodes={typedNodes}
         edges={renderedEdges}
         nodeTypes={nodeTypes}
@@ -64,8 +65,15 @@ export function Canvas() {
         proOptions={{ hideAttribution: true }}
       >
         <Background color="transparent" gap={18} />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable className="!bg-neutral-50" />
+        <Controls className="wee-flow-controls" showInteractive={false} />
+        <MiniMap
+          pannable
+          zoomable
+          className="wee-flow-minimap"
+          maskColor="color-mix(in srgb, var(--color-bg) 72%, transparent)"
+          nodeColor="var(--color-surface-muted)"
+          nodeStrokeColor="var(--color-border-strong)"
+        />
       </ReactFlow>
       {/* An empty canvas has no other affordance pointing at what to do next
           (M1.14d) — this was the exact confusion behind "nada apareceu na
