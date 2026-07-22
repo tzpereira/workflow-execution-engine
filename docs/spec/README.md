@@ -78,5 +78,5 @@ context — at most `contract.maxRetries` times, emitting a `Retry` event per at
 | [sdk.md](sdk.md) | `REQ-SDK` | Go authoring SDK, canonical equivalence |
 | [metrics.md](metrics.md) | `REQ-METRIC` | Cost, usage, artifact **value** proxies, savings accounting |
 | [security.md](security.md) | `NFR-SEC` | Secrets, sandbox boundaries, integrity guarantees |
-| [ui.md](ui.md) | `REQ-UI` | Interface: builder, live execution, timeline, inspector, metrics, templates + UI/UX laws |
+| [ui.md](ui.md) | `REQ-UI` | Interface: builder, live execution, timeline, inspector, metrics, templates + UI/UX laws; experience track (theming, tabs, palette, KPIs, onboarding, in-app docs, a11y) |
 | [notifications.md](notifications.md) | `REQ-NOTIFY` | Event-derived, local (in-app + browser/OS) run notifications, configurable rules; delivery stays workflow-defined |

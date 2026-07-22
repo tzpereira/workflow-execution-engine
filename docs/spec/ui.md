@@ -1,7 +1,9 @@
 # Spec — Interface (Commercial Client)
 
-**Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.15; approval surface REQ-UI-06 in M2.5) ·
-**Principles:** PRIN-02, PRIN-06 · **Implementation:** `ui/` (React + TypeScript)
+**Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.15; approval surface REQ-UI-06 in M2.5;
+experience track REQ-UI-07..16 + NFR-UI-01..02 in M2.9/M2.10) · **Principles:** PRIN-02, PRIN-06 ·
+**Decisions:** ADR 0015 (shell & visual system), ADR 0013 (connections), ADR 0014 (notifications) ·
+**Implementation:** `ui/` (React + TypeScript)
 
 The interface is **not** the product — it is the best client of the Core. It consumes the same event
 stream as `wee run --json` (via `wee serve`), and is never a second source of truth. A workflow built in
@@ -9,14 +11,28 @@ the UI exports to the canonical format and runs unmodified via `wee run`, and vi
 
 ## UI/UX laws (normative for all interface work)
 
-- **Precision, not excitement.** No AI aesthetics, glowing gradients, glassmorphism, or decorative
-  animation. Reference points: Linear, Arc, Raycast, GitHub, Figma.
-- **One workspace.** Canvas, inspector, timeline, logs, metrics, and history — no page navigation.
-- **Every click answers a question.** No decorative panels; every panel reduces uncertainty.
-- **Fast.** Keyboard-first, instant interactions, minimal loading.
+> Amended by [ADR 0015](../adr/0015-ui-shell-and-visual-system.md) (2026-07-21): the visual stance moved
+> from "precision by subtraction / no gradients or motion" to **"expressive, disciplined."** The guardrails
+> in the last two laws are the hard limits that bound "expressive" — they are not negotiable.
+
+- **Expressive, not decorative.** Depth (elevation), restrained gradients on key surfaces, and *purposeful*
+  motion (state transitions and feedback, never idle or looping animation) make the product read as premium
+  — anchored to Linear, Vercel, Figma, Raycast, GitHub. It must still read as a developer tool a CTO trusts,
+  not a consumer AI product: expressive by craft, not by noise.
+- **One workspace, many documents.** Canvas, inspector, timeline, logs, metrics, and history are one
+  workspace with no page navigation — but the workspace may hold multiple open workflow documents as tabs
+  (REQ-UI-09), the way an editor holds files.
+- **Every click answers a question.** No decorative panels; every panel reduces uncertainty. Maximum
+  information is delivered by hierarchy and progressive disclosure, never clutter.
+- **Keyboard-first.** The command palette (⌘K) is the interaction spine; every primary action is reachable
+  without the mouse. Instant interactions, minimal loading.
 - **Progressive disclosure.** A beginner runs a template immediately; an advanced user customizes every
   Worker.
-- **Beautiful by subtraction.** Whitespace, typography, alignment, hierarchy — never visual noise.
+- **Themeable, with redundant signals.** Light and dark themes come from one semantic token layer, both
+  meeting contrast AA; status is conveyed by color *and* icon *and* label — never color alone (REQ-UI-07,
+  REQ-UI-13).
+- **Accessible and fast are non-negotiable.** WCAG 2.1 AA (NFR-UI-01) and the performance budget (NFR-UI-02)
+  bound every visual choice; `prefers-reduced-motion` is honored; there is no silent telemetry or phone-home.
 
 ### REQ-UI-01 — Visual builder over the canonical format
 The UI shall provide a drag-and-drop graph builder (React Flow) that exports directly to the canonical
@@ -102,3 +118,105 @@ closing or reconnecting the client shall preserve the pending state and shall ne
   until a user deliberately opts into unattended execution.
 - **Delivered by:** M2.5 (Safe Mutations; M1.16 superseded — see EXECUTION-PHASE2.md Status).
   **Verified by:** _pending_.
+
+---
+
+## Experience track (M2.9 / M2.10 — see [ADR 0015](../adr/0015-ui-shell-and-visual-system.md))
+
+The requirements below turn the functional interface into the professional, "inevitable" product bar the
+owner set: a polished, themeable, guided, information-dense shell that a developer, SM, PO, PM, or CTO
+notices and adopts on sight. They implement ADR 0015 (shell & visual system) and ADR 0013 (connections
+surface); notifications are specified separately in [notifications.md](notifications.md).
+
+### REQ-UI-07 — Design tokens & light/dark theming
+The UI shall render from a single semantic token layer (color, elevation, radius, motion, spacing) and shall
+provide light and dark themes selectable by system preference and by an explicit toggle, both meeting WCAG
+contrast AA.
+- **Rationale:** ADR 0015 — one place to restyle; removes the hardcoded-hex/duplicated-color debt; theming
+  is table stakes for a professional developer tool.
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-08 — Canvas surface & initial node layout
+The UI shall render the graph on a themed dot/grid "whiteboard" surface legible in both themes, lay out an
+imported workflow with readable spacing, place a newly added node without overlapping existing nodes, and
+offer an explicit re-layout action.
+- **Rationale:** ADR 0015; fixes the inventory finding that palette-added nodes stack at a fixed point. The
+  grid is functional spatial orientation, not decoration.
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-09 — Multi-document workspace tabs
+The UI shall let a user open multiple workflow documents as tabs within the one workspace, create or open a
+new document from a "+" affordance, show an unsaved-edit indicator per tab, and require confirmation before
+closing a tab with unsaved edits or a running execution — without introducing page navigation.
+- **Rationale:** ADR 0015 refines "one workspace"; distinct from the execution/run tabs, which continue to
+  track watched executions.
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-10 — Command palette as the interaction spine
+The UI's command palette (⌘K) shall expose every primary action — run, cancel, open/create document,
+settings, templates, theme toggle, add connection, jump to node — with icons and keyboard-shortcut hints, so
+the product is fully drivable from the keyboard.
+- **Rationale:** the keyboard-first law; the inventory found the palette limited to three static groups with
+  no contextual actions.
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-11 — Expand-to-modal editing with markdown
+For editable long-text fields (objective, constraints, rules, success criteria), the UI shall provide an
+expand-to-modal editor supporting plain text and markdown that edits the **canonical value**, so the
+round-trip content hash stays byte-stable (REQ-UI-01 preserved).
+- **Rationale:** the owner's ask for decent editing space; the modal must edit the canonical value, never a
+  reformatted copy, or it would break the content hash.
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-12 — Information density & KPI surface
+The UI shall present execution and cross-execution KPIs (cost, tokens, duration, cache-hit rate, retries,
+contract violations, failures, savings — REQ-METRIC-01..03) as a scannable, dashboard-style surface with the
+primary figures prominent and detail behind progressive disclosure, staying bounded and readable.
+- **Rationale:** the owner's ask for maximum, clear information; density must serve scanning via hierarchy,
+  not become clutter (ADR 0015 guardrail).
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-13 — Centralized status/signal system
+The UI shall derive every status badge, dot, border, and chart color from one status module mapping each
+status to a color token, an icon, and a label, and shall convey status by color **and** icon **and** label,
+never color alone.
+- **Rationale:** ADR 0015; the inventory found the status→color map duplicated across ~5 files; redundant
+  encoding makes the system color-blind-safe and pilotable at a glance ("sinaleiros").
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-14 — Guided first-run onboarding
+When the workspace is empty, the UI shall guide a first-time user from empty state to a first successful run
+— a clear path to import or pick a template, configure inputs/provider/budget, and run — and shall keep the
+first-encounter concept explainers (Contract, Context Policy, Artifact, Node Cache) reachable in context.
+- **Rationale:** the owner's ask that the UX invite and guide the user; the inventory found empty states but
+  no proactive first-run path.
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-15 — In-app docs & help, versioned
+The UI shall provide in-app access to help/docs (concepts, quickstart, glossary) reachable from a persistent
+affordance, versioned to the running binary so the docs never drift from the behavior they describe.
+- **Rationale:** the owner's ask that docs be accessible to users; the inventory found no in-app docs access
+  (deliberately deferred until a docs-serving mechanism existed — this requirement supplies it).
+- **Delivered by:** M2.10. **Verified by:** _pending_.
+
+### REQ-UI-16 — Connections & settings clarity surface
+The UI shall present Connections (REQ-CONN-01..06) through an "add connection" surface listing the available
+integrations, showing each secret as set/unset with **Save** on first set and **Update** once set plus
+**Clear**, and shall never render a stored secret value.
+- **Rationale:** the owner's ask for a clearer settings/connections experience; enforces REQ-CONN-04 /
+  NFR-SEC-01 in the interface.
+- **Delivered by:** M2.9. **Verified by:** _pending_.
+
+### NFR-UI-01 — Accessibility (WCAG 2.1 AA)
+The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast in both themes, appropriate
+ARIA roles/names, and honoring `prefers-reduced-motion`.
+- **Rationale:** ADR 0015 hard guardrail; "well-regarded by companies / CTOs" is not credible without
+  accessibility.
+- **Delivered by:** M2.10 (with the M2.6 accessibility pass as the final gate). **Verified by:** _pending_.
+
+### NFR-UI-02 — Performance & density budget
+The UI shall keep the canvas interactive at 200 nodes and keep dense KPI/observability surfaces responsive
+during large outputs; no artifact or panel shall be able to expand the layout into unusability.
+- **Rationale:** ADR 0015 hard guardrail; consistent with the M2.6 performance budget — density and
+  expressiveness must not cost responsiveness.
+- **Delivered by:** M2.10 (upheld by the M2.6 performance pass). **Verified by:** _pending_.
