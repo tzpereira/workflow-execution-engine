@@ -19,7 +19,11 @@ Rules:
    conventional prefixes like `fix:` or `docs:`.
 5. If a milestone changes runtime semantics, event semantics, persistence, or safety boundaries, write an
    ADR before implementation.
-6. Update this file as work lands: check tasks, record verification commands, and keep `## Status` current.
+6. For every owner-requested product/code change, check this playbook before editing code. If the request is
+   not covered by the current milestone's goal/tasks/acceptance criteria, propose the exact plan addition
+   (or classify it as a narrow bugfix/chore against an already-delivered item) and wait for the owner's
+   scope decision before implementation.
+7. Update this file as work lands: check tasks, record verification commands, and keep `## Status` current.
 
 ## Status
 

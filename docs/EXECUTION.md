@@ -33,9 +33,13 @@ Rules:
    each commit inside this one.
 6. **Never invent scope.** If ROADMAP.md/VISION.md don't ask for it, it doesn't belong in Phase 1. When in
    doubt, re-read the "Explicit Non-Goals" section of VISION.md before adding anything.
-7. Where a concrete technical choice was left open by ROADMAP.md, it is pinned in §1 below (with the
+7. **Triage every owner-requested product/code change against the active milestone before editing code.** If
+   the request is not covered by the current milestone's goal/tasks/acceptance criteria, propose the exact
+   execution-plan addition (or explicitly classify it as a narrow bugfix/chore against an already-delivered
+   item) and wait for the owner's scope decision before implementation.
+8. Where a concrete technical choice was left open by ROADMAP.md, it is pinned in §1 below (with the
    irreversible ones recorded as ADRs). Use that choice; do not re-litigate it mid-implementation.
-8. **Close the traceability loop.** Tasks cite the `REQ-*`/`NFR-*` IDs they implement (see
+9. **Close the traceability loop.** Tasks cite the `REQ-*`/`NFR-*` IDs they implement (see
    [spec/README.md](spec/README.md)). When a milestone's acceptance tests pass, fill in the corresponding
    `Verified by:` lines in the spec files (replacing `_pending_` with the real test names) in the same
    commit.

@@ -49,6 +49,9 @@ prompt builder. If you're about to describe it that way, stop and read
   `M<phase>.<n>: <summary>`; a fix or chore found along the way gets its own conventional prefix (`fix:`,
   `chore:`) instead.
 - Never invent scope — if ROADMAP/spec don't ask for it, it doesn't belong in the current phase.
+- Every user-requested product/code change must be checked against the active milestone before
+  implementation. If it is not already covered, first propose adding it to the active execution plan (or
+  explicitly classify it as a narrow bugfix/chore) and wait for the owner's scope decision.
 - Irreversible or contested choices get an ADR before they're pinned.
 - Third-party dependencies are vetted (PRIN-07) before entering `go.mod` — findings + recommendation
   presented, decision is the project owner's, never a unilateral swap.
