@@ -2,19 +2,39 @@ import type { RJSFSchema } from '@rjsf/utils'
 import validator from '@rjsf/validator-ajv8'
 import { useEffect, useState } from 'react'
 
-import { fetchWorkerVersions, saveWorker } from '../liveClient'
+import { fetchSettings, fetchWorkerVersions, saveWorker } from '../liveClient'
+import type { Connection } from '../core/audit'
 import type { Worker } from '../core/model'
 import { worker as workerSchema } from '../schemas'
 
-const MODEL_OPTIONS: Record<string, string[]> = {
-  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
-  anthropic: [
-    'claude-sonnet-4-5',
-    'claude-sonnet-4-0',
-    'claude-opus-4-1',
-    'claude-haiku-3-5',
-  ],
+interface ProviderOption {
+  id: string
+  label: string
+  models: string[]
 }
+
+const KNOWN_PROVIDER_OPTIONS: ProviderOption[] = [
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    models: [
+      'claude-sonnet-4-5',
+      'claude-sonnet-4-0',
+      'claude-opus-4-1',
+      'claude-haiku-3-5',
+    ],
+  },
+  {
+    id: 'kimi',
+    label: 'Kimi / Moonshot',
+    models: ['kimi-k2.6', 'kimi-k2.5', 'kimi-latest', 'kimi-thinking-preview'],
+  },
+]
 
 // WorkerEditor is M1.14c's Worker/Contract half — objective, constraints,
 // tools, and Contract's rules/successCriteria/maxRetries/outputSchema,
@@ -66,6 +86,9 @@ export function WorkerEditor({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedNotice, setSavedNotice] = useState<string | null>(null)
+  const [providerOptions, setProviderOptions] = useState<ProviderOption[]>(
+    KNOWN_PROVIDER_OPTIONS,
+  )
   const [expandedEditor, setExpandedEditor] = useState<{
     title: string
     value: string
@@ -140,6 +163,21 @@ export function WorkerEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, dir, serverUrl])
 
+  useEffect(() => {
+    let cancelled = false
+    fetchSettings(serverUrl)
+      .then((settings) => {
+        if (cancelled) return
+        setProviderOptions(providerOptionsFromConnections(settings.connections))
+      })
+      .catch(() => {
+        if (!cancelled) setProviderOptions(KNOWN_PROVIDER_OPTIONS)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [serverUrl])
+
   function loadDraft(w: Worker) {
     setDraft(w)
     setSchemaText(JSON.stringify(w.contract.outputSchema, null, 2))
@@ -178,7 +216,8 @@ export function WorkerEditor({
   }
 
   function modelsForProvider(provider: string, current: string): string[] {
-    const known = MODEL_OPTIONS[provider] ?? []
+    const known =
+      providerOptions.find((option) => option.id === provider)?.models ?? []
     return known.includes(current) || current.length === 0
       ? known
       : [current, ...known]
@@ -427,7 +466,9 @@ export function WorkerEditor({
             value={draft.model.provider}
             onChange={(e) => {
               const provider = e.target.value
-              const model = MODEL_OPTIONS[provider]?.[0] ?? draft.model.model
+              const model =
+                providerOptions.find((option) => option.id === provider)
+                  ?.models[0] ?? draft.model.model
               setDraft({
                 ...draft,
                 model: { ...draft.model, provider, model },
@@ -435,8 +476,14 @@ export function WorkerEditor({
             }}
             className="mt-0.5 rounded border border-neutral-300 px-1.5 py-1 text-xs"
           >
-            <option value="openai">openai</option>
-            <option value="anthropic">anthropic</option>
+            {providerOptionsForSelect(
+              providerOptions,
+              draft.model.provider,
+            ).map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block flex-1">
@@ -549,6 +596,41 @@ function blankWorker(id: string, version: string): Worker {
     },
     model: { provider: 'openai', model: 'gpt-4o-mini', params: {} },
   }
+}
+
+function providerOptionsFromConnections(
+  connections: Connection[] | undefined,
+): ProviderOption[] {
+  const options = [...KNOWN_PROVIDER_OPTIONS]
+  for (const connection of connections ?? []) {
+    if (connection.kind !== 'model-provider') continue
+    const known =
+      optionForKnownProvider(connection.id) ??
+      optionForKnownProvider(connection.type)
+    const next: ProviderOption = {
+      id: connection.id,
+      label: connection.label,
+      models: known?.models ?? [],
+    }
+    const existing = options.findIndex((option) => option.id === next.id)
+    if (existing === -1) options.push(next)
+    else options[existing] = { ...options[existing], label: next.label }
+  }
+  return options
+}
+
+function providerOptionsForSelect(
+  options: ProviderOption[],
+  current: string,
+): ProviderOption[] {
+  if (!current || options.some((option) => option.id === current))
+    return options
+  return [{ id: current, label: current, models: [] }, ...options]
+}
+
+function optionForKnownProvider(id: string): ProviderOption | undefined {
+  if (id === 'openai-compatible') return optionForKnownProvider('openai')
+  return KNOWN_PROVIDER_OPTIONS.find((option) => option.id === id)
 }
 
 function FieldHeader({

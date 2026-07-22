@@ -523,8 +523,9 @@ Tasks:
 - [x] Manual authoring polish carried forward from owner review: newly-created nodes can be named, switched
       between Worker/Tool shape, pointed at a Worker ref, edited with Tool input JSON, and opened directly
       into Worker/Contract/model editing even before a Worker file exists; model selection is a provider-
-      scoped dropdown with existing custom values preserved as selectable options. Keyboard authoring now
-      includes Cmd/Ctrl+Z undo, Cmd/Ctrl+W add Worker node, and Cmd/Ctrl+T add Tool node.
+      scoped dropdown (including Kimi/Moonshot and saved model-provider Connections) with existing custom
+      values preserved as selectable options. Keyboard authoring now includes Cmd/Ctrl+Z undo, Cmd/Ctrl+W
+      add Worker node, and Cmd/Ctrl+T add Tool node.
 - [x] Fold notification triggers from the existing event stream — **no new event type**, no writes to
       `events.jsonl`.
 - [x] Build the in-app notification center (transient toasts + persistent, dismissible list).
@@ -548,6 +549,6 @@ Acceptance:
       selected Vitest run). Notification implementation verified with `go test ./...`; `pnpm --dir ui lint`;
       `pnpm --dir ui typecheck`; `pnpm --dir ui test` (216 tests); `pnpm --dir ui build` (known chunk-size
       warning only). Follow-up manual-authoring polish verified with `pnpm --dir ui lint`;
-      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (220 tests); `pnpm --dir ui build` (known chunk-size
+      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (221 tests); `pnpm --dir ui build` (known chunk-size
       warning only). Browser/OS delivery is verified against an injectable fake Notification API; a manual
       OS permission walkthrough is the remaining optional live/browser proof.

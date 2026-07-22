@@ -27,6 +27,7 @@ function demoWorker(version: string, objective = 'review code'): Worker {
 describe('WorkerEditor', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.spyOn(liveClient, 'fetchSettings').mockResolvedValue({})
   })
 
   it('loads the version matching the current node ref and shows its fields', async () => {
@@ -171,6 +172,46 @@ describe('WorkerEditor', () => {
             model: 'claude-sonnet-4-5',
             params: { temperature: 0.7 },
           },
+        }),
+        '',
+      ),
+    )
+  })
+
+  it('filters model choices by provider and saves Kimi as its own provider', async () => {
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([
+      demoWorker('1.0.0'),
+    ])
+    const saveWorkerSpy = vi.spyOn(liveClient, 'saveWorker').mockResolvedValue({
+      ...demoWorker('1.0.1'),
+      model: { provider: 'kimi', model: 'kimi-k2.6' },
+    })
+    render(
+      <WorkerEditor
+        workerRef="reviewer@1.0.0"
+        dir=""
+        serverUrl="http://x"
+        onWorkerRefChange={() => {}}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.getByDisplayValue('review code')).toBeInTheDocument(),
+    )
+
+    fireEvent.change(screen.getByLabelText('Model provider'), {
+      target: { value: 'kimi' },
+    })
+
+    expect(screen.getByLabelText('Model')).toHaveValue('kimi-k2.6')
+    expect(screen.queryByRole('option', { name: 'gpt-4o-mini' })).toBe(null)
+
+    fireEvent.click(screen.getByRole('button', { name: 'save as new version' }))
+
+    await waitFor(() =>
+      expect(saveWorkerSpy).toHaveBeenCalledWith(
+        'http://x',
+        expect.objectContaining({
+          model: { provider: 'kimi', model: 'kimi-k2.6' },
         }),
         '',
       ),
