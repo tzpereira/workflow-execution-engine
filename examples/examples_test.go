@@ -61,6 +61,45 @@ func TestExamplesAreValid(t *testing.T) {
 	}
 }
 
+// TestRefactorPlanIsReadOnlyLocalGitDiffShape locks in M2.3's non-GitHub
+// change-source shape: refactor-plan mirrors pr-review's two-node,
+// one-model-call shape exactly, but node 1 is a read-only `git diff` instead
+// of `http` — proof the change source is workflow configuration, not Core.
+func TestRefactorPlanIsReadOnlyLocalGitDiffShape(t *testing.T) {
+	v, err := validate.NewValidator()
+	if err != nil {
+		t.Fatalf("NewValidator: %v", err)
+	}
+
+	wf := readWorkflow(t, "refactor-plan/workflow.yaml")
+	if err := v.Validate(validate.KindWorkflow, wf, nil); err != nil {
+		t.Errorf("workflow.yaml failed schema validation:\n%v", err)
+	}
+	if err := validate.Graph(&wf, nil); err != nil {
+		t.Errorf("workflow.yaml failed graph validation:\n%v", err)
+	}
+	if len(wf.Nodes) != 2 || wf.Nodes[0].Tool == nil || wf.Nodes[1].Worker == "" {
+		t.Fatal("refactor-plan should stay a two-node, one-model-call local-diff path (same shape as pr-review)")
+	}
+	if wf.Nodes[0].Tool.ToolName != "git" {
+		t.Errorf("fetch node tool = %q, want git (the local-diff change source)", wf.Nodes[0].Tool.ToolName)
+	}
+	if op, _ := wf.Nodes[0].Tool.Input["op"].(string); op != "diff" {
+		t.Errorf("fetch node git op = %q, want diff (read-only)", op)
+	}
+	if facts := registry.DeriveTemplateFacts(wf); facts.WriteCapable {
+		t.Error("refactor-plan must be read-only (WriteCapable == false) to be gallery-eligible without the M2.5 approval gate")
+	}
+
+	worker := readWorker(t, "refactor-plan/plan.worker.yaml")
+	if err := v.Validate(validate.KindWorker, worker, nil); err != nil {
+		t.Errorf("plan.worker.yaml failed schema validation:\n%v", err)
+	}
+	if _, err := validate.CompileSchema(worker.Contract.OutputSchema); err != nil {
+		t.Errorf("plan output schema does not compile: %v", err)
+	}
+}
+
 // TestPublishedTemplateCatalogIsReadOnly is the structural half of M2.3's
 // "published templates ... declare whether they can write before a user
 // starts them": every .tar in the published gallery must decode to
@@ -152,7 +191,7 @@ func TestSecondaryDemosAreValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewValidator: %v", err)
 	}
-	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk"} {
+	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk", "refactor-plan"} {
 		validateExampleDir(t, v, dir)
 	}
 }

@@ -1,0 +1,55 @@
+# One bounded planning call. The git tool emits a JSON artifact
+# ({"op":"diff","output":"<diff text>"}, core/tool/git), so the policy admits
+# fetch-diff by node id — same pattern as pr-review/reviewer.worker.yaml.
+id: plan
+version: 1.0.0
+objective: Analyze a git diff and propose a bounded, actionable refactor plan for exactly the code the diff touches — never a rewrite of the whole file.
+constraints:
+  - Judge only what the diff proves; do not invent missing repository context.
+  - Prefer small, low-risk refactors over sweeping rewrites.
+  - Cite a changed line for every proposed step.
+  - Return no step when the diff gives no real refactor opportunity.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-diff]
+contract:
+  goal: Produce a concise, structured refactor plan a developer can act on immediately.
+  rules:
+    - Return at most five steps, highest-impact first.
+    - Every step names a rationale, a changed line, and one concrete action.
+  successCriteria:
+    - Every proposed step is grounded in the supplied diff.
+    - No step proposes a change beyond what the diff touches.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [summary, steps]
+    properties:
+      summary:
+        type: string
+        maxLength: 300
+      steps:
+        type: array
+        maxItems: 5
+        items:
+          type: object
+          additionalProperties: false
+          required: [rationale, line, action]
+          properties:
+            rationale:
+              enum: [duplication, complexity, naming, dead-code, structure]
+            line:
+              type: integer
+              minimum: 0
+            action:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 700

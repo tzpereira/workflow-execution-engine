@@ -1,0 +1,5 @@
+# Point workspaceRoot at any local git checkout with uncommitted changes
+# (staged or unstaged — `git diff` shows the working tree against HEAD). No
+# http/terminal allowlist is needed: this workflow's only tool call is a
+# read-only `git diff` in the workspace itself.
+workspaceRoot: ${WEE_WORKSPACE_ROOT:-.}

@@ -1,0 +1,33 @@
+# Read-only refactor plan from a LOCAL git diff — the non-GitHub change-source
+# shape M2.3 asks for (docs/ROADMAP.md M2.3, VISION.md's flagship: "the same
+# graph should work from a local git diff... by changing workflow/tool
+# configuration, not Core"). Same two-node shape as pr-review (fetch-node ->
+# one bounded-verdict Worker): node 1 swaps http+GitHub for git diff+local —
+# proof the change source is workflow configuration, not Core.
+#
+# `git diff` (core/tool/git) is read-only — no add/commit/branch anywhere in
+# this graph — so it is gallery-eligible immediately (WriteCapable == false,
+# core/registry.DeriveTemplateFacts), no M2.5 approval-gate wait. It never
+# reaches a remote (the git tool has no push/clone, ADR-documented) and needs
+# no forge account: point wee.yaml's workspaceRoot at any local git checkout
+# with uncommitted changes and run.
+id: refactor-plan
+version: 1.0.0
+nodes:
+  - id: fetch-diff
+    tool:
+      toolName: git
+      input:
+        op: diff
+
+  - id: plan
+    worker: plan@1.0.0
+
+edges:
+  - { from: fetch-diff, to: plan }
+
+budget:
+  maxCostUsd: 0.03
+  maxTokens: 30000
+  maxDurationMs: 90000
+  maxRetriesPerNode: 1
