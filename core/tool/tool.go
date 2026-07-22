@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tzpereira/workflow-execution-engine/core/diagnostic"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/validate"
 )
@@ -72,7 +73,8 @@ func Invoke(ctx context.Context, t Tool, input json.RawMessage, emit Emit, now f
 	if err := validateAgainst(t.InputSchema(), input); err != nil {
 		// Reject before Execute — the call never touches the world.
 		e := fmt.Errorf("tool %q: input rejected: %w", t.Name(), err)
-		emit(domain.ToolResult, map[string]any{"tool": t.Name(), "error": e.Error(), "durationMs": int64(0)})
+		e = diagnostic.Wrap(e, diagnostic.KindValidation, "tool_input_schema_invalid", "", "tool.input.validate", "tool input failed its schema", "fix the tool input fields before running")
+		emit(domain.ToolResult, map[string]any{"tool": t.Name(), "error": e.Error(), "diagnostic": diagnostic.Payload(e, ""), "durationMs": int64(0)})
 		return nil, e
 	}
 
@@ -87,13 +89,15 @@ func Invoke(ctx context.Context, t Tool, input json.RawMessage, emit Emit, now f
 	durationMs := now().Sub(start).Milliseconds()
 
 	if err != nil {
-		emit(domain.ToolResult, map[string]any{"tool": t.Name(), "error": err.Error(), "durationMs": durationMs})
+		err = diagnostic.Wrap(err, diagnostic.KindTool, "tool_execute_failed", "", "tool.execute", "tool execution failed", "check the tool sandbox configuration and local resource availability")
+		emit(domain.ToolResult, map[string]any{"tool": t.Name(), "error": err.Error(), "diagnostic": diagnostic.Payload(err, ""), "durationMs": durationMs})
 		return nil, err
 	}
 
 	if verr := validateAgainst(t.OutputSchema(), out); verr != nil {
 		e := fmt.Errorf("tool %q: output failed its schema: %w", t.Name(), verr)
-		emit(domain.ToolResult, map[string]any{"tool": t.Name(), "error": e.Error(), "durationMs": durationMs})
+		e = diagnostic.Wrap(e, diagnostic.KindValidation, "tool_output_schema_invalid", "", "tool.output.validate", "tool output failed its schema", "fix the tool implementation or output schema")
+		emit(domain.ToolResult, map[string]any{"tool": t.Name(), "error": e.Error(), "diagnostic": diagnostic.Payload(e, ""), "durationMs": durationMs})
 		return nil, e
 	}
 

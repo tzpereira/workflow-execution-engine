@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -118,6 +119,26 @@ func TestStatusMapping(t *testing.T) {
 	}
 }
 
+func TestRetryAfterHTTPDate(t *testing.T) {
+	retryAt := time.Now().Add(2 * time.Second).UTC().Format(http.TimeFormat)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", retryAt)
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"error":"slow down"}`)
+	}))
+	defer srv.Close()
+
+	c := openai.New(openai.WithBaseURL(srv.URL), openai.WithAPIKey("k"))
+	_, err := c.Complete(context.Background(), []model.Message{{Role: model.RoleUser, Content: "x"}}, model.Params{Model: "m"})
+	var te *model.TransientError
+	if !errors.As(err, &te) {
+		t.Fatalf("want TransientError, got %T", err)
+	}
+	if !te.HasRetry || te.RetryAfter <= 0 {
+		t.Fatalf("RetryAfter = %s, want positive HTTP-date delay", te.RetryAfter)
+	}
+}
+
 func TestRateLimitDelayFromErrorMessage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -151,5 +172,22 @@ func TestNoHeaderInError(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "sk-topsecret") {
 		t.Errorf("error leaked the API key: %v", err)
+	}
+}
+
+func TestOversizedSuccessResponseIsRejectedAsPartialOutput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, strings.Repeat("x", 1<<20+2))
+	}))
+	defer srv.Close()
+
+	c := openai.New(openai.WithBaseURL(srv.URL), openai.WithAPIKey("k"))
+	_, err := c.Complete(context.Background(), []model.Message{{Role: model.RoleUser, Content: "x"}}, model.Params{Model: "m"})
+	var fe *model.FatalError
+	if !errors.As(err, &fe) {
+		t.Fatalf("want FatalError for oversized partial output, got %T %v", err, err)
+	}
+	if !strings.Contains(err.Error(), "refusing partial output") {
+		t.Fatalf("err = %v", err)
 	}
 }

@@ -41,9 +41,14 @@ endpoint doesn't require one.
 
 ### REQ-MODEL-05 — Transport errors map to engine retry classes
 If a provider call fails with HTTP 429 or 5xx (or a timeout), then the provider shall classify the error
-as **transient** so `core/engine/retry.go` owns backoff (honoring `Retry-After` when present); 4xx errors
-other than 429 are **fatal**.
+as **transient** so `core/engine/retry.go` owns backoff (honoring integer-seconds and HTTP-date
+`Retry-After` when present); 4xx errors other than 429 are **fatal**. Provider clients shall expose timeout
+controls, reject oversized successful responses instead of decoding partial output, and keep diagnostics
+clear of request headers or secret values.
 - **Rationale:** one retry brain (REQ-RUNTIME-03) — providers never implement their own loops.
-- **Delivered by:** M1.4. **Verified by:** `openai.TestStatusMapping` (429/5xx→transient honoring
-  `Retry-After`, 4xx→fatal), `anthropic.TestStatusMapping`; the engine maps provider classes in
+- **Delivered by:** M1.4; hardened by M2.4. **Verified by:** `openai.TestStatusMapping`,
+  `anthropic.TestStatusMapping`, `openai.TestRetryAfterHTTPDate`, `anthropic.TestRetryAfterHTTPDate`,
+  `openai.TestRateLimitDelayFromErrorMessage`,
+  `openai.TestOversizedSuccessResponseIsRejectedAsPartialOutput`,
+  `anthropic.TestOversizedSuccessResponseIsRejectedAsPartialOutput`; the engine maps provider classes in
   `WorkerExecutor` (`mapProviderError`).

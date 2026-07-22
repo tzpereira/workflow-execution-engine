@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tzpereira/workflow-execution-engine/core/diagnostic"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/tool"
 )
@@ -54,22 +55,26 @@ func (e *ToolExecutor) ExecuteWithEmit(ctx context.Context, req NodeRequest, emi
 func (e *ToolExecutor) execute(ctx context.Context, req NodeRequest, emit func(domain.EventType, map[string]any)) (NodeResult, error) {
 	call := req.Node.Tool
 	if call == nil {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q is not tool-backed", req.Node.ID))
+		err := fmt.Errorf("engine: node %q is not tool-backed", req.Node.ID)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindValidation, "tool_call_missing", req.Node.ID, "tool.resolve", "node has no Tool call configured", "choose a Tool and provide valid input JSON"))
 	}
 	t, ok := e.tools.Get(call.ToolName)
 	if !ok {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: no tool registered as %q", req.Node.ID, call.ToolName))
+		err := fmt.Errorf("engine: node %q: no tool registered as %q", req.Node.ID, call.ToolName)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindTool, "tool_not_registered", req.Node.ID, "tool.lookup", "tool is not registered in this workspace", "enable the tool in the workflow directory's wee.yaml"))
 	}
 
 	secrets := make(map[string]string)
 	refHashes := make(map[string]bool)
 	resolved, err := resolveToolInput(call.Input, req.Inputs, req.WorkflowInputs, req.ConnectionRefs, secrets, refHashes)
 	if err != nil {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: resolving tool input: %w", req.Node.ID, err))
+		err = fmt.Errorf("engine: node %q: resolving tool input: %w", req.Node.ID, err)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindValidation, "tool_input_unresolved", req.Node.ID, "tool.input.resolve", "tool input reference could not be resolved", "check artifact, input, env, and connection placeholders"))
 	}
 	inputBytes, err := json.Marshal(resolved)
 	if err != nil {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: encoding tool input: %w", req.Node.ID, err))
+		err = fmt.Errorf("engine: node %q: encoding tool input: %w", req.Node.ID, err)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindValidation, "tool_input_encode_failed", req.Node.ID, "tool.input.encode", "tool input could not be encoded", "check that tool input is JSON-serializable"))
 	}
 
 	// Every event tool.Invoke emits is redacted before it reaches the real
@@ -82,7 +87,8 @@ func (e *ToolExecutor) execute(ctx context.Context, req NodeRequest, emit func(d
 		// The error path is outside the emit bridge — Scheduler.executeNode
 		// logs err.Error() directly on Failure — so it must be redacted here
 		// too, not just at the event-payload level above.
-		return NodeResult{}, Fatal(fmt.Errorf("%s", redactString(invokeErr.Error(), secrets)))
+		err = fmt.Errorf("%s", redactString(invokeErr.Error(), secrets))
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindTool, "tool_execution_failed", req.Node.ID, "tool.invoke", "tool call failed", "check the tool input, sandbox allowlist, and referenced local resources"))
 	}
 
 	// The resulting artifact itself is a third leak vector, not just events

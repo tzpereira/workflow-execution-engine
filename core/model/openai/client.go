@@ -28,12 +28,14 @@ import (
 // defaultBaseURL is the public OpenAI API root. Override it with WithBaseURL to
 // target an OpenAI-compatible endpoint.
 const defaultBaseURL = "https://api.openai.com/v1"
+const maxResponseBytes int64 = 1 << 20
 
 // Client is a model.Provider backed by the OpenAI chat-completions API.
 type Client struct {
 	baseURL string
 	apiKey  string
 	http    *http.Client
+	timeout time.Duration
 }
 
 // Option configures a Client.
@@ -50,6 +52,9 @@ func WithAPIKey(k string) Option { return func(c *Client) { c.apiKey = k } }
 // WithHTTPClient supplies a custom *http.Client (timeouts, transport).
 func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.http = h } }
 
+// WithTimeout sets the HTTP client timeout when a custom client is not supplied.
+func WithTimeout(d time.Duration) Option { return func(c *Client) { c.timeout = d } }
+
 // New builds a Client. By default it reads OPENAI_API_KEY and targets the public
 // API with a 60s timeout. It returns a model.Provider so callers never depend on
 // this package's concrete type (REQ-MODEL-01).
@@ -57,10 +62,13 @@ func New(opts ...Option) model.Provider {
 	c := &Client{
 		baseURL: defaultBaseURL,
 		apiKey:  os.Getenv("OPENAI_API_KEY"),
-		http:    &http.Client{Timeout: 60 * time.Second},
+		timeout: 60 * time.Second,
 	}
 	for _, o := range opts {
 		o(c)
+	}
+	if c.http == nil {
+		c.http = &http.Client{Timeout: c.timeout}
 	}
 	return c
 }
@@ -117,9 +125,15 @@ func (c *Client) Complete(ctx context.Context, messages []model.Message, params 
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, truncated, readErr := readLimited(resp.Body, maxResponseBytes)
+	if readErr != nil {
+		return model.Response{}, &model.TransientError{Err: fmt.Errorf("openai: read response: %w", readErr)}
+	}
 	if resp.StatusCode != http.StatusOK {
-		return model.Response{}, classifyStatus(resp, respBody)
+		return model.Response{}, classifyStatus(resp, respBody, truncated)
+	}
+	if truncated {
+		return model.Response{}, &model.FatalError{Err: fmt.Errorf("openai: response exceeded %d bytes; refusing partial output", maxResponseBytes)}
 	}
 
 	var parsed chatResponse
@@ -148,10 +162,13 @@ func toChatMessages(messages []model.Message) []chatMessage {
 // (REQ-MODEL-05). 429 and 5xx are transient (honoring Retry-After); other 4xx
 // are fatal. The error carries the status and a body snippet — never headers
 // (NFR-SEC-01).
-func classifyStatus(resp *http.Response, body []byte) error {
+func classifyStatus(resp *http.Response, body []byte, truncated bool) error {
 	snippet := strings.TrimSpace(string(body))
 	if len(snippet) > 300 {
 		snippet = snippet[:300]
+	}
+	if truncated {
+		snippet += "... [truncated]"
 	}
 	base := fmt.Errorf("openai: status %d: %s", resp.StatusCode, snippet)
 	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
@@ -194,5 +211,23 @@ func parseRetryAfter(v string) (time.Duration, bool) {
 	if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
 		return time.Duration(secs) * time.Second, true
 	}
+	if date, err := http.ParseTime(v); err == nil {
+		d := time.Until(date)
+		if d < 0 {
+			return 0, false
+		}
+		return d, true
+	}
 	return 0, false
+}
+
+func readLimited(r io.Reader, max int64) ([]byte, bool, error) {
+	data, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(data)) > max {
+		return data[:max], true, nil
+	}
+	return data, false, nil
 }

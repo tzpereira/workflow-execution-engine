@@ -9,6 +9,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/canonical"
 	"github.com/tzpereira/workflow-execution-engine/core/contract"
 	"github.com/tzpereira/workflow-execution-engine/core/cost"
+	"github.com/tzpereira/workflow-execution-engine/core/diagnostic"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/model"
 	"github.com/tzpereira/workflow-execution-engine/core/policy"
@@ -49,7 +50,8 @@ func NewWorkerExecutor(workers WorkerSource, providers *model.Registry) *WorkerE
 func (e *WorkerExecutor) Execute(ctx context.Context, req NodeRequest) (NodeResult, error) {
 	w, ok := e.workers.Lookup(req.Node.Worker)
 	if !ok {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: no worker %q for node %q", req.Node.Worker, req.Node.ID))
+		err := fmt.Errorf("engine: no worker %q for node %q", req.Node.Worker, req.Node.ID)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindValidation, "worker_not_found", req.Node.ID, "worker.lookup", "worker reference could not be resolved", "select an existing Worker version or import the missing Worker"))
 	}
 
 	// Resolve exactly what this Worker may see. A node-level policy overrides the
@@ -60,19 +62,21 @@ func (e *WorkerExecutor) Execute(ctx context.Context, req NodeRequest) (NodeResu
 	}
 	admitted, err := policy.Resolve(pol, toPolicyItems(req.Inputs))
 	if err != nil {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: %w", req.Node.ID, err))
+		err = fmt.Errorf("engine: node %q: %w", req.Node.ID, err)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindValidation, "context_policy_invalid", req.Node.ID, "context.resolve", "context policy could not be resolved", "check the node's Context Policy filters and upstream artifact types"))
 	}
 
 	messages := contract.Compile(w, admitted, req.RetryFeedback)
 
 	prov, err := e.providers.Get(w.Model.Provider)
 	if err != nil {
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: %w", req.Node.ID, err))
+		err = fmt.Errorf("engine: node %q: %w", req.Node.ID, err)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindProvider, "provider_not_configured", req.Node.ID, "provider.lookup", "model provider is not configured", "add or select a provider connection in Settings"))
 	}
 
 	resp, err := prov.Complete(ctx, messages, model.Params{Model: w.Model.Model, Extra: w.Model.Params})
 	if err != nil {
-		return NodeResult{}, mapProviderError(err)
+		return NodeResult{}, mapProviderError(req.Node.ID, err)
 	}
 
 	output := []byte(resp.Content)
@@ -80,10 +84,12 @@ func (e *WorkerExecutor) Execute(ctx context.Context, req NodeRequest) (NodeResu
 		var ve *contract.ViolationError
 		if errors.As(verr, &ve) {
 			// Retryable with delta feedback, bounded by contract.maxRetries.
-			return NodeResult{}, ContractViolation(ve, ve.Feedback, w.Contract.MaxRetries)
+			err = diagnostic.Wrap(ve, diagnostic.KindValidation, "contract_violation", req.Node.ID, "contract.enforce", "output failed the node's Contract", "adjust the Worker goal or output schema so the model returns valid JSON")
+			return NodeResult{}, ContractViolation(err, ve.Feedback, w.Contract.MaxRetries)
 		}
 		// A malformed outputSchema is a configuration fault, not a violation.
-		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: %w", req.Node.ID, verr))
+		err = fmt.Errorf("engine: node %q: %w", req.Node.ID, verr)
+		return NodeResult{}, Fatal(diagnostic.Wrap(err, diagnostic.KindValidation, "contract_schema_invalid", req.Node.ID, "contract.compile", "Contract output schema is invalid", "fix the Worker Contract schema before running"))
 	}
 
 	providerName := w.Model.Provider
@@ -140,16 +146,20 @@ func (e *WorkerExecutor) CacheKey(node domain.Node, inputs []NodeInput, workflow
 
 // mapProviderError translates a provider's transient/fatal classification into
 // the engine's retry classes (REQ-MODEL-05). Anything unrecognized is fatal.
-func mapProviderError(err error) error {
+func mapProviderError(nodeID string, err error) error {
 	var te *model.TransientError
 	if errors.As(err, &te) {
-		return Transient(err)
+		wrapped := diagnostic.Wrap(err, diagnostic.KindProvider, "provider_transient", nodeID, "provider.complete", "provider returned a retryable failure", "wait for the retry window or lower concurrency/rate")
+		if te.HasRetry {
+			wrapped = diagnostic.WithRetryAfter(wrapped, te.RetryAfter)
+		}
+		return Transient(wrapped)
 	}
 	var fe *model.FatalError
 	if errors.As(err, &fe) {
-		return Fatal(err)
+		return Fatal(diagnostic.Wrap(err, diagnostic.KindProvider, "provider_fatal", nodeID, "provider.complete", "provider rejected the request", "check provider credentials, base URL, model name, and request parameters"))
 	}
-	return Fatal(err)
+	return Fatal(diagnostic.Wrap(err, diagnostic.KindProvider, "provider_unknown", nodeID, "provider.complete", "provider call failed", "check provider configuration and network access"))
 }
 
 func toPolicyItems(inputs []NodeInput) []policy.Item {

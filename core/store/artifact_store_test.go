@@ -2,10 +2,12 @@ package store_test
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
@@ -103,5 +105,58 @@ func TestConcurrentPutSameContentYieldsOneFile(t *testing.T) {
 
 	if n := artifactCount(t, base); n != 1 {
 		t.Fatalf("expected exactly 1 file after concurrent identical Puts, got %d", n)
+	}
+}
+
+func TestPutRejectsArtifactOverLimitWithSummary(t *testing.T) {
+	s := store.NewWithOptions(t.TempDir(), store.WithMaxArtifactBytes(5), store.WithMaxTotalBytes(0))
+	_, err := s.Put([]byte("hello world"))
+	var limit *store.LimitError
+	if !errors.As(err, &limit) {
+		t.Fatalf("err = %T %v, want LimitError", err, err)
+	}
+	if limit.Code != "artifact_too_large" || limit.Limit != 5 || limit.Summary == "" {
+		t.Fatalf("limit = %+v", limit)
+	}
+}
+
+func TestPutRejectsStoreQuota(t *testing.T) {
+	s := store.NewWithOptions(t.TempDir(), store.WithMaxArtifactBytes(0), store.WithMaxTotalBytes(6))
+	if _, err := s.Put([]byte("1234")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.Put([]byte("5678"))
+	var limit *store.LimitError
+	if !errors.As(err, &limit) {
+		t.Fatalf("err = %T %v, want LimitError", err, err)
+	}
+	if limit.Code != "artifact_quota_exceeded" {
+		t.Fatalf("code = %q", limit.Code)
+	}
+}
+
+func TestGarbageCollectRemovesUnreferencedArtifacts(t *testing.T) {
+	base := t.TempDir()
+	s := store.New(base)
+	keep, err := s.Put([]byte("keep"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	drop, err := s.Put([]byte("drop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stats, err := s.GarbageCollect(map[string]bool{keep: true}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.RemovedFiles != 1 || stats.KeptFiles != 1 {
+		t.Fatalf("stats = %+v", stats)
+	}
+	if !s.Has(keep) {
+		t.Fatalf("kept artifact disappeared")
+	}
+	if s.Has(drop) {
+		t.Fatalf("unreferenced artifact still exists")
 	}
 }

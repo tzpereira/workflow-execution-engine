@@ -28,3 +28,14 @@ viewers, tools) can interpret content without sniffing it.
 If a requested hash is absent from the store, then the store shall return a distinct not-found error —
 never an empty artifact.
 - **Delivered by:** M1.2. **Verified by:** `TestGetMissingIsError`.
+
+### REQ-ARTIFACT-05 — Bounded artifact storage and explicit retention
+The artifact store shall bound single-artifact size and total artifact-directory size by default, reject
+oversized output before publishing it, include a bounded preview summary in the limit error, support
+streaming writes through the same content-addressed identity, and expose explicit garbage collection over a
+caller-provided keep-set rather than deleting artifacts implicitly.
+- **Rationale:** M2.4 robust runtime — runaway tool/provider output must be bounded without weakening
+  replay/export's content-addressed guarantees.
+- **Delivered by:** M2.4. **Verified by:** `store.TestPutRejectsArtifactOverLimitWithSummary`,
+  `store.TestPutRejectsStoreQuota`, `store.TestGarbageCollectRemovesUnreferencedArtifacts`,
+  `engine.TestLongGraphStressBoundedEventsAndArtifacts`.

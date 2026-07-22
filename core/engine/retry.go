@@ -96,9 +96,9 @@ func exponentialBackoff(base, max time.Duration) backoffFunc {
 // each violation's own contract.maxRetries (REQ-CONTRACT-02) — one loop, two
 // counters, so a flaky provider and a stubborn model don't share a budget.
 // onRetry is called before each retry with the running attempt number and the
-// reason. A transient failure carrying a server Retry-After hint raises the
-// backoff for that attempt (REQ-MODEL-05). Backoff sleeps respect ctx.
-func withRetry(ctx context.Context, maxTransient int, backoff backoffFunc, fn func() error, onRetry func(attempt int, reason string)) error {
+// classified error. A transient failure carrying a server Retry-After hint
+// raises the backoff for that attempt (REQ-MODEL-05). Backoff sleeps respect ctx.
+func withRetry(ctx context.Context, maxTransient int, backoff backoffFunc, fn func() error, onRetry func(attempt int, err error)) error {
 	transientN, contractN := 0, 0
 	for {
 		err := fn()
@@ -123,7 +123,7 @@ func withRetry(ctx context.Context, maxTransient int, backoff backoffFunc, fn fu
 		}
 		attempt := transientN + contractN
 		if onRetry != nil {
-			onRetry(attempt, err.Error())
+			onRetry(attempt, err)
 		}
 		d := backoff(attempt)
 		if hint, ok := retryAfterOf(err); ok && hint > d {

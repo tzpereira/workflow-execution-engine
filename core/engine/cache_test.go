@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -232,4 +234,45 @@ func TestChangingWorkflowInputInvalidatesWorkerCache(t *testing.T) {
 	if prov.count() != 2 {
 		t.Fatalf("reviewer should have made two model calls for two prUrl values, got %d", prov.count())
 	}
+}
+
+func TestCacheHitWithMissingArtifactEmitsDiagnosticMiss(t *testing.T) {
+	base := t.TempDir()
+	log := eventlog.New(base)
+	workers := engine.MapWorkerSource{"A@1.0.0": permissiveWorker("A")}
+	prov := &echoProvider{}
+	reg := model.NewRegistry()
+	reg.Register("openai", prov)
+	s := engine.New(engine.NewWorkerExecutor(workers, reg), store.New(base), log, cache.New(base))
+	wf := &domain.Workflow{ID: "cache-repair", Version: "1.0.0", Nodes: []domain.Node{{ID: "A", Worker: "A@1.0.0"}}}
+
+	first, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "first"})
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	hash := first.Nodes["A"].Hash
+	if err := os.Remove(filepath.Join(base, "artifacts", hash)); err != nil {
+		t.Fatalf("remove artifact: %v", err)
+	}
+
+	if _, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "second"}); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	events, err := log.ReadAll("second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range events {
+		if ev.Type != domain.CacheMiss || ev.NodeID != "A" {
+			continue
+		}
+		diag, ok := ev.Payload["diagnostic"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if diag["kind"] == "cache" && diag["code"] == "cache_artifact_missing" && diag["likelyFix"] != "" {
+			return
+		}
+	}
+	t.Fatalf("second run did not explain missing cache artifact: %#v", events)
 }

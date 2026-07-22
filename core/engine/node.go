@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tzpereira/workflow-execution-engine/core/cache"
+	"github.com/tzpereira/workflow-execution-engine/core/diagnostic"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 )
 
@@ -111,13 +112,19 @@ func (s *Scheduler) executeNode(
 	// successful run. cacheKey is "" when the node isn't cacheable or caching is
 	// off — then this whole block is inert.
 	cacheKey := s.cacheKeyFor(runNode, inputs, wfInputs, cacheMode)
+	var cacheMissPayload map[string]any
 	if cacheKey != "" && (cacheMode == CacheOn || cacheMode == CacheReadOnly) {
-		if hit, ok := s.cacheHit(execID, logicalID, cacheKey); ok {
+		if hit, ok, miss := s.cacheHit(execID, logicalID, cacheKey); ok {
 			return hit, nil
+		} else if miss != nil {
+			cacheMissPayload = miss
 		}
 	}
 	if cacheKey != "" {
-		s.emit(execID, domain.CacheMiss, logicalID, map[string]any{"key": cacheKey})
+		if cacheMissPayload == nil {
+			cacheMissPayload = map[string]any{"key": cacheKey}
+		}
+		s.emit(execID, domain.CacheMiss, logicalID, cacheMissPayload)
 	}
 
 	// A tool-backed executor (or anything else opting in) reaches the real
@@ -150,23 +157,28 @@ func (s *Scheduler) executeNode(
 			feedback = cve.Feedback
 		}
 		return e
-	}, func(attempt int, reason string) {
-		s.emit(execID, domain.Retry, logicalID, map[string]any{"attempt": attempt, "reason": reason})
+	}, func(attempt int, err error) {
+		s.emit(execID, domain.Retry, logicalID, map[string]any{
+			"attempt":    attempt,
+			"reason":     err.Error(),
+			"diagnostic": diagnostic.Payload(err, logicalID),
+		})
 	})
 	if err != nil {
 		// A terminal contract violation gets its own explicit event before the
 		// generic Failure (REQ-CONTRACT-03) — never a silent pass-through.
 		if isContractViolation(err) {
-			s.emit(execID, domain.ContractViolation, logicalID, map[string]any{"error": err.Error()})
+			s.emit(execID, domain.ContractViolation, logicalID, map[string]any{"error": err.Error(), "diagnostic": diagnostic.Payload(err, logicalID)})
 		}
-		s.emit(execID, domain.Failure, logicalID, map[string]any{"error": err.Error()})
+		s.emit(execID, domain.Failure, logicalID, map[string]any{"error": err.Error(), "diagnostic": diagnostic.Payload(err, logicalID)})
 		return NodeResult{}, err
 	}
 
 	hash, err := s.store.Put(res.Content)
 	if err != nil {
 		wrapped := fmt.Errorf("store node %q artifact: %w", logicalID, err)
-		s.emit(execID, domain.Failure, logicalID, map[string]any{"error": wrapped.Error()})
+		wrapped = diagnostic.Wrap(wrapped, diagnostic.KindArtifact, "artifact_store_failed", logicalID, "artifact.put", "artifact could not be persisted", "reduce output size or check workspace storage permissions")
+		s.emit(execID, domain.Failure, logicalID, map[string]any{"error": wrapped.Error(), "diagnostic": diagnostic.Payload(wrapped, logicalID)})
 		return NodeResult{}, wrapped
 	}
 	res.Hash = hash
@@ -225,14 +237,19 @@ func (s *Scheduler) cacheKeyFor(node domain.Node, inputs []NodeInput, wfInputs m
 // artifact (store cleared under the index) degrades to a miss. Events are
 // reconstructed fresh rather than replayed verbatim: a stored event stream would
 // carry a stale executionID and break the new log's hash chain (ADR 0007).
-func (s *Scheduler) cacheHit(execID, logicalID, key string) (NodeResult, bool) {
+func (s *Scheduler) cacheHit(execID, logicalID, key string) (NodeResult, bool, map[string]any) {
 	entry, ok := s.cache.Get(key)
 	if !ok {
-		return NodeResult{}, false
+		return NodeResult{}, false, nil
 	}
 	content, err := s.store.Get(entry.ArtifactHash)
 	if err != nil {
-		return NodeResult{}, false // index references bytes the store no longer has
+		err = diagnostic.Wrap(err, diagnostic.KindCache, "cache_artifact_missing", logicalID, "cache.hit", "cache entry referenced an artifact that is no longer stored", "clear this cache entry or rerun the node to refresh it")
+		return NodeResult{}, false, map[string]any{
+			"key":        key,
+			"artifact":   entry.ArtifactHash,
+			"diagnostic": diagnostic.Payload(err, logicalID),
+		}
 	}
 	s.emit(execID, domain.CacheHit, logicalID, map[string]any{
 		"key":          key,
@@ -250,7 +267,7 @@ func (s *Scheduler) cacheHit(execID, logicalID, key string) (NodeResult, bool) {
 		Hash:    entry.ArtifactHash,
 		CostUSD: 0,
 		Tokens:  0,
-	}, true
+	}, true, nil
 }
 
 // isContractViolation reports whether err (or anything it wraps) is a contract

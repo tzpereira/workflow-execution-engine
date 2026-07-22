@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/tzpereira/workflow-execution-engine/core/cache"
@@ -16,6 +15,8 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/model"
 	"github.com/tzpereira/workflow-execution-engine/core/model/openai"
+	"github.com/tzpereira/workflow-execution-engine/core/replay"
+	"github.com/tzpereira/workflow-execution-engine/core/security"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
@@ -60,24 +61,18 @@ func TestNoKeyMaterialInExecutionRecord(t *testing.T) {
 		t.Fatalf("state = %s, want succeeded", res.State)
 	}
 
-	// Grep every byte the run persisted for the key.
-	err = filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		data, rerr := os.ReadFile(path)
-		if rerr != nil {
-			return rerr
-		}
-		if strings.Contains(string(data), secret) {
-			t.Errorf("API key material leaked into %s", path)
-		}
-		return nil
-	})
+	bundle, err := replay.ExportBundle(eventlog.New(base), store.New(base), "e1")
 	if err != nil {
-		t.Fatalf("walk: %v", err)
+		t.Fatalf("export bundle: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(base, "bundle.tar"), bundle, 0o644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	findings, err := security.ScanFilesForSecrets(base, []string{secret})
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(findings) > 0 {
+		t.Fatalf("API key material leaked into persisted runtime files: %#v", findings)
 	}
 }

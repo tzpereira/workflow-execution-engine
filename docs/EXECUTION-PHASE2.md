@@ -27,6 +27,17 @@ Rules:
 
 ## Status
 
+- **M2.4 is complete** (2026-07-22): Robust runtime hardening is implemented and mechanically verified.
+  Existing event types now carry structured diagnostics for retries, failures, contract violations,
+  budget halts, artifact-store failures, and cache-degraded misses; provider clients honor integer and
+  HTTP-date `Retry-After`, expose timeout controls, and reject oversized successful responses rather than
+  decoding partial output; artifact storage has default single-artifact and total-directory bounds,
+  streaming writes, bounded limit previews, and explicit keep-set garbage collection; a reusable secret
+  scanner covers persisted runtime files and exported bundles; long-graph stress coverage guards event and
+  artifact growth plus goroutine cleanup. Verified with `go test ./...`, `go test ./... -race`, and
+  `go vet ./...`. `golangci-lint run` remains blocked by the pre-existing local typecheck/toolchain
+  mismatch already noted in earlier milestones (it reports missing dependency symbols/stale type shapes
+  even while `go test`/`go vet` compile cleanly). Next sequential milestone: **M2.5 — Safe Mutations**.
 - **M2.10 is implemented pending visual/live walkthrough** (2026-07-22): The UI now has semantic design
   tokens with light/dark theme resolution and an explicit toolbar toggle; shared status/signal mapping;
   themed canvas grid, non-overlapping node placement, and relayout; workspace document tabs with dirty
@@ -280,22 +291,35 @@ Acceptance:
 
 Tasks:
 
-- [ ] Define structured error taxonomy across engine, tools, providers, validation, budget, cache, and UI.
-- [ ] Harden provider behavior: 429/5xx retry policy, Retry-After support, timeout controls, partial-output
+- [x] Define structured error taxonomy across engine, tools, providers, validation, budget, cache, and UI.
+- [x] Harden provider behavior: 429/5xx retry policy, Retry-After support, timeout controls, partial-output
       handling, and provider diagnostics.
-- [ ] Audit cancellation and resume across model calls, tool calls, cache hits, and event persistence.
-- [ ] Add artifact limits: quotas, large output streaming, truncation summaries, retention controls, and
+- [x] Audit cancellation and resume across model calls, tool calls, cache hits, and event persistence.
+- [x] Add artifact limits: quotas, large output streaming, truncation summaries, retention controls, and
       garbage collection.
-- [ ] Harden secrets handling: env/keychain references and automated scans across events, artifacts, cache,
+- [x] Harden secrets handling: env/keychain references and automated scans across events, artifacts, cache,
       exports, and error paths.
-- [ ] Add soak/stress tests for long graphs and long-running executions.
+- [x] Add soak/stress tests for long graphs and long-running executions.
 
 Acceptance:
 
-- [ ] Rate limits, missing files, provider config errors, contract violations, timeouts, and budget limits
+- [x] Rate limits, missing files, provider config errors, contract violations, timeouts, and budget limits
       point to the exact node and likely fix.
-- [ ] Soak/stress tests show no leaks or unbounded storage growth.
-- [ ] Verification recorded here:
+- [x] Soak/stress tests show no leaks or unbounded storage growth.
+- [x] Verification recorded here: `go test ./...`; `go test ./... -race`; `go vet ./...` all green.
+      Focused coverage added/updated: `diagnostic.TestWrapPreservesCauseAndPayload`,
+      `engine.TestRetryOnTransientError`, `engine.TestArtifactLimitFailureNamesNodeAndLikelyFix`,
+      `engine.TestCacheHitWithMissingArtifactEmitsDiagnosticMiss`,
+      `engine.TestLongGraphStressBoundedEventsAndArtifacts`,
+      `store.TestPutRejectsArtifactOverLimitWithSummary`, `store.TestPutRejectsStoreQuota`,
+      `store.TestGarbageCollectRemovesUnreferencedArtifacts`,
+      `openai.TestRetryAfterHTTPDate`, `anthropic.TestRetryAfterHTTPDate`,
+      `openai.TestOversizedSuccessResponseIsRejectedAsPartialOutput`,
+      `anthropic.TestOversizedSuccessResponseIsRejectedAsPartialOutput`,
+      `security.TestScanFilesForSecretsFindsForbiddenBytes`, and the updated
+      `openai.TestNoKeyMaterialInExecutionRecord` bundle/disk scan. `golangci-lint run` was attempted and
+      is still blocked by the known local typecheck/toolchain mismatch (same environment class as earlier
+      Phase 1/2 notes), unrelated to the M2.4 changes.
 
 ---
 

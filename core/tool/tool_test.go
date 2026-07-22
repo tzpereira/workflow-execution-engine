@@ -81,6 +81,10 @@ func TestInvokeRejectsBadInputBeforeExecute(t *testing.T) {
 	if got := rec.types(); len(got) != 1 || got[0] != domain.ToolResult {
 		t.Errorf("events = %v, want [ToolResult] for a pre-execution rejection", got)
 	}
+	diag, ok := rec.events[0].Payload["diagnostic"].(map[string]any)
+	if !ok || diag["code"] != "tool_input_schema_invalid" || diag["likelyFix"] == "" {
+		t.Fatalf("diagnostic = %#v", rec.events[0].Payload["diagnostic"])
+	}
 }
 
 func TestInvokeRejectsBadOutput(t *testing.T) {

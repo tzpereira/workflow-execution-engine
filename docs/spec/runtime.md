@@ -61,3 +61,15 @@ execution and checkpoint; rejection shall terminate the path without invoking th
   default (PRIN-05). Persistence prevents a server restart or disconnected UI from changing the decision.
 - **Delivered by:** M2.5 (Safe Mutations; M1.16 superseded — see EXECUTION-PHASE2.md Status).
   **Verified by:** _pending_.
+
+### REQ-RUNTIME-08 — Structured runtime diagnostics
+When a runtime failure or retry is reported through existing events (`Retry`, `Failure`,
+`ContractViolation`, `BudgetExceeded`, cache-degraded `CacheMiss`), the payload shall include a structured
+diagnostic with subsystem kind, stable code, node id where applicable, operation, message, and likely fix.
+The original error shall remain unwrap-able for engine callers.
+- **Rationale:** M2.4's robust-runtime goal — common failures must point to the exact node and likely fix
+  without changing the frozen event catalog.
+- **Delivered by:** M2.4. **Verified by:** `diagnostic.TestWrapPreservesCauseAndPayload`,
+  `engine.TestRetryOnTransientError`, `engine.TestArtifactLimitFailureNamesNodeAndLikelyFix`,
+  `engine.TestCacheHitWithMissingArtifactEmitsDiagnosticMiss`,
+  `tool.TestInvokeRejectsBadInputBeforeExecute`.

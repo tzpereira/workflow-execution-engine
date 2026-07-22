@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tzpereira/workflow-execution-engine/core/cache"
+	"github.com/tzpereira/workflow-execution-engine/core/diagnostic"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
@@ -269,6 +270,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	// fresh or resumed, since a resumed run's remaining nodes need it too.
 	wfInputs, err := resolveWorkflowInputs(wf.Inputs, opts.Inputs)
 	if err != nil {
+		err = diagnostic.Wrap(err, diagnostic.KindValidation, "workflow_input_missing", "", "inputs.resolve", "required workflow input is missing", "provide the input value or define a default")
 		return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, err
 	}
 
@@ -337,7 +339,8 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 				}
 				ok, err := evalCondition(e.Condition, output[e.From].Content)
 				if err != nil {
-					halt(fmt.Errorf("engine: edge %s->%s: %w", e.From, e.To, err))
+					err = fmt.Errorf("engine: edge %s->%s: %w", e.From, e.To, err)
+					halt(diagnostic.Wrap(err, diagnostic.KindValidation, "edge_condition_invalid", id, "edge.condition", "conditional edge could not be evaluated", "check the condition path and expected upstream artifact shape"))
 					active = false
 					continue
 				}
@@ -419,8 +422,11 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 		budget.add(c.res.CostUSD, c.res.Tokens)
 		settle(c.id, StateSucceeded)
 		if budget.exceeded() {
-			s.emit(execID, domain.BudgetExceeded, "", budget.status())
-			halt(ErrBudgetExceeded)
+			payload := budget.status()
+			err := diagnostic.Wrap(ErrBudgetExceeded, diagnostic.KindBudget, "budget_exceeded", c.id, "budget.check", "execution exceeded its configured budget", "raise the budget or reduce workflow cost, tokens, or duration")
+			payload["diagnostic"] = diagnostic.Payload(err, c.id)
+			s.emit(execID, domain.BudgetExceeded, "", payload)
+			halt(err)
 		} else if budget.shouldWarn() {
 			s.emit(execID, domain.BudgetWarning, "", budget.status())
 		}
@@ -485,7 +491,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 			switch st {
 			case StatePending:
 				result.State = domain.ExecutionFailed
-				haltErr = fmt.Errorf("%w: %q", ErrIncompleteGraph, id)
+				haltErr = diagnostic.Wrap(fmt.Errorf("%w: %q", ErrIncompleteGraph, id), diagnostic.KindEngine, "incomplete_graph", id, "graph.resolve", "workflow graph did not fully resolve", "check for cycles, unreachable nodes, or invalid conditional edges")
 			case StateFailed:
 				result.State = domain.ExecutionFailed
 			}

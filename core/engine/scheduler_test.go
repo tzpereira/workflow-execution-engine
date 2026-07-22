@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/tzpereira/workflow-execution-engine/core/cache"
+	"github.com/tzpereira/workflow-execution-engine/core/diagnostic"
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
 	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
@@ -78,7 +81,9 @@ func (s *stub) Execute(ctx context.Context, req engine.NodeRequest) (engine.Node
 		}
 	}
 	if failsRemaining > 0 {
-		return engine.NodeResult{}, engine.Transient(fmt.Errorf("flaky %s", node.ID))
+		err := fmt.Errorf("flaky %s", node.ID)
+		err = diagnostic.Wrap(err, diagnostic.KindProvider, "provider_transient", node.ID, "provider.complete", "provider returned a retryable failure", "wait for the retry window or lower concurrency/rate")
+		return engine.NodeResult{}, engine.Transient(err)
 	}
 	if fatal {
 		return engine.NodeResult{}, engine.Fatal(fmt.Errorf("boom %s", node.ID))
@@ -318,6 +323,57 @@ func TestRetryOnTransientError(t *testing.T) {
 	if got := eventCount(t, log, "e1", domain.Retry); got != 2 {
 		t.Errorf("Retry events = %d, want 2", got)
 	}
+	events, err := log.ReadAll("e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawDiagnostic bool
+	for _, ev := range events {
+		if ev.Type != domain.Retry {
+			continue
+		}
+		diag, ok := ev.Payload["diagnostic"].(map[string]any)
+		if ok && diag["nodeId"] == "A" && diag["code"] == "provider_transient" && diag["likelyFix"] != "" {
+			sawDiagnostic = true
+		}
+	}
+	if !sawDiagnostic {
+		t.Fatalf("Retry events did not include structured node diagnostics: %#v", events)
+	}
+}
+
+func TestArtifactLimitFailureNamesNodeAndLikelyFix(t *testing.T) {
+	stub := newStub()
+	base := t.TempDir()
+	log := eventlog.New(base)
+	s := engine.New(stub, store.NewWithOptions(base, store.WithMaxArtifactBytes(8), store.WithMaxTotalBytes(0)), log, cache.New(base))
+
+	wf := &domain.Workflow{ID: "limit", Version: "1.0.0", Nodes: []domain.Node{node("oversized")}}
+	res, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "e1", Concurrency: 1})
+	if err == nil {
+		t.Fatal("Run succeeded, want artifact limit failure")
+	}
+	if res.Nodes["oversized"].State != engine.StateFailed {
+		t.Fatalf("node state = %s, want failed", res.Nodes["oversized"].State)
+	}
+	events, err := log.ReadAll("e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range events {
+		if ev.Type != domain.Failure || ev.NodeID != "oversized" {
+			continue
+		}
+		diag, ok := ev.Payload["diagnostic"].(map[string]any)
+		if !ok {
+			t.Fatalf("Failure missing diagnostic payload: %#v", ev.Payload)
+		}
+		if diag["kind"] != "artifact" || diag["nodeId"] != "oversized" || diag["likelyFix"] == "" {
+			t.Fatalf("diagnostic = %#v", diag)
+		}
+		return
+	}
+	t.Fatalf("no Failure event for oversized node: %#v", events)
 }
 
 func TestFailurePolicyContinue(t *testing.T) {
@@ -433,4 +489,51 @@ func TestCancellationNoGoroutineLeak(t *testing.T) {
 	if !settled {
 		t.Errorf("goroutines did not settle: before=%d now=%d", before, runtime.NumGoroutine())
 	}
+}
+
+func TestLongGraphStressBoundedEventsAndArtifacts(t *testing.T) {
+	const n = 300
+	stub := newStub()
+	base := t.TempDir()
+	log := eventlog.New(base)
+	s := engine.New(stub, store.New(base), log, cache.New(base))
+
+	wf := &domain.Workflow{ID: "stress", Version: "1.0.0", Nodes: make([]domain.Node, 0, n), Edges: make([]domain.Edge, 0, n-1)}
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("n%03d", i)
+		wf.Nodes = append(wf.Nodes, node(id))
+		if i > 0 {
+			wf.Edges = append(wf.Edges, domain.Edge{From: fmt.Sprintf("n%03d", i-1), To: id})
+		}
+	}
+
+	before := runtime.NumGoroutine()
+	res, err := s.Run(context.Background(), wf, engine.RunOptions{ExecutionID: "e1", Concurrency: 8})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.State != domain.ExecutionSucceeded {
+		t.Fatalf("state = %s, want succeeded", res.State)
+	}
+	events, err := log.ReadAll("e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) > n*4+4 {
+		t.Fatalf("event count = %d, want bounded by node lifecycle", len(events))
+	}
+	entries, err := os.ReadDir(filepath.Join(base, "artifacts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != n {
+		t.Fatalf("artifact files = %d, want one per unique node output", len(entries))
+	}
+	for i := 0; i < 40; i++ {
+		if runtime.NumGoroutine() <= before {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("goroutines did not settle after stress run: before=%d now=%d", before, runtime.NumGoroutine())
 }
