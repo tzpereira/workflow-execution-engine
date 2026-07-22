@@ -524,8 +524,9 @@ Tasks:
       between Worker/Tool shape, pointed at a Worker ref, edited with Tool input JSON, and opened directly
       into Worker/Contract/model editing even before a Worker file exists; model selection is a provider-
       scoped dropdown (including Kimi/Moonshot and saved model-provider Connections) with existing custom
-      values preserved as selectable options. Keyboard authoring now includes Cmd/Ctrl+Z undo, Cmd/Ctrl+W
-      add Worker node, and Cmd/Ctrl+T add Tool node.
+      values preserved as selectable options, and the Worker model controls keep labels stacked above inputs
+      instead of crowded inline. Keyboard authoring now includes Cmd/Ctrl+Z undo, Cmd/Ctrl+W add Worker node,
+      and Cmd/Ctrl+T add Tool node.
 - [x] Fold notification triggers from the existing event stream — **no new event type**, no writes to
       `events.jsonl`.
 - [x] Build the in-app notification center (transient toasts + persistent, dismissible list).

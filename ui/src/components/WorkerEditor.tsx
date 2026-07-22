@@ -342,7 +342,7 @@ export function WorkerEditor({
       </div>
 
       <div className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
           Tools (one per line)
         </span>
         <textarea
@@ -356,7 +356,7 @@ export function WorkerEditor({
       </div>
 
       <div className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
           Contract goal
         </span>
         <input
@@ -437,7 +437,7 @@ export function WorkerEditor({
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
           Max retries
         </span>
         <input
@@ -457,9 +457,9 @@ export function WorkerEditor({
         />
       </label>
 
-      <div className="flex items-end gap-1.5">
-        <label className="block">
-          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+      <div className="grid gap-2 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_5.75rem]">
+        <label className="block min-w-0">
+          <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
             Model provider
           </span>
           <select
@@ -474,7 +474,7 @@ export function WorkerEditor({
                 model: { ...draft.model, provider, model },
               })
             }}
-            className="mt-0.5 rounded border border-neutral-300 px-1.5 py-1 text-xs"
+            className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 text-xs"
           >
             {providerOptionsForSelect(
               providerOptions,
@@ -486,8 +486,8 @@ export function WorkerEditor({
             ))}
           </select>
         </label>
-        <label className="block flex-1">
-          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        <label className="block min-w-0">
+          <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
             Model
           </span>
           <select
@@ -509,8 +509,8 @@ export function WorkerEditor({
             )}
           </select>
         </label>
-        <label className="block">
-          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        <label className="block min-w-0">
+          <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
             Temperature
           </span>
           <input
@@ -530,13 +530,13 @@ export function WorkerEditor({
               else params.temperature = Number(raw)
               setDraft({ ...draft, model: { ...draft.model, params } })
             }}
-            className="mt-0.5 w-16 rounded border border-neutral-300 px-1.5 py-1 text-xs"
+            className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 text-xs"
           />
         </label>
       </div>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
           Output schema (JSON)
         </span>
         <textarea
