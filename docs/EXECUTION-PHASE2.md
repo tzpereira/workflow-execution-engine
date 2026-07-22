@@ -482,7 +482,7 @@ Tasks:
 - [x] Build guided first-run onboarding (empty → first successful run) and keep concept explainers reachable
       in context.
 - [x] Add in-app docs/help access, versioned to the running binary.
-- [ ] Refine Settings/Connections into category accordions instead of one global add-connection select:
+- [x] Refine Settings/Connections into category accordions instead of one global add-connection select:
       Model providers and Change sources in M2.10, with a Notifications accordion reserved for M2.11.
 - [x] Accessibility pass (WCAG 2.1 AA) and performance budget (200-node canvas, dense-surface
       responsiveness); confirm no silent telemetry.
@@ -501,6 +501,8 @@ Acceptance:
       includes `status.test.ts`, `store.test.ts`'s workspace-document and 200-node relayout cases,
       `CommandPalette.test.tsx`, and `WorkerEditor.test.tsx`'s canonical modal edit round-trip. Manual
       browser keyboard walkthrough and screenshots are intentionally left unchecked above until recorded.
+      Follow-up Settings category refinement verified with `pnpm --dir ui typecheck` and
+      `pnpm --dir ui test -- SettingsModal`.
 
 ## M2.11 — Notifications & Alerts
 

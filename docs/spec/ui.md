@@ -221,7 +221,9 @@ The Settings modal shall group addable integrations into separate accordions ins
 select: **Model providers**, **Change sources**, and a **Notifications** section reserved for M2.11 delivery
 channels. Each category exposes its own add buttons so provider/source/notification choices are visually
 scannable before anything is added.
-- **Delivered by:** M2.10/M2.11. **Verified by:** _pending M2.10 category UI implementation_.
+- **Delivered by:** M2.10/M2.11. **Verified by:** `SettingsModal.test.tsx` confirms separate Model
+  providers, Change sources, and Notifications accordions and no global connection preset select;
+  `pnpm --dir ui test -- SettingsModal`.
 
 ### NFR-UI-01 — Accessibility (WCAG 2.1 AA)
 The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast in both themes, appropriate
