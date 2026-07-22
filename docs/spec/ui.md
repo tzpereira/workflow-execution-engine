@@ -216,6 +216,13 @@ integrations, showing each secret as set/unset with **Save** on first set and **
 - **Delivered by:** M2.9. **Verified by:** `SettingsModal adds provider connections from presets...`,
   `SettingsModal starts clean without expanded provider/env-var rows`.
 
+#### M2.10 visual refinement
+The Settings modal shall group addable integrations into separate accordions instead of a single global
+select: **Model providers**, **Change sources**, and a **Notifications** section reserved for M2.11 delivery
+channels. Each category exposes its own add buttons so provider/source/notification choices are visually
+scannable before anything is added.
+- **Delivered by:** M2.10/M2.11. **Verified by:** _pending M2.10 category UI implementation_.
+
 ### NFR-UI-01 — Accessibility (WCAG 2.1 AA)
 The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast in both themes, appropriate
 ARIA roles/names, and honoring `prefers-reduced-motion`.

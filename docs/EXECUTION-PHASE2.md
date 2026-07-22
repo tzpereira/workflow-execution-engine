@@ -482,6 +482,8 @@ Tasks:
 - [x] Build guided first-run onboarding (empty → first successful run) and keep concept explainers reachable
       in context.
 - [x] Add in-app docs/help access, versioned to the running binary.
+- [ ] Refine Settings/Connections into category accordions instead of one global add-connection select:
+      Model providers and Change sources in M2.10, with a Notifications accordion reserved for M2.11.
 - [x] Accessibility pass (WCAG 2.1 AA) and performance budget (200-node canvas, dense-surface
       responsiveness); confirm no silent telemetry.
 - [x] Tests: token/theme application, status-module single-source, tab state, palette actions, round-trip
