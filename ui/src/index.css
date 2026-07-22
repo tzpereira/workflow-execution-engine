@@ -206,6 +206,16 @@ body {
   color: var(--color-text);
 }
 
+.history-row:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.history-row:hover td,
+.history-row:hover span {
+  color: var(--color-text);
+}
+
 :root[data-theme='dark'] .bg-white {
   background-color: var(--color-surface) !important;
 }

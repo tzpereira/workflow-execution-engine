@@ -156,7 +156,7 @@ export function Timeline({
               title={maximized ? 'Restore panel height' : 'Maximize this panel'}
               aria-label={maximized ? 'Restore bottom panel' : 'Maximize bottom panel'}
             >
-              <TimelineIcon name={maximized ? 'restore' : 'maximize'} />
+              <TimelineIcon name="expand" />
             </button>
           )}
         </div>
@@ -234,30 +234,15 @@ export function Timeline({
   )
 }
 
-function TimelineIcon({ name }: { name: 'minimize' | 'maximize' | 'restore' }) {
+function TimelineIcon({ name }: { name: 'minimize' | 'expand' }) {
   if (name === 'minimize') {
     return (
       <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
         <path
-          d="M4 6l4 4 4-4M3.5 13h9"
+          d="M4 8h8"
           fill="none"
           stroke="currentColor"
           strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.5"
-        />
-      </svg>
-    )
-  }
-  if (name === 'maximize') {
-    return (
-      <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
-        <path
-          d="M4 10l4-4 4 4M3.5 3h9"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
           strokeWidth="1.5"
         />
       </svg>
@@ -266,7 +251,7 @@ function TimelineIcon({ name }: { name: 'minimize' | 'maximize' | 'restore' }) {
   return (
     <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
       <path
-        d="M4 6l4 4 4-4"
+        d="M3.5 6V3.5H6M10 3.5h2.5V6M12.5 10v2.5H10M6 12.5H3.5V10"
         fill="none"
         stroke="currentColor"
         strokeLinecap="round"

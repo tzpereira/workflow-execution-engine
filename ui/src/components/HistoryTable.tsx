@@ -63,7 +63,7 @@ export function HistoryTable() {
           {sorted.map((e) => (
             <tr
               key={e.id}
-              className="cursor-pointer border-b border-neutral-100 text-neutral-700 hover:bg-neutral-50"
+              className="history-row cursor-pointer border-b border-neutral-100 text-neutral-700 hover:bg-neutral-50"
               onClick={() => void loadHistorical(e.id)}
             >
               <td className="py-1 pr-2 text-neutral-900">
@@ -117,4 +117,3 @@ function SortableHeader({
     </th>
   )
 }
-
