@@ -520,24 +520,27 @@ Tasks:
       with category-local add controls; Settings closes with Escape and stays keyboard-friendly; command
       palette selected rows remain legible in dark mode; right Inspector and bottom monitor panels are
       resizable plus icon-only minimizable/maximizable with text only in hover/tooltips.
-- [ ] Fold notification triggers from the existing event stream — **no new event type**, no writes to
+- [x] Fold notification triggers from the existing event stream — **no new event type**, no writes to
       `events.jsonl`.
-- [ ] Build the in-app notification center (transient toasts + persistent, dismissible list).
-- [ ] Add browser/OS notifications (opt-in, permission-gated) for backgrounded tabs, degrading gracefully to
+- [x] Build the in-app notification center (transient toasts + persistent, dismissible list).
+- [x] Add browser/OS notifications (opt-in, permission-gated) for backgrounded tabs, degrading gracefully to
       the in-app center.
-- [ ] Add configurable rules: per-event-type toggles, threshold rules (cost/duration/on-failure), quiet
+- [x] Add configurable rules: per-event-type toggles, threshold rules (cost/duration/on-failure), quiet
       hours — persisted in settings (no secrets).
-- [ ] Enforce redaction: status/identifiers/metrics only; never artifact content or secret material.
-- [ ] Keep delivery out of Core; document the webhook/Slack/email path as a future workflow-defined
+- [x] Enforce redaction: status/identifiers/metrics only; never artifact content or secret material.
+- [x] Keep delivery out of Core; document the webhook/Slack/email path as a future workflow-defined
       integration (an HTTP tool node), never a Core notifier.
-- [ ] Tests: fold-from-events, rules/quiet-hours, permission fallback, redaction, and catalog-unchanged
+- [x] Tests: fold-from-events, rules/quiet-hours, permission fallback, redaction, and catalog-unchanged
       (`domain.TestSchemaDrift`).
 
 Acceptance:
 
-- [ ] A user backgrounds a long run and is notified on completion/failure per their rules; quiet hours
+- [x] A user backgrounds a long run and is notified on completion/failure per their rules; quiet hours
       suppress as configured.
-- [ ] The event catalog and hash chain are unchanged; no off-machine delivery path exists in `core/engine`.
-- [ ] Verification recorded here: shell-polish subset verified with `pnpm --dir ui typecheck` and
+- [x] The event catalog and hash chain are unchanged; no off-machine delivery path exists in `core/engine`.
+- [x] Verification recorded here: shell-polish subset verified with `pnpm --dir ui typecheck` and
       `pnpm --dir ui test -- SettingsModal CommandPalette Timeline App ResizeHandle` (209 tests in the
-      selected Vitest run); full M2.11 notification verification pending.
+      selected Vitest run). Notification implementation verified with `go test ./...`; `pnpm --dir ui lint`;
+      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (216 tests); `pnpm --dir ui build` (known chunk-size
+      warning only). Browser/OS delivery is verified against an injectable fake Notification API; a manual
+      OS permission walkthrough is the remaining optional live/browser proof.

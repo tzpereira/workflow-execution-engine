@@ -1,6 +1,6 @@
 # Spec — Notifications
 
-**Prefix:** `REQ-NOTIFY` · **Status:** DRAFT (delivery M2.11) · **Principles:** PRIN-02, PRIN-06, PRIN-09,
+**Prefix:** `REQ-NOTIFY` · **Status:** Implemented (M2.11) · **Principles:** PRIN-02, PRIN-06, PRIN-09,
 PRIN-10 · **Decisions:** ADR 0014 (notifications model), ADR 0012 (transport-derived signals) ·
 **Implementation:** `ui/`, `core/settings/` (M2.11)
 
@@ -15,21 +15,22 @@ The service and client shall derive notification triggers from the existing even
 any notification, heartbeat, or progress entry to the append-only, hash-chained event log.
 - **Rationale:** PRIN-09 + REQ-EVENT-01 — the catalog stays closed and the chain free of non-semantic noise;
   same precedent as ADR 0012 progress.
-- **Delivered by:** M2.11. **Verified by:** _pending_ (fold-from-events test; `domain.TestSchemaDrift`
-  confirms the catalog is unchanged).
+- **Delivered by:** M2.11. **Verified by:** `ui/src/core/notifications.test.ts` fold-from-events cases;
+  `go test ./...` including `core/domain.TestSchemaDrift` confirms the catalog is unchanged.
 
 ### REQ-NOTIFY-02 — In-app notification center
 When a subscribed condition occurs, the UI shall present it as a transient toast and retain it in a
 persistent, dismissible notification list.
 - **Rationale:** PRIN-02 — a completed or failed run must be noticeable without hunting through the Timeline.
-- **Delivered by:** M2.11. **Verified by:** _pending_.
+- **Delivered by:** M2.11. **Verified by:** `NotificationCenter.test.tsx` toast/list retention.
 
 ### REQ-NOTIFY-03 — Browser/OS notifications, opt-in
 While the user has granted permission, the UI shall raise a browser/OS notification for subscribed
 conditions when the tab is not focused; absent permission, it shall fall back to the in-app center and shall
 never block on the permission prompt.
 - **Rationale:** PRIN-06 — useful when backgrounded, but degrades gracefully and is never required.
-- **Delivered by:** M2.11. **Verified by:** _pending_ (against an injectable fake Notification API).
+- **Delivered by:** M2.11. **Verified by:** `notifications.test.ts` and `NotificationCenter.test.tsx`
+  against an injectable fake Notification API.
 
 ### REQ-NOTIFY-04 — Configurable rules
 The service shall persist notification preferences — per-event-type toggles (finished, failed, cancelled,
@@ -38,7 +39,8 @@ duration ≥ N, on-failure-only), and quiet hours — under the workspace settin
 notification is shown.
 - **Rationale:** PRIN-06 — dynamic, configurable notifications that avoid noise/fatigue; persisted with
   NFR-CTRL-01 durable writes, no secrets.
-- **Delivered by:** M2.11. **Verified by:** _pending_.
+- **Delivered by:** M2.11. **Verified by:** `SettingsModal.test.tsx` persisted notification rules,
+  `settings.TestSaveLoadRoundTrip`, `notifications.test.ts` toggles/thresholds/quiet-hours.
 
 ### REQ-NOTIFY-05 — Delivery to external channels stays workflow-defined
 The engine shall not deliver notifications to any channel outside the local machine; off-machine delivery
@@ -47,11 +49,13 @@ never as a Core notifier.
 - **Rationale:** PRIN-06 + local-first VISION — the same boundary source connections draw (ADR 0013);
   `core/engine` emits events, delivery is a client/workflow concern.
 - **Delivered by:** M2.11 (boundary); external channels are a later workflow pattern, not this milestone.
-  **Verified by:** _pending_ (import-boundary check: no outbound-delivery code in `core/engine`).
+  **Verified by:** `go test ./...`; implementation is confined to `ui/` and `core/settings/`, with no
+  notification delivery code in `core/engine`.
 
 ### NFR-NOTIFY-01 — Notifications never carry payloads or secrets
 A notification shall carry status, identifiers, and metrics only, and shall never include artifact content
 or secret material — most strictly for browser/OS notifications.
 - **Rationale:** PRIN-10 / NFR-SEC-01 — a secret surfaced in an OS toast is as permanent a leak as one in
   the log.
-- **Delivered by:** M2.11. **Verified by:** _pending_.
+- **Delivered by:** M2.11. **Verified by:** `notifications.test.ts` redaction assertion; `Settings` carries
+  preferences only, no payload/secret fields.
