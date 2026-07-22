@@ -134,7 +134,8 @@ provide light and dark themes selectable by system preference and by an explicit
 contrast AA.
 - **Rationale:** ADR 0015 — one place to restyle; removes the hardcoded-hex/duplicated-color debt; theming
   is table stakes for a professional developer tool.
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `useThemeMode`, `index.css` semantic tokens, toolbar theme
+  toggle, `pnpm --dir ui typecheck`, `pnpm --dir ui test`, `pnpm --dir ui build`.
 
 ### REQ-UI-08 — Canvas surface & initial node layout
 The UI shall render the graph on a themed dot/grid "whiteboard" surface legible in both themes, lay out an
@@ -142,7 +143,8 @@ imported workflow with readable spacing, place a newly added node without overla
 offer an explicit re-layout action.
 - **Rationale:** ADR 0015; fixes the inventory finding that palette-added nodes stack at a fixed point. The
   grid is functional spatial orientation, not decoration.
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `Canvas.tsx`, `store.test.ts` non-overlap + 200-node relayout
+  cases, `pnpm --dir ui test`.
 
 ### REQ-UI-09 — Multi-document workspace tabs
 The UI shall let a user open multiple workflow documents as tabs within the one workspace, create or open a
@@ -150,7 +152,8 @@ new document from a "+" affordance, show an unsaved-edit indicator per tab, and 
 closing a tab with unsaved edits or a running execution — without introducing page navigation.
 - **Rationale:** ADR 0015 refines "one workspace"; distinct from the execution/run tabs, which continue to
   track watched executions.
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `WorkspaceTabs.tsx`, `store.test.ts` document/dirty-state case,
+  `pnpm --dir ui test`.
 
 ### REQ-UI-10 — Command palette as the interaction spine
 The UI's command palette (⌘K) shall expose every primary action — run, cancel, open/create document,
@@ -158,7 +161,7 @@ settings, templates, theme toggle, add connection, jump to node — with icons a
 the product is fully drivable from the keyboard.
 - **Rationale:** the keyboard-first law; the inventory found the palette limited to three static groups with
   no contextual actions.
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `CommandPalette.test.tsx`, `pnpm --dir ui test`.
 
 ### REQ-UI-11 — Expand-to-modal editing with markdown
 For editable long-text fields (objective, constraints, rules, success criteria), the UI shall provide an
@@ -166,7 +169,8 @@ expand-to-modal editor supporting plain text and markdown that edits the **canon
 round-trip content hash stays byte-stable (REQ-UI-01 preserved).
 - **Rationale:** the owner's ask for decent editing space; the modal must edit the canonical value, never a
   reformatted copy, or it would break the content hash.
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `WorkerEditor.test.tsx` modal canonical-edit round-trip,
+  `pnpm --dir ui test`.
 
 ### REQ-UI-12 — Information density & KPI surface
 The UI shall present execution and cross-execution KPIs (cost, tokens, duration, cache-hit rate, retries,
@@ -174,7 +178,7 @@ contract violations, failures, savings — REQ-METRIC-01..03) as a scannable, da
 primary figures prominent and detail behind progressive disclosure, staying bounded and readable.
 - **Rationale:** the owner's ask for maximum, clear information; density must serve scanning via hierarchy,
   not become clutter (ADR 0015 guardrail).
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `MetricsPanel.tsx`, `pnpm --dir ui test`.
 
 ### REQ-UI-13 — Centralized status/signal system
 The UI shall derive every status badge, dot, border, and chart color from one status module mapping each
@@ -182,7 +186,8 @@ status to a color token, an icon, and a label, and shall convey status by color 
 never color alone.
 - **Rationale:** ADR 0015; the inventory found the status→color map duplicated across ~5 files; redundant
   encoding makes the system color-blind-safe and pilotable at a glance ("sinaleiros").
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** `core/status.test.ts`, `WorkflowNode.tsx`, `Timeline.tsx`,
+  `Toolbar.tsx`, `RunTabs.tsx`, `Inspector.tsx`, `pnpm --dir ui test`.
 
 ### REQ-UI-14 — Guided first-run onboarding
 When the workspace is empty, the UI shall guide a first-time user from empty state to a first successful run
@@ -190,14 +195,17 @@ When the workspace is empty, the UI shall guide a first-time user from empty sta
 first-encounter concept explainers (Contract, Context Policy, Artifact, Node Cache) reachable in context.
 - **Rationale:** the owner's ask that the UX invite and guide the user; the inventory found empty states but
   no proactive first-run path.
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** empty-state onboarding in `Canvas.tsx`, in-app help in
+  `App.tsx`, `pnpm --dir ui test`; manual first-run walkthrough remains part of the M2.10 visual/live
+  sign-off.
 
 ### REQ-UI-15 — In-app docs & help, versioned
 The UI shall provide in-app access to help/docs (concepts, quickstart, glossary) reachable from a persistent
 affordance, versioned to the running binary so the docs never drift from the behavior they describe.
 - **Rationale:** the owner's ask that docs be accessible to users; the inventory found no in-app docs access
   (deliberately deferred until a docs-serving mechanism existed — this requirement supplies it).
-- **Delivered by:** M2.10. **Verified by:** _pending_.
+- **Delivered by:** M2.10. **Verified by:** persistent Help affordance/modal in `App.tsx`/`Toolbar.tsx`,
+  `pnpm --dir ui typecheck`.
 
 ### REQ-UI-16 — Connections & settings clarity surface
 The UI shall present Connections (REQ-CONN-01..06) through an "add connection" surface listing the available
@@ -213,11 +221,15 @@ The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast 
 ARIA roles/names, and honoring `prefers-reduced-motion`.
 - **Rationale:** ADR 0015 hard guardrail; "well-regarded by companies / CTOs" is not credible without
   accessibility.
-- **Delivered by:** M2.10 (with the M2.6 accessibility pass as the final gate). **Verified by:** _pending_.
+- **Delivered by:** M2.10 (with the M2.6 accessibility pass as the final gate). **Verified by:**
+  `prefers-reduced-motion` token handling, added ARIA names for new controls, `pnpm --dir ui lint`,
+  `pnpm --dir ui test`; manual WCAG/browser pass remains the final gate.
 
 ### NFR-UI-02 — Performance & density budget
 The UI shall keep the canvas interactive at 200 nodes and keep dense KPI/observability surfaces responsive
 during large outputs; no artifact or panel shall be able to expand the layout into unusability.
 - **Rationale:** ADR 0015 hard guardrail; consistent with the M2.6 performance budget — density and
   expressiveness must not cost responsiveness.
-- **Delivered by:** M2.10 (upheld by the M2.6 performance pass). **Verified by:** _pending_.
+- **Delivered by:** M2.10 (upheld by the M2.6 performance pass). **Verified by:** `store.test.ts` 200-node
+  relayout guard, bounded KPI/detail surfaces, `pnpm --dir ui build`; browser performance profiling remains
+  the final gate.

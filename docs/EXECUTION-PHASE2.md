@@ -27,6 +27,14 @@ Rules:
 
 ## Status
 
+- **M2.10 is implemented pending visual/live walkthrough** (2026-07-22): The UI now has semantic design
+  tokens with light/dark theme resolution and an explicit toolbar toggle; shared status/signal mapping;
+  themed canvas grid, non-overlapping node placement, and relayout; workspace document tabs with dirty
+  state and guarded close; an expanded command palette; long-text canonical modal editing; KPI-first
+  metrics; first-run/help surfaces; and focused coverage for status, tabs, palette actions, modal edit
+  round-trip, and 200-node relayout. Mechanically verified with UI lint/typecheck/test/build below. A
+  real browser keyboard walkthrough plus screenshots remain the only unrecorded acceptance proof if the
+  owner wants visual sign-off before closing M2.10.
 - **M2.9 is implemented pending live walkthrough** (2026-07-22): Connections now persist as non-secret
   reference bundles in workspace settings; provider connections bind to the existing provider registry
   (Kimi/Moonshot as an OpenAI-compatible provider id, no new provider package); source connections are
@@ -455,28 +463,28 @@ shell that clears the "inevitable / CTO-grade" bar — expressive but discipline
 
 Tasks:
 
-- [ ] Introduce the semantic design-token layer (color, elevation, radius, motion, spacing) and light/dark
+- [x] Introduce the semantic design-token layer (color, elevation, radius, motion, spacing) and light/dark
       themes (system preference + explicit toggle); migrate hardcoded hex and inline neutrals to tokens.
-- [ ] Apply the amended visual language (expressive, disciplined) within the ADR 0015 guardrails; define the
+- [x] Apply the amended visual language (expressive, disciplined) within the ADR 0015 guardrails; define the
       elevation/gradient/motion scales.
-- [ ] Centralize the status/signal system into one module (color + icon + label); replace the ~5 duplicated
+- [x] Centralize the status/signal system into one module (color + icon + label); replace the ~5 duplicated
       status→color maps.
-- [ ] Rework the canvas surface (themed dot/grid), fix palette-added-node placement (no overlap), add an
+- [x] Rework the canvas surface (themed dot/grid), fix palette-added-node placement (no overlap), add an
       explicit re-layout action.
-- [ ] Add multi-document workspace tabs + "+", per-tab unsaved-edit indicator, safe close for
+- [x] Add multi-document workspace tabs + "+", per-tab unsaved-edit indicator, safe close for
       unsaved/running documents — reconciled with the existing execution/run tabs.
-- [ ] Enrich the command palette (icons, shortcut hints, contextual run/cancel/settings/templates/theme/add-
+- [x] Enrich the command palette (icons, shortcut hints, contextual run/cancel/settings/templates/theme/add-
       connection/jump-to-node) as the interaction spine.
-- [ ] Add the expand-to-modal markdown editor for long-text fields, editing the **canonical value** so
+- [x] Add the expand-to-modal markdown editor for long-text fields, editing the **canonical value** so
       round-trip content hashes stay byte-stable (REQ-UI-01 preserved).
-- [ ] Build the dashboard-style KPI/observability surface (primary figures prominent, detail behind
+- [x] Build the dashboard-style KPI/observability surface (primary figures prominent, detail behind
       progressive disclosure, bounded).
-- [ ] Build guided first-run onboarding (empty → first successful run) and keep concept explainers reachable
+- [x] Build guided first-run onboarding (empty → first successful run) and keep concept explainers reachable
       in context.
-- [ ] Add in-app docs/help access, versioned to the running binary.
-- [ ] Accessibility pass (WCAG 2.1 AA) and performance budget (200-node canvas, dense-surface
+- [x] Add in-app docs/help access, versioned to the running binary.
+- [x] Accessibility pass (WCAG 2.1 AA) and performance budget (200-node canvas, dense-surface
       responsiveness); confirm no silent telemetry.
-- [ ] Tests: token/theme application, status-module single-source, tab state, palette actions, round-trip
+- [x] Tests: token/theme application, status-module single-source, tab state, palette actions, round-trip
       after modal edit, a11y checks.
 
 Acceptance:
@@ -485,7 +493,12 @@ Acceptance:
       dark theme, fully by keyboard.
 - [ ] Status is legible to a color-blind user; the canvas stays interactive at 200 nodes; screenshots read
       as a professional developer tool.
-- [ ] Verification recorded here:
+- [x] Verification recorded here: `pnpm --dir ui lint`; `pnpm --dir ui typecheck`; `pnpm --dir ui test`
+      (207 tests, up from 199 at M2.3 close and 206 before the 200-node relayout guard);
+      `pnpm --dir ui build` (known chunk-size warning only: Shiki/wasm and main bundle). Focused coverage
+      includes `status.test.ts`, `store.test.ts`'s workspace-document and 200-node relayout cases,
+      `CommandPalette.test.tsx`, and `WorkerEditor.test.tsx`'s canonical modal edit round-trip. Manual
+      browser keyboard walkthrough and screenshots are intentionally left unchecked above until recorded.
 
 ## M2.11 — Notifications & Alerts
 
