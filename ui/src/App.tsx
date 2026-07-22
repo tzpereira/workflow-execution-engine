@@ -4,6 +4,7 @@ import { Canvas } from './components/Canvas'
 import { CommandPalette } from './components/CommandPalette'
 import { Inspector } from './components/Inspector'
 import { ResizeHandle } from './components/ResizeHandle'
+import { RunTabs } from './components/RunTabs'
 import { SettingsModal } from './components/SettingsModal'
 import { TemplateGallery } from './components/TemplateGallery'
 import { Timeline } from './components/Timeline'
@@ -48,6 +49,7 @@ export default function App() {
 
   return (
     <div className="app-shell flex h-screen flex-col bg-neutral-50 text-neutral-900">
+      <RunTabs />
       <Toolbar
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenTemplates={() => setGalleryOpen(true)}

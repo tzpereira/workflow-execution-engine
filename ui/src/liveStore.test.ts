@@ -63,9 +63,15 @@ function fakeDeps() {
   const fetchTemplates = vi.fn(
     async () => [],
   ) as unknown as LiveDeps['fetchTemplates']
-  const cancelExecution = vi.fn(async () => undefined) as unknown as LiveDeps['cancelExecution']
-  const retryExecution = vi.fn(async (_url: string, id: string) => id) as unknown as LiveDeps['retryExecution']
-  const reexecuteExecution = vi.fn(async () => 'exec-2') as unknown as LiveDeps['reexecuteExecution']
+  const cancelExecution = vi.fn(
+    async () => undefined,
+  ) as unknown as LiveDeps['cancelExecution']
+  const retryExecution = vi.fn(
+    async (_url: string, id: string) => id,
+  ) as unknown as LiveDeps['retryExecution']
+  const reexecuteExecution = vi.fn(
+    async () => 'exec-2',
+  ) as unknown as LiveDeps['reexecuteExecution']
   const clearCache = vi.fn(async () => 1) as unknown as LiveDeps['clearCache']
 
   return {
@@ -142,13 +148,15 @@ describe('liveStore', () => {
     expect(store.getState().connected).toBe(false)
   })
 
-  it('watching again stops the previous stream', () => {
+  it('watching another execution keeps the previous stream open in its own tab', () => {
     const { deps, stops } = fakeDeps()
     const store = createLiveStore(deps)
     store.getState().watch('exec-1', ['a'])
     store.getState().watch('exec-2', ['a'])
 
-    expect(stops[0]).toHaveBeenCalledTimes(1)
+    expect(stops[0]).not.toHaveBeenCalled()
+    expect(store.getState().tabs.map((t) => t.id)).toEqual(['exec-1', 'exec-2'])
+    expect(store.getState().activeTabId).toBe('exec-2')
   })
 
   it('disconnect stops the stream and clears connected', () => {
@@ -272,7 +280,7 @@ describe('liveStore', () => {
     expect(store.getState().executions).toEqual([])
   })
 
-  it("loadHistorical disconnects any live watch and folds the past run's own events into `live`", async () => {
+  it("loadHistorical opens a tab and folds the past run's own events into `live`", async () => {
     const { deps, stops } = fakeDeps()
     deps.fetchAudit = vi.fn(async (_url: string, execId: string) => ({
       ...fakeAudit(execId),
@@ -307,16 +315,18 @@ describe('liveStore', () => {
       ],
     })) as unknown as LiveDeps['fetchAudit']
     const store = createLiveStore(deps)
-    store.getState().watch('exec-live', ['a']) // an active watch, to prove it gets torn down
+    store.getState().watch('exec-live', ['a'])
     expect(store.getState().connected).toBe(true)
 
     await store.getState().loadHistorical('exec-old')
 
-    expect(stops[0]).toHaveBeenCalledTimes(1)
+    expect(stops[0]).not.toHaveBeenCalled()
     expect(store.getState().connected).toBe(false)
     expect(store.getState().audit?.executionId).toBe('exec-old')
     expect(store.getState().live.nodes.a.status).toBe('succeeded')
     expect(store.getState().live.nodes.a.costUsd).toBe(0.01)
+    store.getState().switchTab('exec-live')
+    expect(store.getState().connected).toBe(true)
   })
 
   it('loadHistorical records the error when the fetch fails', async () => {
@@ -328,6 +338,26 @@ describe('liveStore', () => {
 
     await store.getState().loadHistorical('exec-missing')
     expect(store.getState().error).toBe('unknown execution')
+  })
+
+  it('switchTab swaps the active live view without stopping streams', () => {
+    const { deps, stops, emit } = fakeDeps()
+    const store = createLiveStore(deps)
+    store.getState().watch('exec-1', ['a'])
+    emit({
+      type: 'ExecutionStarted',
+      timestamp: 't',
+      executionId: 'exec-1',
+      prevHash: 'x',
+      payload: { workflow: 'wf', version: '1.0.0' },
+    })
+    store.getState().watch('exec-2', ['b'])
+
+    store.getState().switchTab('exec-1')
+
+    expect(stops[0]).not.toHaveBeenCalled()
+    expect(store.getState().live.executionId).toBe('exec-1')
+    expect(store.getState().live.nodes.a.status).toBe('pending')
   })
 
   it('loadTemplates populates the gallery list', async () => {
@@ -380,7 +410,10 @@ describe('liveStore run controls', () => {
     const store = createLiveStore(deps)
     store.setState({ audit: fakeAudit('exec-1') })
     await store.getState().cancel()
-    expect(deps.cancelExecution).toHaveBeenCalledWith('http://127.0.0.1:7676', 'exec-1')
+    expect(deps.cancelExecution).toHaveBeenCalledWith(
+      'http://127.0.0.1:7676',
+      'exec-1',
+    )
   })
 
   it('retry resumes the current execution then re-watches it', async () => {
@@ -388,7 +421,11 @@ describe('liveStore run controls', () => {
     const store = createLiveStore(deps)
     store.setState({ audit: fakeAudit('exec-1') })
     await store.getState().retry('nodeB')
-    expect(deps.retryExecution).toHaveBeenCalledWith('http://127.0.0.1:7676', 'exec-1', 'nodeB')
+    expect(deps.retryExecution).toHaveBeenCalledWith(
+      'http://127.0.0.1:7676',
+      'exec-1',
+      'nodeB',
+    )
     expect(deps.watchExecution).toHaveBeenCalled()
     expect(store.getState().connected).toBe(true)
   })
@@ -398,7 +435,10 @@ describe('liveStore run controls', () => {
     const store = createLiveStore(deps)
     store.setState({ audit: fakeAudit('exec-1') })
     await store.getState().reexecute()
-    expect(deps.reexecuteExecution).toHaveBeenCalledWith('http://127.0.0.1:7676', 'exec-1')
+    expect(deps.reexecuteExecution).toHaveBeenCalledWith(
+      'http://127.0.0.1:7676',
+      'exec-1',
+    )
     // watch() reset the fold seeded for the new run
     expect(store.getState().connected).toBe(true)
   })

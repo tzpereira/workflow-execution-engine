@@ -46,6 +46,8 @@ const defaultDeps: LiveDeps = {
 
 export interface LiveStoreState {
   serverUrl: string
+  tabs: RunTab[]
+  activeTabId: string | null
   live: LiveState
   connected: boolean
   error: string | null
@@ -75,7 +77,11 @@ export interface LiveStoreState {
   /** POST /api/run, then watch() the execution id it returns. inputs supplies
    *  values for the workflow's declared Inputs (REQ-INPUT-01), collected by
    *  RunInputsModal before this is called; omit for a workflow with none. */
-  run: (workflowRef: string, nodeIds: string[], inputs?: Record<string, string>) => Promise<void>
+  run: (
+    workflowRef: string,
+    nodeIds: string[],
+    inputs?: Record<string, string>,
+  ) => Promise<void>
   /** GET /api/executions/{execId} on demand — watch() already calls this at
    *  the right moments; exposed for a manual refresh or inspecting an
    *  execution outside the current live stream. */
@@ -103,7 +109,20 @@ export interface LiveStoreState {
   /** Clear the current execution's cache — all its nodes, or one (REQ-CTRL-03).
    *  Refreshes the audit so the next retry/re-exec recomputes the cleared node. */
   clearNodeCache: (nodeId?: string) => Promise<void>
+  switchTab: (id: string) => void
+  closeTab: (id: string) => void
   disconnect: () => void
+}
+
+export interface RunTab {
+  id: string
+  label: string
+  live: LiveState
+  connected: boolean
+  error: string | null
+  stop: (() => void) | null
+  audit: Audit | null
+  lastEventAt: number | null
 }
 
 /** currentExecId is the execution the control actions operate on: the live
@@ -112,13 +131,52 @@ function currentExecId(s: LiveStoreState): string | null {
   return s.live.executionId || s.audit?.executionId || null
 }
 
+const emptyActive = {
+  live: emptyLive(),
+  connected: false,
+  error: null,
+  stop: null,
+  audit: null,
+  lastEventAt: null,
+}
+
+function activeFields(tabs: RunTab[], activeTabId: string | null) {
+  const tab = tabs.find((t) => t.id === activeTabId)
+  if (!tab) return emptyActive
+  return {
+    live: tab.live,
+    connected: tab.connected,
+    error: tab.error,
+    stop: tab.stop,
+    audit: tab.audit,
+    lastEventAt: tab.lastEventAt,
+  }
+}
+
+function makeTab(execId: string, nodeIds: string[], stop: () => void): RunTab {
+  return {
+    id: execId,
+    label: execId.length > 12 ? `${execId.slice(0, 8)}…` : execId,
+    live: emptyLive(nodeIds),
+    connected: true,
+    error: null,
+    stop,
+    audit: null,
+    lastEventAt: Date.now(),
+  }
+}
+
 /** createLiveStore takes injectable transport deps so the store's own logic —
  *  resetting state, folding events, tearing down the prior stream — is unit
  *  tested without a real WebSocket or network call. useLive below is the one
  *  instance components use. */
-export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<StoreApi<LiveStoreState>> {
+export function createLiveStore(
+  deps: LiveDeps = defaultDeps,
+): UseBoundStore<StoreApi<LiveStoreState>> {
   return create<LiveStoreState>((set, get) => ({
     serverUrl: 'http://127.0.0.1:7676',
+    tabs: [],
+    activeTabId: null,
     live: emptyLive(),
     connected: false,
     error: null,
@@ -133,26 +191,54 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
     setServerUrl: (url) => set({ serverUrl: url }),
 
     watch: (execId, nodeIds) => {
-      get().stop?.()
       const stop = deps.watchExecution(
         execId,
         {
-          onEvent: (ev) => set((s) => ({ live: reduce(s.live, ev), lastEventAt: Date.now() })),
+          onEvent: (ev) =>
+            set((s) => {
+              const tabs = s.tabs.map((t) =>
+                t.id === execId
+                  ? { ...t, live: reduce(t.live, ev), lastEventAt: Date.now() }
+                  : t,
+              )
+              return { tabs, ...activeFields(tabs, s.activeTabId) }
+            }),
           onDone: () => {
-            set({ connected: false })
+            set((s) => {
+              const tabs = s.tabs.map((t) =>
+                t.id === execId ? { ...t, connected: false, stop: null } : t,
+              )
+              return { tabs, ...activeFields(tabs, s.activeTabId) }
+            })
             void get().loadAudit(execId)
           },
         },
         { baseUrl: get().serverUrl },
       )
-      set({ live: emptyLive(nodeIds), connected: true, error: null, stop, audit: null, lastEventAt: Date.now() })
+      set((s) => {
+        const existing = s.tabs.find((t) => t.id === execId)
+        existing?.stop?.()
+        const next = makeTab(execId, nodeIds, stop)
+        const tabs = existing
+          ? s.tabs.map((t) => (t.id === execId ? next : t))
+          : [...s.tabs, next]
+        return { tabs, activeTabId: execId, ...activeFields(tabs, execId) }
+      })
       void get().loadAudit(execId)
     },
 
     loadAudit: async (execId) => {
       try {
         const audit = await deps.fetchAudit(get().serverUrl, execId)
-        set({ audit })
+        set((s) => {
+          if (!s.tabs.some((t) => t.id === execId)) {
+            return { audit }
+          }
+          const tabs = s.tabs.map((t) =>
+            t.id === execId ? { ...t, audit } : t,
+          )
+          return { tabs, ...activeFields(tabs, s.activeTabId) }
+        })
       } catch {
         // Best-effort: the WS stream (or a retry via onDone) already surfaces
         // failures for a run in progress — a transient audit-fetch error
@@ -170,12 +256,25 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
     },
 
     loadHistorical: async (execId) => {
-      get().stop?.()
-      set({ stop: null, connected: false })
       try {
         const audit = await deps.fetchAudit(get().serverUrl, execId)
         const nodeIds = audit.workflow.nodes.map((n) => n.id)
-        set({ audit, live: reduceAll(audit.events, nodeIds), error: null })
+        const tab: RunTab = {
+          id: execId,
+          label: execId.length > 12 ? `${execId.slice(0, 8)}…` : execId,
+          live: reduceAll(audit.events, nodeIds),
+          connected: false,
+          error: null,
+          stop: null,
+          audit,
+          lastEventAt: null,
+        }
+        set((s) => {
+          const tabs = s.tabs.some((t) => t.id === execId)
+            ? s.tabs.map((t) => (t.id === execId ? tab : t))
+            : [...s.tabs, tab]
+          return { tabs, activeTabId: execId, ...activeFields(tabs, execId) }
+        })
       } catch (e) {
         set({ error: e instanceof Error ? e.message : String(e) })
       }
@@ -247,9 +346,33 @@ export function createLiveStore(deps: LiveDeps = defaultDeps): UseBoundStore<Sto
       }
     },
 
+    switchTab: (id) =>
+      set((s) => ({ activeTabId: id, ...activeFields(s.tabs, id) })),
+
+    closeTab: (id) => {
+      set((s) => {
+        const closing = s.tabs.find((t) => t.id === id)
+        closing?.stop?.()
+        const tabs = s.tabs.filter((t) => t.id !== id)
+        const activeTabId =
+          s.activeTabId === id
+            ? (tabs[tabs.length - 1]?.id ?? null)
+            : s.activeTabId
+        return { tabs, activeTabId, ...activeFields(tabs, activeTabId) }
+      })
+    },
+
     disconnect: () => {
-      get().stop?.()
-      set({ stop: null, connected: false })
+      const id = get().activeTabId
+      if (!id) return
+      set((s) => {
+        const tabs = s.tabs.map((t) => {
+          if (t.id !== id) return t
+          t.stop?.()
+          return { ...t, stop: null, connected: false }
+        })
+        return { tabs, ...activeFields(tabs, s.activeTabId) }
+      })
     },
   }))
 }
