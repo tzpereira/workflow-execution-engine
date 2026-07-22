@@ -26,6 +26,7 @@ decision. Reference `docs/VISION.md`/`docs/ROADMAP.md` sections for background r
 | [0010](0010-websocket-transport.md) | Live event stream over WebSocket (`github.com/coder/websocket`), superseding 0009 | Accepted | 2026-07-18 |
 | [0011](0011-workflow-level-inputs.md) | Workflow-level `Inputs`/`${input:NAME}` — a distinct, non-secret, per-run placeholder form | Accepted | 2026-07-19 |
 | [0012](0012-local-control-plane.md) | Local control-plane persistence and run-control model — in-workspace settings, run registry, transport-derived progress | Accepted | 2026-07-21 |
+| [0013](0013-connections-model.md) | Connections as non-secret reference bundles (provider + source); forges never become Core concepts; Kimi via OpenAI-compatible base URL | Accepted | 2026-07-21 |
 
 IDs are stable: never renumbered, never reused. A superseded ADR keeps its number and gets `Status:
 Superseded by ADR-NNNN` — see [spec/README.md](../spec/README.md) for the project-wide ID scheme (`ADR-NNNN`

@@ -42,7 +42,14 @@ and names in code must not drift apart.
   parameters, the Tool versions, and the Context Policy. When a key matches a
   previous run, the node returns the cached Artifact instead of calling the
   model — free and byte-identical.
-
+- **Connection** — A named, reusable, **non-secret reference bundle** the control
+  plane stores so an external system is configured once and reused across
+  Workflows. Two kinds — model providers (OpenAI, Anthropic, Kimi, self-hosted)
+  and change sources (GitHub, GitLab, Bitbucket, local repositories) — but a
+  Connection never adds capability to the engine and never holds a secret value:
+  it records endpoints and non-secret defaults plus the env/keychain *reference*
+  for its secret, never the value. Change sources are consumed by the generic
+  HTTP/git/filesystem Tools, so forges never become Core concepts (ADR 0013).
 ## Naming philosophy — forbidden vocabulary
 
 Names are engineering, not decoration. This project uses engineering vocabulary
