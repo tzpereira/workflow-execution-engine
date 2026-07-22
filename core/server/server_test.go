@@ -573,14 +573,26 @@ func TestImportTemplateDisabledWithoutTemplatesDir(t *testing.T) {
 	}
 }
 
+// demoWorker is schema-complete (M2.3: handleSaveWorker now validates against
+// worker.schema.json, whose additionalProperties:false/required list rejects
+// a Worker with nil constraints/tools/rules/successCriteria or an unset
+// ContextPolicy.Mode) — every field a real WorkerEditor.tsx save would send.
 func demoWorker(id, version string) domain.Worker {
 	return domain.Worker{
-		ID:        id,
-		Version:   version,
-		Objective: "review code",
+		ID:          id,
+		Version:     version,
+		Objective:   "review code",
+		Constraints: []string{},
+		Tools:       []string{},
+		ContextPolicy: domain.ContextPolicy{
+			Mode: domain.ContextDiffOnly,
+		},
 		Contract: domain.Contract{
-			Goal:         "produce a verdict",
-			OutputSchema: map[string]any{"type": "object"},
+			Goal:            "produce a verdict",
+			Rules:           []string{},
+			SuccessCriteria: []string{},
+			MaxRetries:      1,
+			OutputSchema:    map[string]any{"type": "object"},
 		},
 		Model: domain.ModelConfig{Provider: "openai", Model: "gpt-4o-mini"},
 	}
@@ -723,6 +735,57 @@ func TestSaveWorkerRequiresID(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+// TestSaveWorkerRejectsSchemaInvalidWorker covers M2.3's server-side
+// validation gate: a Worker missing required fields (worker.schema.json)
+// must be rejected before it ever reaches disk, not merely on the client.
+func TestSaveWorkerRejectsSchemaInvalidWorker(t *testing.T) {
+	s, dir := fastServerWithTemplates(t, "")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	invalid := demoWorker("reviewer", "1.0.0")
+	invalid.ContextPolicy = domain.ContextPolicy{} // Mode "" is not one of the enum values
+	body, _ := json.Marshal(saveWorkerRequest{Worker: invalid})
+	resp, err := http.Post(ts.URL+"/api/workers", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want 400: %s", resp.StatusCode, b)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "reviewer@1.0.0.worker.yaml")); !os.IsNotExist(err) {
+		t.Error("an invalid Worker must never reach disk")
+	}
+}
+
+// TestSaveWorkerRejectsUncompilableOutputSchema covers the check
+// Validate(KindWorker) structurally cannot make: worker.schema.json only
+// requires outputSchema to be *some* object, so a syntactically-fine but
+// non-compilable JSON Schema needs the separate validate.CompileSchema call.
+func TestSaveWorkerRejectsUncompilableOutputSchema(t *testing.T) {
+	s, dir := fastServerWithTemplates(t, "")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	invalid := demoWorker("reviewer", "1.0.0")
+	invalid.Contract.OutputSchema = map[string]any{"type": "not-a-real-json-schema-type"}
+	body, _ := json.Marshal(saveWorkerRequest{Worker: invalid})
+	resp, err := http.Post(ts.URL+"/api/workers", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want 400: %s", resp.StatusCode, b)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "reviewer@1.0.0.worker.yaml")); !os.IsNotExist(err) {
+		t.Error("a Worker with a non-compilable output schema must never reach disk")
 	}
 }
 

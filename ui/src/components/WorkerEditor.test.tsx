@@ -107,4 +107,37 @@ describe('WorkerEditor', () => {
     render(<WorkerEditor workerRef="reviewer@1.0.0" dir="" serverUrl="http://x" onWorkerRefChange={() => {}} />)
     expect(await screen.findByText('boom')).toBeInTheDocument()
   })
+
+  it('shows an objective snippet next to each version in the picker (M2.3)', async () => {
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([demoWorker('1.0.0', 'old'), demoWorker('1.0.1', 'new')])
+    render(<WorkerEditor workerRef="reviewer@1.0.1" dir="" serverUrl="http://x" onWorkerRefChange={() => {}} />)
+
+    expect(await screen.findByRole('option', { name: '1.0.0 — old' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '1.0.1 — new' })).toBeInTheDocument()
+  })
+
+  it('names the exact version Save will create, next to the version picker (M2.3)', async () => {
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([demoWorker('1.0.0')])
+    render(<WorkerEditor workerRef="reviewer@1.0.0" dir="" serverUrl="http://x" onWorkerRefChange={() => {}} />)
+    await waitFor(() => expect(screen.getByDisplayValue('review code')).toBeInTheDocument())
+
+    expect(screen.getByText('reviewer@1.0.1')).toBeInTheDocument()
+  })
+
+  it('shows informational envelope validation issues without blocking save (M2.3)', async () => {
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([demoWorker('1.0.0')])
+    const saveWorkerSpy = vi.spyOn(liveClient, 'saveWorker').mockResolvedValue(demoWorker('1.0.1'))
+    render(<WorkerEditor workerRef="reviewer@1.0.0" dir="" serverUrl="http://x" onWorkerRefChange={() => {}} />)
+    await waitFor(() => expect(screen.getByDisplayValue('review code')).toBeInTheDocument())
+
+    // contract.schema.json requires maxRetries >= 0 — a negative value is a
+    // real ajv envelope violation the worker schema itself can catch.
+    fireEvent.change(screen.getByLabelText('Max retries'), { target: { value: '-1' } })
+
+    expect(await screen.findByText(/1 validation issue/, {}, { timeout: 2000 })).toBeInTheDocument()
+
+    // Save is still allowed — the server is the enforcement gate, not the client.
+    fireEvent.click(screen.getByRole('button', { name: 'save as new version' }))
+    await waitFor(() => expect(saveWorkerSpy).toHaveBeenCalled())
+  })
 })

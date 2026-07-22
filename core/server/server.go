@@ -39,6 +39,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/serialize"
 	"github.com/tzpereira/workflow-execution-engine/core/settings"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
+	"github.com/tzpereira/workflow-execution-engine/core/validate"
 )
 
 // Assembly is a runnable engine for one workflow: the wired Scheduler plus the
@@ -76,6 +77,7 @@ type Server struct {
 	store        *store.Store
 	cache        *cache.Cache
 	settings     *settings.Store
+	validator    *validate.Validator
 	workspace    string
 	dir          string
 	templatesDir string
@@ -120,11 +122,20 @@ func New(cfg Config) *Server {
 	if dir == "" {
 		dir = "."
 	}
+	validator, err := validate.NewValidator()
+	if err != nil {
+		// The embedded, CI-checked schemas.FS failing to compile is a
+		// build-time defect (examples_test.go already compiles the same
+		// schemas on every test run) — not a request-time error to recover
+		// from, so this mirrors stdlib's regexp.MustCompile convention.
+		panic(fmt.Sprintf("core/server: embedded schemas failed to compile: %v", err))
+	}
 	s := &Server{
 		log:          eventlog.New(cfg.Workspace),
 		store:        store.New(cfg.Workspace),
 		cache:        cache.New(cfg.Workspace),
 		settings:     settings.New(cfg.Workspace),
+		validator:    validator,
 		workspace:    cfg.Workspace,
 		dir:          dir,
 		templatesDir: cfg.TemplatesDir,
@@ -537,6 +548,19 @@ func (s *Server) handleSaveWorker(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Worker.ID == "" {
 		http.Error(w, "worker.id is required", http.StatusBadRequest)
+		return
+	}
+	// M2.3: reject an invalid Worker before it ever reaches disk. Two checks,
+	// not one — worker.schema.json's envelope check only requires
+	// outputSchema to be *some* object; it can't see whether that object is
+	// itself a compilable JSON Schema, so CompileSchema catches what
+	// Validate(KindWorker) structurally cannot.
+	if err := s.validator.Validate(validate.KindWorker, req.Worker, nil); err != nil {
+		http.Error(w, "worker failed schema validation: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, err := validate.CompileSchema(req.Worker.Contract.OutputSchema); err != nil {
+		http.Error(w, "worker's output schema does not compile: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	scanDir := filepath.Join(s.dir, req.Dir)
