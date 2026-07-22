@@ -96,7 +96,7 @@ export function NotificationCenter({
       <div className="relative">
         <button
           type="button"
-          className="btn relative flex h-8 w-8 items-center justify-center p-0"
+          className="btn relative flex h-7 w-7 items-center justify-center p-0"
           onClick={() => {
             markAllRead()
             setOpen((o) => !o)
