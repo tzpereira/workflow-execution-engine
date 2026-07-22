@@ -64,7 +64,9 @@ run
 inspect
 replay
 cache
+backup
 export
+serve
 ```
 
 The first workflow does not require an API key.

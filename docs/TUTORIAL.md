@@ -238,7 +238,7 @@ total: $0.0000, 0 tokens
 (cached / re-executed / added / removed nodes). This *does* run work:
 
 ```sh
-wee replay build-check-20260718T153834-74e234 --reexecute
+wee replay build-check-20260718T153834-74e234 --execute --workflow check.yaml
 ```
 
 Audit is free and offline; re-execute is the one that can cost money if the graph has Worker nodes.
