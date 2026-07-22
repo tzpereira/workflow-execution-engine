@@ -180,6 +180,157 @@ func (s *Server) handleReexecute(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runResponse{ExecutionID: newID})
 }
 
+// Approval is a pending or decided mutation checkpoint for one execution.
+type Approval struct {
+	CheckpointID string         `json:"checkpointId"`
+	NodeID       string         `json:"nodeId"`
+	Tool         string         `json:"tool"`
+	Status       string         `json:"status"`
+	Mutation     map[string]any `json:"mutation,omitempty"`
+	Input        any            `json:"input,omitempty"`
+}
+
+func (s *Server) handleListApprovals(w http.ResponseWriter, r *http.Request) {
+	approvals, err := s.approvals(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "unknown execution", http.StatusNotFound)
+		return
+	}
+	out := make([]Approval, 0, len(approvals))
+	for _, a := range approvals {
+		out = append(out, a)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
+	s.handleApprovalDecision(w, r, domain.ApprovalGranted)
+}
+
+func (s *Server) handleReject(w http.ResponseWriter, r *http.Request) {
+	s.handleApprovalDecision(w, r, domain.ApprovalRejected)
+}
+
+func (s *Server) handleApprovalDecision(w http.ResponseWriter, r *http.Request, decision domain.EventType) {
+	if s.assemble == nil {
+		http.Error(w, "run controls not configured on this server", http.StatusNotImplemented)
+		return
+	}
+	id := r.PathValue("id")
+	if s.runs.running(id) {
+		http.Error(w, "execution is already running", http.StatusConflict)
+		return
+	}
+	checkpoint := r.PathValue("checkpoint")
+	approval, appended, err := s.appendApprovalDecision(id, checkpoint, decision)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, "unknown or stale approval checkpoint", http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	status := http.StatusAccepted
+	if !appended {
+		status = http.StatusOK
+	} else {
+		asm, _, err := s.assemblyFor(id)
+		if err != nil {
+			s.writeAssemblyError(w, err)
+			return
+		}
+		s.launch(id, func(ctx context.Context) (*engine.Result, error) {
+			return asm.Scheduler.Resume(ctx, id)
+		})
+	}
+	writeJSON(w, status, approval)
+}
+
+func (s *Server) appendApprovalDecision(execID, checkpoint string, decision domain.EventType) (Approval, bool, error) {
+	approvals, err := s.approvals(execID)
+	if err != nil {
+		return Approval{}, false, err
+	}
+	a, ok := approvals[checkpoint]
+	if !ok {
+		return Approval{}, false, os.ErrNotExist
+	}
+	switch a.Status {
+	case "granted":
+		if decision == domain.ApprovalGranted {
+			return a, false, nil
+		}
+		return Approval{}, false, fmt.Errorf("approval checkpoint %s was already granted", checkpoint)
+	case "rejected":
+		if decision == domain.ApprovalRejected {
+			return a, false, nil
+		}
+		return Approval{}, false, fmt.Errorf("approval checkpoint %s was already rejected", checkpoint)
+	}
+	status := "granted"
+	if decision == domain.ApprovalRejected {
+		status = "rejected"
+	}
+	payload := map[string]any{"checkpointId": checkpoint, "tool": a.Tool, "status": status}
+	if err := s.log.Append(execID, domain.Event{Type: decision, ExecutionID: execID, NodeID: a.NodeID, Timestamp: time.Now().UTC(), Payload: payload}); err != nil {
+		return Approval{}, false, err
+	}
+	a.Status = status
+	return a, true, nil
+}
+
+func (s *Server) approvals(execID string) (map[string]Approval, error) {
+	events, err := s.log.ReadAll(execID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]Approval{}
+	for _, ev := range events {
+		switch ev.Type {
+		case domain.ApprovalRequested:
+			id := payloadString(ev.Payload, "checkpointId")
+			if id == "" {
+				continue
+			}
+			out[id] = Approval{
+				CheckpointID: id,
+				NodeID:       ev.NodeID,
+				Tool:         payloadString(ev.Payload, "tool"),
+				Status:       "pending",
+				Mutation:     payloadMap(ev.Payload, "mutation"),
+				Input:        ev.Payload["input"],
+			}
+		case domain.ApprovalGranted, domain.ApprovalRejected:
+			id := payloadString(ev.Payload, "checkpointId")
+			if id == "" {
+				continue
+			}
+			a := out[id]
+			a.CheckpointID = id
+			a.NodeID = ev.NodeID
+			a.Tool = payloadString(ev.Payload, "tool")
+			if ev.Type == domain.ApprovalGranted {
+				a.Status = "granted"
+			} else {
+				a.Status = "rejected"
+			}
+			out[id] = a
+		}
+	}
+	return out, nil
+}
+
+func payloadString(payload map[string]any, key string) string {
+	v, _ := payload[key].(string)
+	return v
+}
+
+func payloadMap(payload map[string]any, key string) map[string]any {
+	v, _ := payload[key].(map[string]any)
+	return v
+}
+
 // assemblyFor rebuilds the engine for a recorded execution from its persisted
 // run params (the workflow ref). Returns os.ErrNotExist (wrapped) if the
 // execution or its run params are unknown.
@@ -258,10 +409,11 @@ func cacheModeFromString(s string) (engine.CacheMode, bool) {
 // non-secret by construction (REQ-INPUT-01), the workflow ref is a path, and
 // secrets stay "${env:...}" references resolved fresh at call time.
 type runParams struct {
-	Workflow  string            `json:"workflow"`
-	Inputs    map[string]string `json:"inputs,omitempty"`
-	Cache     string            `json:"cache,omitempty"`
-	BudgetUSD float64           `json:"budgetUsd,omitempty"`
+	Workflow                      string            `json:"workflow"`
+	Inputs                        map[string]string `json:"inputs,omitempty"`
+	Cache                         string            `json:"cache,omitempty"`
+	BudgetUSD                     float64           `json:"budgetUsd,omitempty"`
+	AllowMutationsWithoutApproval bool              `json:"allowMutationsWithoutApproval,omitempty"`
 }
 
 const runParamsFile = "runparams.json"

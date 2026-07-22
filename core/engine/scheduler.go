@@ -111,6 +111,10 @@ type RunOptions struct {
 	// before dispatch (connection id -> reference metadata). The engine treats
 	// it as opaque provenance and never interprets or resolves it (REQ-CONN-06).
 	ConnectionRefs map[string]ConnectionRef
+	// AllowUnattendedMutations is an explicit run-level opt-in. When false,
+	// mutating tool calls pause before ToolCalled until a matching approval event
+	// is recorded (REQ-RUNTIME-07).
+	AllowUnattendedMutations bool
 }
 
 // ConnectionRef is snapshot provenance for a resolved Connection. It contains
@@ -264,6 +268,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	budget := newBudgetTracker(opts.Budget, s.now)
 	backoff := exponentialBackoff(opts.RetryBackoff, opts.RetryBackoffMax)
 	cacheMode := s.normalizeCacheMode(opts.Cache)
+	approvals := s.approvalRecords(execID)
 
 	// Fail before any node dispatches if a required input has no value and no
 	// default (PRIN-05: before the call, not after) — checked on every run,
@@ -275,7 +280,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	}
 
 	if fresh {
-		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers, Inputs: wfInputs, ConnectionRefs: opts.ConnectionRefs}); err != nil {
+		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers, Inputs: wfInputs, ConnectionRefs: opts.ConnectionRefs, AllowUnattendedMutations: opts.AllowUnattendedMutations}); err != nil {
 			return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, fmt.Errorf("engine: write snapshot: %w", err)
 		}
 		s.emit(execID, domain.ExecutionStarted, "", map[string]any{"workflow": wf.ID, "version": wf.Version})
@@ -379,7 +384,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 		go func() {
 			defer wg.Done()
 			for t := range tasks {
-				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode, wfInputs, opts.ConnectionRefs)
+				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode, wfInputs, opts.ConnectionRefs, approvals, opts.AllowUnattendedMutations)
 				completions <- completion{id: t.attrTo, node: t.node, res: res, err: err}
 			}
 		}()
@@ -388,6 +393,18 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	handleCompletion := func(c completion) {
 		inFlight--
 		if c.err != nil {
+			if errors.Is(c.err, ErrApprovalRequired) {
+				outcomes[c.id] = NodeOutcome{State: StatePending, Err: c.err.Error()}
+				state[c.id] = StatePending
+				halt(c.err)
+				return
+			}
+			if errors.Is(c.err, ErrApprovalRejected) {
+				outcomes[c.id] = NodeOutcome{State: StateFailed, Err: c.err.Error()}
+				settle(c.id, StateFailed)
+				halt(c.err)
+				return
+			}
 			// Collateral cancellation: if the run is already halting or the
 			// parent context was cancelled, an in-flight node returning early is
 			// a consequence of the teardown, not a node failure — record it but
@@ -477,6 +494,8 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 		SpentTokens:  budget.tokens,
 	}
 	switch {
+	case errors.Is(haltErr, ErrApprovalRequired):
+		result.State = domain.ExecutionPaused
 	case errors.Is(haltErr, ErrBudgetExceeded):
 		result.State, result.BudgetExceeded = domain.ExecutionFailed, true
 	case errors.Is(haltErr, context.Canceled), errors.Is(haltErr, context.DeadlineExceeded), errors.Is(haltErr, ErrCancelled):

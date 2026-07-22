@@ -36,7 +36,7 @@ func toolRegistry(dir string) *tool.Registry {
 // result.
 func TestRunStreamsEventsAndCompletes(t *testing.T) {
 	dir := t.TempDir()
-	exec, err := echoWorkflow(t).Run(context.Background(), sdk.RunOptions{Workspace: dir, Tools: toolRegistry(dir)})
+	exec, err := echoWorkflow(t).Run(context.Background(), sdk.RunOptions{Workspace: dir, Tools: toolRegistry(dir), AllowMutationsWithoutApproval: true})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestRunStreamsEventsAndCompletes(t *testing.T) {
 // decodes into a caller-supplied Go type via generics.
 func TestArtifactTypedAccess(t *testing.T) {
 	dir := t.TempDir()
-	exec, err := echoWorkflow(t).Run(context.Background(), sdk.RunOptions{Workspace: dir, Tools: toolRegistry(dir)})
+	exec, err := echoWorkflow(t).Run(context.Background(), sdk.RunOptions{Workspace: dir, Tools: toolRegistry(dir), AllowMutationsWithoutApproval: true})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestArtifactTypedAccess(t *testing.T) {
 // error, not a zero value.
 func TestArtifactUnknownNodeErrors(t *testing.T) {
 	dir := t.TempDir()
-	exec, err := echoWorkflow(t).Run(context.Background(), sdk.RunOptions{Workspace: dir, Tools: toolRegistry(dir)})
+	exec, err := echoWorkflow(t).Run(context.Background(), sdk.RunOptions{Workspace: dir, Tools: toolRegistry(dir), AllowMutationsWithoutApproval: true})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

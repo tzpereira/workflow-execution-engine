@@ -78,6 +78,15 @@ export const signals: Record<SignalKey, Signal> = {
     barClass: 'bg-neutral-500',
     textClass: 'text-neutral-800',
   },
+  paused: {
+    label: 'approval needed',
+    icon: '!',
+    dotClass: 'bg-amber-500',
+    badgeClass: `${baseBadge} bg-amber-100 text-amber-800`,
+    borderClass: 'border-amber-500',
+    barClass: 'bg-amber-500',
+    textClass: 'text-amber-800',
+  },
   ready: {
     label: 'ready',
     icon: '→',

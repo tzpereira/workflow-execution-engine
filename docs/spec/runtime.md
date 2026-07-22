@@ -1,7 +1,8 @@
 # Spec — Workflow Runtime
 
-**Prefix:** `REQ-RUNTIME` · **Status:** DELIVERED (M1.3) except resume-budget note; approval (REQ-RUNTIME-07)
-pending in M2.5 · **Principles:** PRIN-01, PRIN-02, PRIN-05 · **Implementation:** `core/engine/`
+**Prefix:** `REQ-RUNTIME` · **Status:** DELIVERED (M1.3; REQ-RUNTIME-07 in M2.5; REQ-RUNTIME-08 in
+M2.4) except resume-budget note · **Principles:** PRIN-01, PRIN-02, PRIN-05 ·
+**Implementation:** `core/engine/`
 
 The runtime executes a workflow graph deterministically: goroutine-native scheduling, dependency-driven
 dispatch, bounded concurrency. The *engine* owns control flow — retries, branching, halting are engine
@@ -60,7 +61,10 @@ execution and checkpoint; rejection shall terminate the path without invoking th
 - **Rationale:** a model may propose a change, but control of repository mutation remains with the human by
   default (PRIN-05). Persistence prevents a server restart or disconnected UI from changing the decision.
 - **Delivered by:** M2.5 (Safe Mutations; M1.16 superseded — see EXECUTION-PHASE2.md Status).
-  **Verified by:** _pending_.
+  **Verified by:** `engine.TestMutatingToolPausesBeforeToolCalledUntilApproved`,
+  `TestRejectedApprovalFailsWithoutToolCalled`, `TestUnattendedMutationOptInBypassesApproval`,
+  `server.TestApprovePendingMutationSurvivesRestartAndResumes`,
+  `TestRejectPendingMutationFailsWithoutToolCalled`, `TestStaleApprovalCheckpointIsConflict`.
 
 ### REQ-RUNTIME-08 — Structured runtime diagnostics
 When a runtime failure or retry is reported through existing events (`Retry`, `Failure`,

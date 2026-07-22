@@ -117,7 +117,9 @@ closing or reconnecting the client shall preserve the pending state and shall ne
 - **Rationale:** review and proposal can be automated, but repository writes need informed human control
   until a user deliberately opts into unattended execution.
 - **Delivered by:** M2.5 (Safe Mutations; M1.16 superseded — see EXECUTION-PHASE2.md Status).
-  **Verified by:** _pending_.
+  **Verified by:** `ui/src/components/RunControls.test.tsx` (pending checkpoint details and
+  Approve/Reject controls), `ui/src/core/live.test.ts` (paused reducer state),
+  `ui/src/liveStore.test.ts` (approval client wiring).
 
 ---
 

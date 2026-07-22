@@ -26,6 +26,7 @@ func New(root string) *Tool { return &Tool{root: root} }
 
 // compile-time check that Tool satisfies the interface.
 var _ tool.Tool = (*Tool)(nil)
+var _ tool.MutationDescriber = (*Tool)(nil)
 
 func (t *Tool) Name() string    { return "filesystem" }
 func (t *Tool) Version() string { return "1.0.0" }
@@ -124,6 +125,23 @@ func (t *Tool) Execute(_ context.Context, input json.RawMessage) (json.RawMessag
 	default:
 		return nil, fmt.Errorf("filesystem: unknown op %q", req.Op)
 	}
+}
+
+// DescribeMutation classifies writes as mutating; reads/lists are non-mutating.
+func (t *Tool) DescribeMutation(input json.RawMessage) (tool.Mutation, error) {
+	var req request
+	if err := json.Unmarshal(input, &req); err != nil {
+		return tool.Mutation{}, fmt.Errorf("filesystem: decode mutation input: %w", err)
+	}
+	if req.Op != "write" {
+		return tool.Mutation{Mutating: false, Operation: req.Op, Paths: []string{req.Path}}, nil
+	}
+	return tool.Mutation{
+		Mutating:  true,
+		Operation: "filesystem.write",
+		Summary:   fmt.Sprintf("write %d bytes to %s", len(req.Content), req.Path),
+		Paths:     []string{req.Path},
+	}, nil
 }
 
 // safePath resolves rel against the root and rejects anything that would escape

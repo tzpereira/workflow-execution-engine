@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { downloadText } from '../download'
+import type { RunState } from '../core/live'
 import { signal, type SignalKey } from '../core/status'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
@@ -329,10 +330,7 @@ function InfoIcon() {
   )
 }
 
-function classifyIssue(
-  text: string,
-  state: 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled',
-) {
+function classifyIssue(text: string, state: RunState) {
   const lower = text.toLowerCase()
   const isRateLimit =
     lower.includes('429') ||

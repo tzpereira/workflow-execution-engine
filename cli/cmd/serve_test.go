@@ -59,7 +59,7 @@ budget: {maxCostUsd: 0, maxTokens: 0, maxDurationMs: 30000, maxRetriesPerNode: 1
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/api/run", "application/json", strings.NewReader(`{"workflow":"check.yaml"}`))
+	resp, err := http.Post(ts.URL+"/api/run", "application/json", strings.NewReader(`{"workflow":"check.yaml","allowMutationsWithoutApproval":true}`))
 	if err != nil {
 		t.Fatalf("post run: %v", err)
 	}

@@ -80,6 +80,10 @@ func (e *ToolExecutor) execute(ctx context.Context, req NodeRequest, emit func(d
 	// Every event tool.Invoke emits is redacted before it reaches the real
 	// log — this is the fix that keeps a resolved ${env:...} secret out of
 	// persisted events (NFR-SEC-01); see redactPayload's doc comment.
+	redactedInput := redactBytes(inputBytes, secrets)
+	if err := e.checkApproval(req, t, inputBytes, redactedInput, emit); err != nil {
+		return NodeResult{}, err
+	}
 	out, invokeErr := tool.Invoke(ctx, t, inputBytes, func(evType domain.EventType, payload map[string]any) {
 		emit(evType, redactPayload(payload, secrets))
 	}, e.now)
@@ -116,6 +120,47 @@ func (e *ToolExecutor) execute(ctx context.Context, req NodeRequest, emit func(d
 		MimeType:      "application/json",
 		ContextHashes: hashes,
 	}, nil
+}
+
+func (e *ToolExecutor) checkApproval(req NodeRequest, t tool.Tool, inputBytes, redactedInput []byte, emit func(domain.EventType, map[string]any)) error {
+	if req.AllowUnattendedMutations {
+		return nil
+	}
+	if err := tool.ValidateInput(t, inputBytes); err != nil {
+		return Fatal(err)
+	}
+	describer, ok := t.(tool.MutationDescriber)
+	if !ok {
+		return nil
+	}
+	mutation, err := describer.DescribeMutation(redactedInput)
+	if err != nil {
+		return Fatal(fmt.Errorf("engine: node %q: describe mutation: %w", req.Node.ID, err))
+	}
+	if !mutation.Mutating {
+		return nil
+	}
+	id, err := checkpointID(req.ExecutionID, req.Node.ID, t.Name(), mutation, redactedInput)
+	if err != nil {
+		return Fatal(fmt.Errorf("engine: node %q: approval checkpoint: %w", req.Node.ID, err))
+	}
+	switch rec := req.Approvals[id]; rec.Status {
+	case approvalGranted:
+		return nil
+	case approvalRejected:
+		return Fatal(approvalRejectedError{CheckpointID: id, NodeID: req.Node.ID, Tool: t.Name()})
+	case approvalPending:
+		return Fatal(approvalRequiredError{CheckpointID: id, NodeID: req.Node.ID, Tool: t.Name(), Mutation: mutation})
+	default:
+		emit(domain.ApprovalRequested, map[string]any{
+			"checkpointId": id,
+			"tool":         t.Name(),
+			"toolVersion":  t.Version(),
+			"mutation":     mutation,
+			"input":        json.RawMessage(redactedInput),
+		})
+		return Fatal(approvalRequiredError{CheckpointID: id, NodeID: req.Node.ID, Tool: t.Name(), Mutation: mutation})
+	}
 }
 
 // redactPayload substitutes any resolved secret value in an event payload

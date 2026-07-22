@@ -8,7 +8,7 @@
   "properties": {
     "id": { "type": "string" },
     "workflowRef": { "type": "string" },
-    "state": { "enum": ["pending", "running", "succeeded", "failed", "cancelled"] },
+    "state": { "enum": ["pending", "running", "succeeded", "failed", "cancelled", "paused"] },
     "graph": { "$ref": "https://wee.dev/schemas/workflow.schema.json" },
     "budget": {
       "type": "object",

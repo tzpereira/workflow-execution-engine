@@ -26,6 +26,9 @@ export type WFEventType =
   | 'CacheMiss'
   | 'BudgetWarning'
   | 'BudgetExceeded'
+  | 'ApprovalRequested'
+  | 'ApprovalGranted'
+  | 'ApprovalRejected'
   | 'Cancelled'
 
 /** WFEvent mirrors core/domain.Event by JSON tag — the exact object each
@@ -42,9 +45,9 @@ export interface WFEvent {
 // A node's live status. The engine emits no distinct "queued" or "skipped"
 // event in Phase 1: a node is `pending` until its WorkerStarted arrives, and a
 // node skipped by a false conditional edge simply never leaves `pending`.
-export type NodeStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cached'
+export type NodeStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cached' | 'paused'
 
-export type RunState = 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+export type RunState = 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'paused'
 
 export interface NodeLive {
   id: string
@@ -188,6 +191,10 @@ export function reduce(prev: LiveState, ev: WFEvent): LiveState {
       if (ev.nodeId) patchNode(ev.nodeId, { status: 'failed', endedAt: at, error: str(p.error) })
       return next
 
+    case 'ApprovalRequested':
+      if (ev.nodeId) patchNode(ev.nodeId, { status: 'paused' })
+      return next
+
     case 'Cancelled':
       next.state = 'cancelled'
       return next
@@ -195,7 +202,15 @@ export function reduce(prev: LiveState, ev: WFEvent): LiveState {
     case 'ExecutionFinished': {
       const s = str(p.state)
       next.state =
-        s === 'succeeded' ? 'succeeded' : s === 'cancelled' ? 'cancelled' : s === 'failed' ? 'failed' : next.state
+        s === 'succeeded'
+          ? 'succeeded'
+          : s === 'cancelled'
+            ? 'cancelled'
+            : s === 'failed'
+              ? 'failed'
+              : s === 'paused'
+                ? 'paused'
+                : next.state
       next.endedAt = at
       return next
     }

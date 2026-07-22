@@ -36,6 +36,7 @@ func New(allow []string, client *http.Client) *Tool {
 }
 
 var _ tool.Tool = (*Tool)(nil)
+var _ tool.MutationDescriber = (*Tool)(nil)
 
 func (t *Tool) Name() string    { return "http" }
 func (t *Tool) Version() string { return "1.0.0" }
@@ -144,6 +145,30 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 		return nil, fmt.Errorf("http: encode output: %w", err)
 	}
 	return out, nil
+}
+
+// DescribeMutation treats every non-GET HTTP call as mutating.
+func (t *Tool) DescribeMutation(input json.RawMessage) (tool.Mutation, error) {
+	var req request
+	if err := json.Unmarshal(input, &req); err != nil {
+		return tool.Mutation{}, fmt.Errorf("http: decode mutation input: %w", err)
+	}
+	requestURL, err := rewriteURL(req.URL, req.Rewrite)
+	if err != nil {
+		return tool.Mutation{}, err
+	}
+	u, err := url.Parse(requestURL)
+	if err != nil {
+		return tool.Mutation{}, fmt.Errorf("http: parse url: %w", err)
+	}
+	mutating := req.Method != http.MethodGet
+	return tool.Mutation{
+		Mutating:  mutating,
+		Operation: "http." + req.Method,
+		Summary:   fmt.Sprintf("%s %s", req.Method, displayURL(u)),
+		Method:    req.Method,
+		URL:       displayURL(u),
+	}, nil
 }
 
 func rewriteURL(raw string, rules []rewriteRule) (string, error) {

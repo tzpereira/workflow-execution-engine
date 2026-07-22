@@ -12,9 +12,12 @@ the same stream.
 The engine shall emit only events from the versioned v1 catalog: `ExecutionStarted`, `ExecutionFinished`,
 `WorkerStarted`, `WorkerFinished`, `ToolCalled`, `ToolResult`, `ArtifactCreated`, `ContractValidated`,
 `ContractViolation`, `Retry`, `Failure`, `CacheHit`, `CacheMiss`, `BudgetWarning`, `BudgetExceeded`,
-`Cancelled` — extending the catalog is a schema change, not an ad-hoc string.
+`ApprovalRequested`, `ApprovalGranted`, `ApprovalRejected`, `Cancelled` — extending the catalog is a schema
+change, not an ad-hoc string.
 - **Rationale:** PRIN-02; consumers can rely on the vocabulary.
-- **Delivered by:** M1.1 (catalog), M1.2 (log). **Verified by:** schema tests, `TestSchemaDrift`.
+- **Delivered by:** M1.1 (catalog), M1.2 (log), M2.5 (approval events). **Verified by:** schema tests,
+  `TestSchemaDrift`, `engine.TestMutatingToolPausesBeforeToolCalledUntilApproved`,
+  `server.TestApprovePendingMutationSurvivesRestartAndResumes`.
 
 ### REQ-EVENT-02 — Append-only JSONL log per execution
 The engine shall append each event as one JSON line to the execution's log

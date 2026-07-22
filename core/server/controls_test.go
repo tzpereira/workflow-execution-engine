@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +19,8 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/settings"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
+	"github.com/tzpereira/workflow-execution-engine/core/tool"
+	"github.com/tzpereira/workflow-execution-engine/core/tool/filesystem"
 )
 
 // countingExec counts executions per node and fails a node's FIRST execution
@@ -156,6 +160,120 @@ func TestCancelNotRunningIs409(t *testing.T) {
 	defer ts.Close()
 	if got := post(t, ts.URL+"/api/executions/nope/cancel", ``); got != http.StatusConflict {
 		t.Fatalf("cancel of non-running = %d, want 409", got)
+	}
+}
+
+func mutationServer(t *testing.T) (*Server, *eventlog.Log, string) {
+	t.Helper()
+	ws := t.TempDir()
+	root := filepath.Join(ws, "repo")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wf := &domain.Workflow{
+		ID: "mutate", Version: "1.0.0",
+		Nodes: []domain.Node{{ID: "write", Tool: &domain.ToolCall{ToolName: "filesystem", Input: map[string]any{
+			"op": "write", "path": "out.txt", "content": "ok",
+		}}}},
+	}
+	asm := func(string) (*Assembly, error) {
+		tools := tool.NewRegistry()
+		tools.Register(filesystem.New(root))
+		sched := engine.New(engine.NewToolExecutor(tools), store.New(ws), eventlog.New(ws), cache.New(ws))
+		return &Assembly{Scheduler: sched, Workflow: wf}, nil
+	}
+	return New(Config{Workspace: ws, Assemble: asm, NewID: func(string) string { return "mut-e1" }, DefaultCache: engine.CacheOff}), eventlog.New(ws), root
+}
+
+func TestApprovePendingMutationSurvivesRestartAndResumes(t *testing.T) {
+	s, log, root := mutationServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	post(t, ts.URL+"/api/run", `{"workflow":"mutate.yaml"}`)
+	waitForState(t, log, "mut-e1", string(domain.ExecutionPaused))
+	if _, err := os.Stat(filepath.Join(root, "out.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("file written before approval: %v", err)
+	}
+
+	// Simulate a server restart: paused has a terminal ExecutionFinished event,
+	// so reconciliation must not cancel or lose the pending checkpoint.
+	s2 := New(Config{Workspace: s.workspace, Assemble: s.assemble, NewID: func(string) string { return "mut-e2" }, DefaultCache: engine.CacheOff})
+	s2.Reconcile()
+	if got := s2.summarize("mut-e1").State; got != string(domain.ExecutionPaused) {
+		t.Fatalf("restart reconcile state = %q, want paused", got)
+	}
+	ts2 := httptest.NewServer(s2.Handler())
+	defer ts2.Close()
+
+	resp, err := http.Get(ts2.URL + "/api/executions/mut-e1/approvals")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var approvals []Approval
+	if err := json.NewDecoder(resp.Body).Decode(&approvals); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(approvals) != 1 || approvals[0].Status != "pending" {
+		t.Fatalf("approvals = %+v", approvals)
+	}
+	checkpoint := approvals[0].CheckpointID
+	if got := post(t, ts2.URL+"/api/executions/mut-e1/approvals/"+checkpoint+"/approve", ``); got != http.StatusAccepted {
+		t.Fatalf("approve status = %d, want 202", got)
+	}
+	waitForState(t, log, "mut-e1", string(domain.ExecutionSucceeded))
+	if data, err := os.ReadFile(filepath.Join(root, "out.txt")); err != nil || string(data) != "ok" {
+		t.Fatalf("approved file = %q err=%v", data, err)
+	}
+
+	if got := post(t, ts2.URL+"/api/executions/mut-e1/approvals/"+checkpoint+"/approve", ``); got != http.StatusOK {
+		t.Fatalf("duplicate approve status = %d, want 200", got)
+	}
+	events, _ := log.ReadAll("mut-e1")
+	grants := 0
+	for _, ev := range events {
+		if ev.Type == domain.ApprovalGranted {
+			grants++
+		}
+	}
+	if grants != 1 {
+		t.Fatalf("ApprovalGranted count = %d, want 1", grants)
+	}
+}
+
+func TestRejectPendingMutationFailsWithoutToolCalled(t *testing.T) {
+	s, log, root := mutationServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	post(t, ts.URL+"/api/run", `{"workflow":"mutate.yaml"}`)
+	waitForState(t, log, "mut-e1", string(domain.ExecutionPaused))
+	approvals, _ := s.approvals("mut-e1")
+	var checkpoint string
+	for id := range approvals {
+		checkpoint = id
+	}
+	if got := post(t, ts.URL+"/api/executions/mut-e1/approvals/"+checkpoint+"/reject", ``); got != http.StatusAccepted {
+		t.Fatalf("reject status = %d, want 202", got)
+	}
+	waitForState(t, log, "mut-e1", string(domain.ExecutionFailed))
+	events, _ := log.ReadAll("mut-e1")
+	for _, ev := range events {
+		if ev.Type == domain.ToolCalled {
+			t.Fatal("ToolCalled emitted after rejection")
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "out.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("file written despite rejection: %v", err)
+	}
+}
+
+func TestStaleApprovalCheckpointIsConflict(t *testing.T) {
+	s, _, _ := mutationServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	if got := post(t, ts.URL+"/api/executions/mut-e1/approvals/nope/approve", ``); got != http.StatusConflict {
+		t.Fatalf("stale approve status = %d, want 409", got)
 	}
 }
 

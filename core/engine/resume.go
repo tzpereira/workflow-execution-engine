@@ -33,6 +33,8 @@ type Snapshot struct {
 	// ConnectionRefs records the non-secret connection references resolved for
 	// this run (REQ-CONN-06). Secret values are never present.
 	ConnectionRefs map[string]ConnectionRef `json:"connectionRefs,omitempty"`
+	// AllowUnattendedMutations records the explicit run-level opt-in, if used.
+	AllowUnattendedMutations bool `json:"allowUnattendedMutations,omitempty"`
 }
 
 // Resume restarts an execution from its recorded state. It reads the snapshot
@@ -120,13 +122,14 @@ func (s *Scheduler) reconstruct(executionID string) (Snapshot, map[string]nodeOu
 // resumed run's remaining nodes see exactly what the original run resolved.
 func resumeOpts(executionID string, snap Snapshot) RunOptions {
 	return RunOptions{
-		ExecutionID:      executionID,
-		Concurrency:      snap.Concurrency,
-		Budget:           snap.Budget,
-		Inputs:           snap.Inputs,
-		DefinitionHashes: snap.DefinitionHashes,
-		Workers:          snap.Workers,
-		ConnectionRefs:   snap.ConnectionRefs,
+		ExecutionID:              executionID,
+		Concurrency:              snap.Concurrency,
+		Budget:                   snap.Budget,
+		Inputs:                   snap.Inputs,
+		DefinitionHashes:         snap.DefinitionHashes,
+		Workers:                  snap.Workers,
+		ConnectionRefs:           snap.ConnectionRefs,
+		AllowUnattendedMutations: snap.AllowUnattendedMutations,
 	}
 }
 

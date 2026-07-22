@@ -37,6 +37,13 @@ type NodeRequest struct {
 	// Tool-backed nodes may read fields from it via "${connection:id.field}"
 	// placeholders; secret values are still read only through "${env:NAME}".
 	ConnectionRefs map[string]ConnectionRef
+	// ExecutionID and Approvals let tool-backed nodes enforce persistent human
+	// approval checkpoints before mutating operations (REQ-RUNTIME-07).
+	ExecutionID string
+	Approvals   map[string]approvalRecord
+	// AllowUnattendedMutations is the explicit run-level opt-in that bypasses
+	// approval checkpoints for mutating tools.
+	AllowUnattendedMutations bool
 }
 
 // NodeResult is what a NodeExecutor returns for one node. Hash is filled in by
@@ -103,6 +110,8 @@ func (s *Scheduler) executeNode(
 	cacheMode CacheMode,
 	wfInputs map[string]string,
 	connectionRefs map[string]ConnectionRef,
+	approvals map[string]approvalRecord,
+	allowUnattendedMutations bool,
 ) (NodeResult, error) {
 	s.emit(execID, domain.WorkerStarted, logicalID, nil)
 
@@ -141,12 +150,22 @@ func (s *Scheduler) executeNode(
 	err := withRetry(ctx, maxRetries, backoff, func() error {
 		var r NodeResult
 		var e error
+		req := NodeRequest{
+			Node:                     runNode,
+			Inputs:                   inputs,
+			RetryFeedback:            feedback,
+			WorkflowInputs:           wfInputs,
+			ConnectionRefs:           connectionRefs,
+			ExecutionID:              execID,
+			Approvals:                approvals,
+			AllowUnattendedMutations: allowUnattendedMutations,
+		}
 		if hasToolEmitter {
-			r, e = toolEmitter.ExecuteWithEmit(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback, WorkflowInputs: wfInputs, ConnectionRefs: connectionRefs}, func(t domain.EventType, payload map[string]any) {
+			r, e = toolEmitter.ExecuteWithEmit(ctx, req, func(t domain.EventType, payload map[string]any) {
 				s.emit(execID, t, logicalID, payload)
 			})
 		} else {
-			r, e = s.exec.Execute(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback, WorkflowInputs: wfInputs, ConnectionRefs: connectionRefs})
+			r, e = s.exec.Execute(ctx, req)
 		}
 		if e == nil {
 			res = r
@@ -165,6 +184,9 @@ func (s *Scheduler) executeNode(
 		})
 	})
 	if err != nil {
+		if errors.Is(err, ErrApprovalRequired) {
+			return NodeResult{}, err
+		}
 		// A terminal contract violation gets its own explicit event before the
 		// generic Failure (REQ-CONTRACT-03) — never a silent pass-through.
 		if isContractViolation(err) {

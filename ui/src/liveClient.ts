@@ -255,6 +255,26 @@ export async function clearCache(baseUrl: string, req: CacheClearRequest): Promi
   return ((await res.json()) as { removed: number }).removed
 }
 
+export async function approveExecution(baseUrl: string, id: string, checkpoint: string): Promise<void> {
+  const res = await fetch(
+    `${baseUrl}/api/executions/${encodeURIComponent(id)}/approvals/${encodeURIComponent(checkpoint)}/approve`,
+    { method: 'POST' },
+  )
+  if (!res.ok) {
+    throw new Error((await res.text()) || `approve ${checkpoint} failed: ${res.status}`)
+  }
+}
+
+export async function rejectExecution(baseUrl: string, id: string, checkpoint: string): Promise<void> {
+  const res = await fetch(
+    `${baseUrl}/api/executions/${encodeURIComponent(id)}/approvals/${encodeURIComponent(checkpoint)}/reject`,
+    { method: 'POST' },
+  )
+  if (!res.ok) {
+    throw new Error((await res.text()) || `reject ${checkpoint} failed: ${res.status}`)
+  }
+}
+
 /** bundleUrl is the GET download URL for an execution's portable bundle (tar) —
  *  used as an anchor href so the browser downloads it directly. */
 export function bundleUrl(baseUrl: string, id: string): string {

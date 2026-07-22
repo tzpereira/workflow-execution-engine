@@ -31,6 +31,24 @@ type Tool interface {
 	Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error)
 }
 
+// Mutation describes whether a validated tool input would mutate local or
+// remote state. It is emitted in ApprovalRequested payloads before ToolCalled.
+type Mutation struct {
+	Mutating  bool     `json:"mutating"`
+	Operation string   `json:"operation,omitempty"`
+	Summary   string   `json:"summary,omitempty"`
+	Paths     []string `json:"paths,omitempty"`
+	Command   []string `json:"command,omitempty"`
+	Method    string   `json:"method,omitempty"`
+	URL       string   `json:"url,omitempty"`
+}
+
+// MutationDescriber is an optional tool capability used by the engine to pause
+// before mutating operations. Built-in tools implement it for M2.5.
+type MutationDescriber interface {
+	DescribeMutation(input json.RawMessage) (Mutation, error)
+}
+
 // Emit records one event. It matches the engine scheduler's emitter so a tool
 // invocation chains into the same execution log; tests pass a lightweight one.
 type Emit func(t domain.EventType, payload map[string]any)
@@ -70,7 +88,7 @@ func Invoke(ctx context.Context, t Tool, input json.RawMessage, emit Emit, now f
 		emit = func(domain.EventType, map[string]any) {}
 	}
 
-	if err := validateAgainst(t.InputSchema(), input); err != nil {
+	if err := ValidateInput(t, input); err != nil {
 		// Reject before Execute — the call never touches the world.
 		e := fmt.Errorf("tool %q: input rejected: %w", t.Name(), err)
 		e = diagnostic.Wrap(e, diagnostic.KindValidation, "tool_input_schema_invalid", "", "tool.input.validate", "tool input failed its schema", "fix the tool input fields before running")
@@ -107,6 +125,13 @@ func Invoke(ctx context.Context, t Tool, input json.RawMessage, emit Emit, now f
 		"durationMs": durationMs,
 	})
 	return out, nil
+}
+
+// ValidateInput validates input against t's InputSchema without executing it.
+// ToolExecutor uses this before approval classification so an invalid mutating
+// call is rejected rather than asking a human to approve nonsense.
+func ValidateInput(t Tool, input json.RawMessage) error {
+	return validateAgainst(t.InputSchema(), input)
 }
 
 // validateAgainst compiles a schema and validates data against it. An empty

@@ -27,17 +27,16 @@ Rules:
 
 ## Status
 
-- **M2.4 is complete** (2026-07-22): Robust runtime hardening is implemented and mechanically verified.
-  Existing event types now carry structured diagnostics for retries, failures, contract violations,
-  budget halts, artifact-store failures, and cache-degraded misses; provider clients honor integer and
-  HTTP-date `Retry-After`, expose timeout controls, and reject oversized successful responses rather than
-  decoding partial output; artifact storage has default single-artifact and total-directory bounds,
-  streaming writes, bounded limit previews, and explicit keep-set garbage collection; a reusable secret
-  scanner covers persisted runtime files and exported bundles; long-graph stress coverage guards event and
-  artifact growth plus goroutine cleanup. Verified with `go test ./...`, `go test ./... -race`, and
-  `go vet ./...`. `golangci-lint run` remains blocked by the pre-existing local typecheck/toolchain
-  mismatch already noted in earlier milestones (it reports missing dependency symbols/stale type shapes
-  even while `go test`/`go vet` compile cleanly). Next sequential milestone: **M2.5 — Safe Mutations**.
+- **M2.5 is complete** (2026-07-22): Safe mutation checkpoints are implemented and mechanically verified.
+  Mutating built-in tool calls now persist `ApprovalRequested` before `ToolCalled`, pause the execution as
+  `paused`, survive `wee serve` restart, and resume only after a matching `ApprovalGranted`; rejection
+  appends `ApprovalRejected`, fails the path, and never invokes the tool. Filesystem writes, terminal
+  commands, git add/commit/branch-create, and non-GET HTTP calls are classified as mutating; read-only
+  variants continue normally. CLI, SDK, and `POST /api/run` expose an explicit unattended opt-in; the UI
+  renders the pending checkpoint with affected paths, command/API or file-write preview, remaining budget,
+  and Approve/Reject controls. Verified with `go test ./...`, `go test ./... -race`, `go vet ./...`,
+  `pnpm --dir ui typecheck`, `pnpm --dir ui test -- RunControls live`, `pnpm --dir ui lint`, and
+  `pnpm --dir ui build`. Next sequential milestone: **M2.6 — Self-Hosted Packaging**.
 - **M2.10 is implemented pending visual/live walkthrough** (2026-07-22): The UI now has semantic design
   tokens with light/dark theme resolution and an explicit toolbar toggle; shared status/signal mapping;
   themed canvas grid, non-overlapping node placement, and relayout; workspace document tabs with dirty
@@ -331,23 +330,25 @@ Acceptance:
 
 Tasks:
 
-- [ ] Write an ADR for persistent approval checkpoints, event semantics, CLI behavior, and mutating tool
+- [x] Write an ADR for persistent approval checkpoints, event semantics, CLI behavior, and mutating tool
       classification.
-- [ ] Add runtime pause/resume checkpoints before filesystem writes, terminal mutations, Git mutations, and
+- [x] Add runtime pause/resume checkpoints before filesystem writes, terminal mutations, Git mutations, and
       non-GET HTTP calls.
-- [ ] Build proposed-change UI: formatted diff, affected paths, command/API preview, remaining budget, and
+- [x] Build proposed-change UI: formatted diff, affected paths, command/API preview, remaining budget, and
       explicit Approve/Reject.
-- [ ] Make unattended mutation require explicit run-level opt-in.
-- [ ] Build Change Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally
+- [x] Make unattended mutation require explicit run-level opt-in.
+- [x] Build Change Auto-Fix path: review, propose patch, test, create branch/commit locally, and optionally
       open a forge PR/MR only through an explicit workflow-defined integration after approval.
-- [ ] Test normal run, retry, cancellation, resume, stale approval, duplicate approval, and rejection paths.
+- [x] Test normal run, retry, cancellation, resume, stale approval, duplicate approval, and rejection paths.
 
 Acceptance:
 
-- [ ] No mutating tool call is emitted before a matching approval event.
-- [ ] Closing the UI or restarting `wee serve` while approval is pending cannot approve or lose the
+- [x] No mutating tool call is emitted before a matching approval event.
+- [x] Closing the UI or restarting `wee serve` while approval is pending cannot approve or lose the
       execution.
-- [ ] Verification recorded here:
+- [x] Verification recorded here:
+  `go test ./...`; `go test ./... -race`; `go vet ./...`; `pnpm --dir ui typecheck`;
+  `pnpm --dir ui test -- RunControls live`; `pnpm --dir ui lint`; `pnpm --dir ui build`.
 
 ---
 

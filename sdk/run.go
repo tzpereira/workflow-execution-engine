@@ -39,6 +39,10 @@ type RunOptions struct {
 	// Inputs supplies values for the Workflow's declared Inputs (REQ-INPUT-01) —
 	// same mechanism `wee run --input` and the HTTP API use.
 	Inputs map[string]string
+	// AllowMutationsWithoutApproval is the explicit programmatic opt-in for
+	// unattended mutating tool calls (REQ-RUNTIME-07). The zero value pauses
+	// before mutation until an approval event exists.
+	AllowMutationsWithoutApproval bool
 }
 
 // Run assembles the engine over the workflow's in-code Workers and starts it,
@@ -79,12 +83,13 @@ func (w *Workflow) Run(ctx context.Context, opts RunOptions) (*Execution, error)
 
 	execID := newExecutionID(w.def.ID)
 	runOpts := engine.RunOptions{
-		ExecutionID:      execID,
-		Concurrency:      opts.Concurrency,
-		Budget:           w.def.Budget,
-		Cache:            opts.Cache,
-		DefinitionHashes: reg.DefinitionHashes(w.def),
-		Inputs:           opts.Inputs,
+		ExecutionID:              execID,
+		Concurrency:              opts.Concurrency,
+		Budget:                   w.def.Budget,
+		Cache:                    opts.Cache,
+		DefinitionHashes:         reg.DefinitionHashes(w.def),
+		Inputs:                   opts.Inputs,
+		AllowUnattendedMutations: opts.AllowMutationsWithoutApproval,
 	}
 
 	e := &Execution{

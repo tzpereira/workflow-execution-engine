@@ -11,6 +11,7 @@ const (
 	ExecutionSucceeded ExecutionState = "succeeded"
 	ExecutionFailed    ExecutionState = "failed"
 	ExecutionCancelled ExecutionState = "cancelled"
+	ExecutionPaused    ExecutionState = "paused"
 )
 
 // BudgetStatus is the running consumption of an Execution against its Budget.

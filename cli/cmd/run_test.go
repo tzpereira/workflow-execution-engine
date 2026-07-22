@@ -59,7 +59,7 @@ func setupToolRun(t *testing.T, workflow string) string {
 // by ExecutionStarted/ExecutionFinished.
 func TestRunToolWorkflowSucceeds(t *testing.T) {
 	wf := setupToolRun(t, toolWorkflow)
-	out, err := execCLI(t, "run", wf, "--json")
+	out, err := execCLI(t, "run", wf, "--json", "--allow-mutations-without-approval")
 	if err != nil {
 		t.Fatalf("run returned: %v\noutput:\n%s", err, out)
 	}
@@ -114,7 +114,7 @@ budget:
 // supplies the value a "${input:NAME}" placeholder resolves to.
 func TestRunInputFlagResolvesPlaceholder(t *testing.T) {
 	wf := setupToolRun(t, inputWorkflow)
-	out, err := execCLI(t, "run", wf, "--json", "--input", "msg=hello from input")
+	out, err := execCLI(t, "run", wf, "--json", "--input", "msg=hello from input", "--allow-mutations-without-approval")
 	if err != nil {
 		t.Fatalf("run returned: %v\noutput:\n%s", err, out)
 	}
@@ -170,7 +170,7 @@ func TestRunCancelledExits130(t *testing.T) {
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
-	root.SetArgs([]string{"run", "wf.yaml"})
+	root.SetArgs([]string{"run", "wf.yaml", "--allow-mutations-without-approval"})
 	root.SetContext(ctx)
 
 	errCh := make(chan error, 1)

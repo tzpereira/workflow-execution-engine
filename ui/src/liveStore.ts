@@ -10,11 +10,13 @@ import type { Audit, ExecutionSummary, Template } from './core/audit'
 import { emptyLive, reduce, reduceAll, type LiveState } from './core/live'
 import {
   cancelExecution as defaultCancelExecution,
+  approveExecution as defaultApproveExecution,
   clearCache as defaultClearCache,
   fetchAudit as defaultFetchAudit,
   fetchExecutions as defaultFetchExecutions,
   fetchTemplates as defaultFetchTemplates,
   reexecuteExecution as defaultReexecuteExecution,
+  rejectExecution as defaultRejectExecution,
   retryExecution as defaultRetryExecution,
   startRun as defaultStartRun,
   watchExecution as defaultWatchExecution,
@@ -27,6 +29,8 @@ export interface LiveDeps {
   fetchExecutions: typeof defaultFetchExecutions
   fetchTemplates: typeof defaultFetchTemplates
   cancelExecution: typeof defaultCancelExecution
+  approveExecution: typeof defaultApproveExecution
+  rejectExecution: typeof defaultRejectExecution
   retryExecution: typeof defaultRetryExecution
   reexecuteExecution: typeof defaultReexecuteExecution
   clearCache: typeof defaultClearCache
@@ -39,6 +43,8 @@ const defaultDeps: LiveDeps = {
   fetchExecutions: defaultFetchExecutions,
   fetchTemplates: defaultFetchTemplates,
   cancelExecution: defaultCancelExecution,
+  approveExecution: defaultApproveExecution,
+  rejectExecution: defaultRejectExecution,
   retryExecution: defaultRetryExecution,
   reexecuteExecution: defaultReexecuteExecution,
   clearCache: defaultClearCache,
@@ -99,6 +105,8 @@ export interface LiveStoreState {
   /** Cancel the current execution (REQ-CTRL-03). The server cancels the run;
    *  the live stream closes on the resulting terminal event. */
   cancel: () => Promise<void>
+  approve: (checkpoint: string) => Promise<void>
+  reject: (checkpoint: string) => Promise<void>
   /** Resume/retry the current execution in place (REQ-CTRL-03/04): completed
    *  nodes are reused, the rest re-run. With `from`, that node and its
    *  downstream re-run too. Re-watches the same id so the new work streams in. */
@@ -304,6 +312,32 @@ export function createLiveStore(
       if (!id) return
       try {
         await deps.cancelExecution(get().serverUrl, id)
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    approve: async (checkpoint) => {
+      const id = currentExecId(get())
+      if (!id) return
+      const nodeIds = get().audit?.workflow.nodes.map((n) => n.id) ?? Object.keys(get().live.nodes)
+      set({ error: null })
+      try {
+        await deps.approveExecution(get().serverUrl, id, checkpoint)
+        get().watch(id, nodeIds)
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+    },
+
+    reject: async (checkpoint) => {
+      const id = currentExecId(get())
+      if (!id) return
+      const nodeIds = get().audit?.workflow.nodes.map((n) => n.id) ?? Object.keys(get().live.nodes)
+      set({ error: null })
+      try {
+        await deps.rejectExecution(get().serverUrl, id, checkpoint)
+        get().watch(id, nodeIds)
       } catch (e) {
         set({ error: e instanceof Error ? e.message : String(e) })
       }

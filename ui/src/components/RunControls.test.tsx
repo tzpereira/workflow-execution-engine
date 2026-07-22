@@ -8,6 +8,8 @@ import { RunControls } from './RunControls'
 
 const original = {
   cancel: useLive.getState().cancel,
+  approve: useLive.getState().approve,
+  reject: useLive.getState().reject,
   retry: useLive.getState().retry,
   reexecute: useLive.getState().reexecute,
   clearNodeCache: useLive.getState().clearNodeCache,
@@ -78,5 +80,49 @@ describe('RunControls', () => {
     render(<RunControls />)
     const link = screen.getByTestId('export-bundle')
     expect(link).toHaveAttribute('href', 'http://s/api/executions/e1/bundle')
+  })
+
+  it('offers Approve/Reject for a pending mutation checkpoint', () => {
+    const approve = vi.fn(async () => undefined)
+    const reject = vi.fn(async () => undefined)
+    useLive.setState({
+      live: {
+        ...emptyLive(['write']),
+        executionId: 'e1',
+        state: 'paused',
+        events: [
+          {
+            type: 'ApprovalRequested',
+            timestamp: '2026-07-22T00:00:00Z',
+            executionId: 'e1',
+            nodeId: 'write',
+            prevHash: 'x',
+            payload: {
+              checkpointId: 'cp1',
+              mutation: { summary: 'write out.txt', paths: ['out.txt'] },
+              input: { op: 'write', path: 'out.txt', content: 'ok' },
+            },
+          },
+        ],
+        totalCostUsd: 0.25,
+        totalTokens: 20,
+      },
+      audit: {
+        executionId: 'e1',
+        workflow: { budget: { maxCostUsd: 1, maxTokens: 100 }, nodes: [{ id: 'write' }] },
+      } as unknown as Audit,
+      connected: false,
+      approve,
+      reject,
+    })
+    render(<RunControls />)
+    expect(screen.getByText('write out.txt')).toBeInTheDocument()
+    expect(screen.getByText('$0.7500 left / 80 tok left')).toBeInTheDocument()
+    expect(screen.getByText(/--- out.txt/)).toBeInTheDocument()
+    expect(screen.getAllByText('out.txt').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(approve).toHaveBeenCalledWith('cp1')
+    expect(reject).toHaveBeenCalledWith('cp1')
   })
 })

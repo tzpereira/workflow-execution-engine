@@ -17,13 +17,14 @@ import (
 )
 
 type runFlags struct {
-	json        bool
-	cache       string
-	concurrency int
-	resume      string
-	budget      float64
-	workspace   string
-	inputs      map[string]string
+	json                          bool
+	cache                         string
+	concurrency                   int
+	resume                        string
+	budget                        float64
+	workspace                     string
+	inputs                        map[string]string
+	allowMutationsWithoutApproval bool
 }
 
 // newRunCmd implements `wee run <workflow.yaml>` (REQ-CLI-01/03/04). It assembles
@@ -56,6 +57,7 @@ func newRunCmd() *cobra.Command {
 	fl.Float64Var(&f.budget, "budget", 0, "override the workflow's max cost in USD (0 = use the workflow's)")
 	fl.StringVar(&f.workspace, "workspace", workspaceDir, "workspace state directory")
 	fl.StringToStringVarP(&f.inputs, "input", "i", nil, "workflow input KEY=VALUE (repeatable)")
+	fl.BoolVar(&f.allowMutationsWithoutApproval, "allow-mutations-without-approval", false, "explicitly allow mutating tool calls without approval checkpoints")
 	return cmd
 }
 
@@ -92,13 +94,14 @@ func runRun(cmd *cobra.Command, path string, f runFlags) error {
 	}
 
 	opts := engine.RunOptions{
-		ExecutionID:      execID,
-		Concurrency:      f.concurrency,
-		Budget:           budgetFor(asm.Workflow, f.budget),
-		Cache:            cacheMode,
-		DefinitionHashes: asm.Registry.DefinitionHashes(*asm.Workflow),
-		Workers:          asm.Registry.Workers(*asm.Workflow),
-		Inputs:           f.inputs,
+		ExecutionID:              execID,
+		Concurrency:              f.concurrency,
+		Budget:                   budgetFor(asm.Workflow, f.budget),
+		Cache:                    cacheMode,
+		DefinitionHashes:         asm.Registry.DefinitionHashes(*asm.Workflow),
+		Workers:                  asm.Registry.Workers(*asm.Workflow),
+		Inputs:                   f.inputs,
+		AllowUnattendedMutations: f.allowMutationsWithoutApproval,
 	}
 
 	type outcome struct {

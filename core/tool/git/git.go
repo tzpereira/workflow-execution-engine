@@ -33,6 +33,7 @@ func New(workdir string, timeout time.Duration) *Tool {
 }
 
 var _ tool.Tool = (*Tool)(nil)
+var _ tool.MutationDescriber = (*Tool)(nil)
 
 func (t *Tool) Name() string    { return "git" }
 func (t *Tool) Version() string { return "1.0.0" }
@@ -116,6 +117,30 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 		return nil, fmt.Errorf("git: encode output: %w", err)
 	}
 	return res, nil
+}
+
+// DescribeMutation classifies status/diff as read-only and add/commit/branch
+// creation as mutating.
+func (t *Tool) DescribeMutation(input json.RawMessage) (tool.Mutation, error) {
+	var req request
+	if err := json.Unmarshal(input, &req); err != nil {
+		return tool.Mutation{}, fmt.Errorf("git: decode mutation input: %w", err)
+	}
+	switch req.Op {
+	case "status", "diff":
+		return tool.Mutation{Mutating: false, Operation: "git." + req.Op, Paths: req.Paths}, nil
+	case "add":
+		return tool.Mutation{Mutating: true, Operation: "git.add", Summary: "stage paths", Paths: req.Paths}, nil
+	case "commit":
+		return tool.Mutation{Mutating: true, Operation: "git.commit", Summary: "create a local commit"}, nil
+	case "branch":
+		if req.Name == "" {
+			return tool.Mutation{Mutating: false, Operation: "git.branch"}, nil
+		}
+		return tool.Mutation{Mutating: true, Operation: "git.branch", Summary: "create and switch to branch " + req.Name}, nil
+	default:
+		return tool.Mutation{}, fmt.Errorf("git: unsupported op %q", req.Op)
+	}
 }
 
 func (t *Tool) run(ctx context.Context, args []string) (string, error) {

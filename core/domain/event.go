@@ -24,6 +24,9 @@ const (
 	CacheMiss         EventType = "CacheMiss"
 	BudgetWarning     EventType = "BudgetWarning"
 	BudgetExceeded    EventType = "BudgetExceeded"
+	ApprovalRequested EventType = "ApprovalRequested"
+	ApprovalGranted   EventType = "ApprovalGranted"
+	ApprovalRejected  EventType = "ApprovalRejected"
 	Cancelled         EventType = "Cancelled"
 )
 

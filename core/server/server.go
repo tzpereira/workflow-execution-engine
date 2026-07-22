@@ -159,6 +159,9 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("POST /api/executions/{id}/resume", s.handleRetry)
 	s.mux.HandleFunc("POST /api/executions/{id}/retry", s.handleRetry)
 	s.mux.HandleFunc("POST /api/executions/{id}/reexecute", s.handleReexecute)
+	s.mux.HandleFunc("GET /api/executions/{id}/approvals", s.handleListApprovals)
+	s.mux.HandleFunc("POST /api/executions/{id}/approvals/{checkpoint}/approve", s.handleApprove)
+	s.mux.HandleFunc("POST /api/executions/{id}/approvals/{checkpoint}/reject", s.handleReject)
 	s.mux.HandleFunc("POST /api/cache/clear", s.handleCacheClear)
 	s.mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	s.mux.HandleFunc("PUT /api/settings", s.handlePutSettings)
@@ -293,11 +296,12 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 // overrides (REQ-CTRL-07); both optional — omitted falls back to persisted
 // settings, then the server default / workflow budget.
 type runRequest struct {
-	Workflow    string            `json:"workflow"`
-	Inputs      map[string]string `json:"inputs,omitempty"`
-	Cache       string            `json:"cache,omitempty"`
-	BudgetUsd   float64           `json:"budgetUsd,omitempty"`
-	Connections []string          `json:"connections,omitempty"`
+	Workflow                      string            `json:"workflow"`
+	Inputs                        map[string]string `json:"inputs,omitempty"`
+	Cache                         string            `json:"cache,omitempty"`
+	BudgetUsd                     float64           `json:"budgetUsd,omitempty"`
+	Connections                   []string          `json:"connections,omitempty"`
+	AllowMutationsWithoutApproval bool              `json:"allowMutationsWithoutApproval,omitempty"`
 }
 
 type runResponse struct {
@@ -338,23 +342,25 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	execID := s.newID(asm.Workflow.ID)
 	if err := s.writeRunParams(execID, runParams{
-		Workflow:  req.Workflow,
-		Inputs:    req.Inputs,
-		Cache:     string(cacheMode),
-		BudgetUSD: budget.MaxCostUSD,
+		Workflow:                      req.Workflow,
+		Inputs:                        req.Inputs,
+		Cache:                         string(cacheMode),
+		BudgetUSD:                     budget.MaxCostUSD,
+		AllowMutationsWithoutApproval: req.AllowMutationsWithoutApproval,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	opts := engine.RunOptions{
-		ExecutionID:      execID,
-		Budget:           budget,
-		Cache:            cacheMode,
-		DefinitionHashes: asm.DefinitionHashes,
-		Workers:          asm.Workers,
-		Inputs:           req.Inputs,
-		ConnectionRefs:   connectionRefs,
+		ExecutionID:              execID,
+		Budget:                   budget,
+		Cache:                    cacheMode,
+		DefinitionHashes:         asm.DefinitionHashes,
+		Workers:                  asm.Workers,
+		Inputs:                   req.Inputs,
+		ConnectionRefs:           connectionRefs,
+		AllowUnattendedMutations: req.AllowMutationsWithoutApproval,
 	}
 	s.launch(execID, func(ctx context.Context) (*engine.Result, error) {
 		return asm.Scheduler.Run(ctx, asm.Workflow, opts)

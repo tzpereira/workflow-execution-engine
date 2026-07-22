@@ -66,6 +66,12 @@ function fakeDeps() {
   const cancelExecution = vi.fn(
     async () => undefined,
   ) as unknown as LiveDeps['cancelExecution']
+  const approveExecution = vi.fn(
+    async () => undefined,
+  ) as unknown as LiveDeps['approveExecution']
+  const rejectExecution = vi.fn(
+    async () => undefined,
+  ) as unknown as LiveDeps['rejectExecution']
   const retryExecution = vi.fn(
     async (_url: string, id: string) => id,
   ) as unknown as LiveDeps['retryExecution']
@@ -82,6 +88,8 @@ function fakeDeps() {
       fetchExecutions,
       fetchTemplates,
       cancelExecution,
+      approveExecution,
+      rejectExecution,
       retryExecution,
       reexecuteExecution,
       clearCache,
@@ -214,6 +222,8 @@ describe('liveStore', () => {
       cancelExecution: vi.fn() as unknown as LiveDeps['cancelExecution'],
       retryExecution: vi.fn() as unknown as LiveDeps['retryExecution'],
       reexecuteExecution: vi.fn() as unknown as LiveDeps['reexecuteExecution'],
+      approveExecution: vi.fn() as unknown as LiveDeps['approveExecution'],
+      rejectExecution: vi.fn() as unknown as LiveDeps['rejectExecution'],
       clearCache: vi.fn() as unknown as LiveDeps['clearCache'],
     }
     const store = createLiveStore(deps)

@@ -106,6 +106,20 @@ describe('live reduce', () => {
     expect(live.state).toBe('cancelled')
   })
 
+  it('reflects a pending approval pause', () => {
+    const live = reduceAll(
+      [
+        ev({ type: 'ExecutionStarted', payload: { workflow: 'wf', version: '1.0.0' } }),
+        ev({ type: 'WorkerStarted', nodeId: 'a' }),
+        ev({ type: 'ApprovalRequested', nodeId: 'a', payload: { checkpointId: 'cp1' } }),
+        ev({ type: 'ExecutionFinished', payload: { state: 'paused' } }),
+      ],
+      ['a'],
+    )
+    expect(live.state).toBe('paused')
+    expect(live.nodes.a.status).toBe('paused')
+  })
+
   it('leaves nodes untouched by ToolCalled/ToolResult/ContractValidated (recorded, no state change)', () => {
     const live = reduceAll(
       [

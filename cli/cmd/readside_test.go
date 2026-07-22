@@ -13,7 +13,7 @@ import (
 func runToolAndID(t *testing.T) string {
 	t.Helper()
 	wf := setupToolRun(t, toolWorkflow)
-	if _, err := execCLI(t, "run", wf); err != nil {
+	if _, err := execCLI(t, "run", wf, "--allow-mutations-without-approval"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	entries, err := os.ReadDir(filepath.Join(workspaceDir, "executions"))

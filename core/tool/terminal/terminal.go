@@ -42,6 +42,7 @@ func New(workdir string, allow []string, timeout time.Duration, artifactType dom
 }
 
 var _ tool.Tool = (*Tool)(nil)
+var _ tool.MutationDescriber = (*Tool)(nil)
 
 func (t *Tool) Name() string    { return "terminal" }
 func (t *Tool) Version() string { return "1.0.0" }
@@ -140,6 +141,23 @@ func (t *Tool) Execute(ctx context.Context, input json.RawMessage) (json.RawMess
 		return nil, fmt.Errorf("terminal: encode output: %w", err)
 	}
 	return out, nil
+}
+
+// DescribeMutation treats terminal commands as mutating by default: arbitrary
+// allowlisted commands may touch the workspace even when their name sounds
+// read-only.
+func (t *Tool) DescribeMutation(input json.RawMessage) (tool.Mutation, error) {
+	var req request
+	if err := json.Unmarshal(input, &req); err != nil {
+		return tool.Mutation{}, fmt.Errorf("terminal: decode mutation input: %w", err)
+	}
+	cmd := append([]string{req.Command}, req.Args...)
+	return tool.Mutation{
+		Mutating:  true,
+		Operation: "terminal.command",
+		Summary:   fmt.Sprintf("run %q in the workspace", req.Command),
+		Command:   cmd,
+	}, nil
 }
 
 // exitCode extracts a process exit code from Run's error. A nil error is 0; an

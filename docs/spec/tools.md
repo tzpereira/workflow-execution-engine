@@ -1,7 +1,7 @@
 # Spec — Tool Interface & Built-in Tools
 
-**Prefix:** `REQ-TOOL` · **Status:** STABLE (delivery M1.5) · **Principles:** PRIN-02, PRIN-04, PRIN-10 ·
-**Implementation:** `core/tool/` (M1.5)
+**Prefix:** `REQ-TOOL` · **Status:** STABLE (delivery M1.5; mutation classification M2.5) ·
+**Principles:** PRIN-02, PRIN-04, PRIN-10 · **Implementation:** `core/tool/` (M1.5)
 
 Workers invoke tools — git, filesystem, terminal, HTTP — through one simple interface. Nothing AI-specific.
 Every call is schema-validated and audited; sandboxing is the default, not an option.
@@ -41,3 +41,12 @@ tools implement the same interface.
 The HTTP tool may apply declarative per-call URL rewrite rules before enforcing its domain allowlist, and
 may fail the call on non-2xx responses when the workflow opts in. Domain-specific URL knowledge belongs in
 workflow definitions, not in the HTTP tool implementation.
+
+### REQ-TOOL-05 — Mutation classification before invocation
+The built-in filesystem, terminal, git, and HTTP tools shall classify validated inputs as mutating or
+read-only before invocation, so the runtime can persist an approval checkpoint before any local or remote
+mutation. Filesystem writes, terminal commands, git add/commit/branch-create, and non-GET HTTP calls are
+mutating; filesystem read/list, git status/diff/branch-list, and HTTP GET are read-only.
+- **Delivered by:** M2.5. **Verified by:** per-tool `DescribeMutation` coverage through
+  `engine.TestMutatingToolPausesBeforeToolCalledUntilApproved`,
+  `TestUnattendedMutationOptInBypassesApproval`, and the existing built-in tool test suites.
