@@ -27,13 +27,22 @@ Rules:
 
 ## Status
 
-- **Current Phase 2 milestone:** M2.3 — Workflow Authoring & Practical Examples. M2.2 is complete: `wee
-  serve` is a durable local control plane — completed executions, persisted settings, and the cache index
-  survive a restart; a run left in flight by a killed process is reconciled to cancelled-and-resumable on
-  startup (never reported as silently running); and start / cancel / resume / retry-from-node / reexecute /
-  clear-cache / export-bundle are exposed over the API and the UI (RunControls) with a transport-derived
-  progress + liveness readout. Persistence is in-workspace, progress adds no event to the frozen catalog,
-  and settings never store a secret value (ADR 0012, REQ-CTRL-01..07, NFR-CTRL-01).
+- **M2.3 is complete** (2026-07-22): Worker/Contract editing has real inline validation (server + client)
+  and legible version-bump/rollback; the gallery now derives cost/tools/write-capable/guided-inputs
+  structurally instead of hand-maintained strings; the catalog demonstrates four change-source shapes
+  (GitHub-http, local git-diff, generic patch-URL, local file) via three new templates (`refactor-plan`,
+  `release-notes`, `dependency-audit`), each verified end-to-end with a real provider key; GitLab MR/
+  Bitbucket PR are documented as the same mechanism rather than built against live third-party APIs. Next
+  up per ROADMAP.md's dependency graph: **M2.4 — Robust Runtime** (sequential), or the **experience track
+  (M2.9–M2.11)** the owner appended 2026-07-21, which also branches after M2.3 and may be pulled forward —
+  the owner picks the order.
+- M2.2 is complete: `wee serve` is a durable local control plane — completed executions, persisted settings,
+  and the cache index survive a restart; a run left in flight by a killed process is reconciled to
+  cancelled-and-resumable on startup (never reported as silently running); and start / cancel / resume /
+  retry-from-node / reexecute / clear-cache / export-bundle are exposed over the API and the UI
+  (RunControls) with a transport-derived progress + liveness readout. Persistence is in-workspace, progress
+  adds no event to the frozen catalog, and settings never store a secret value (ADR 0012, REQ-CTRL-01..07,
+  NFR-CTRL-01).
 - **Transition decision:** M1.16/M1.17 are superseded for now by this Phase 2 plan. Do not tag a public
   release or start managed hosting work until the local/self-hosted product quality gates here pass.
 - **Experience track added (2026-07-21, owner decision):** M2.9 (Connections & Configuration Experience),
@@ -181,26 +190,68 @@ Scope notes (disclosed):
 
 Tasks:
 
-- [ ] Improve Workflow/Worker/Contract editing with inline validation, version-bump guidance, schema-aware
-      fields, and safe rollback.
-- [ ] Expand practical templates: Change/Diff Review, Test Generator, Change Risk, Bug Investigation,
-      Release Notes, Refactor Plan, Dependency Audit.
-- [ ] Add guided inputs, expected cost, expected runtime, required tools, and read-only/mutating labels to
-      every published template.
-- [ ] Keep change-source logic out of Core: GitHub PR, GitLab MR, Bitbucket PR, public patch/diff URL,
+- [x] Improve Workflow/Worker/Contract editing with inline validation, version-bump guidance, schema-aware
+      fields, and safe rollback. (Server: `handleSaveWorker` now calls `validate.Validate(KindWorker,...)` +
+      `validate.CompileSchema` before writing, rejecting an invalid Worker before it reaches disk. Client:
+      `WorkerEditor.tsx` reuses the already-installed `@rjsf/validator-ajv8` — no new dependency — for the
+      same two-check split, live and debounced, informational only; the server is the enforcement gate. The
+      existing M1.8 auto-bump-never-overwrite versioning is now legible: a hint names the exact version Save
+      will create, and the version picker shows an objective snippet per version so rollback is informed.
+      Visual JSON-Schema-builder UI for `outputSchema` stays out of scope — "schema-aware" means
+      validated-against-schema, not a schema-construction UI.)
+- [x] Expand practical templates: Change/Diff Review, Test Generator, Change Risk, Bug Investigation,
+      Release Notes, Refactor Plan, Dependency Audit. (First four already existed; added `refactor-plan`,
+      `release-notes`, `dependency-audit` — each read-only, each a new change-source shape, each verified
+      end-to-end with a real provider key.)
+- [x] Add guided inputs, expected cost, expected runtime, required tools, and read-only/mutating labels to
+      every published template. (`core/registry.DeriveTemplateFacts` derives Tools/WriteCapable/cost/
+      duration/Inputs from the canonical Workflow — never a hand-maintained manifest; surfaced in
+      `GET /api/templates`, `TemplateGallery.tsx`'s card, and `wee export`'s CLI output, so a CLI-only user
+      gets the same declaration.)
+- [x] Keep change-source logic out of Core: GitHub PR, GitLab MR, Bitbucket PR, public patch/diff URL,
       local `git diff`, and local file inputs must be represented through generic workflow/tool
-      configuration.
-- [ ] Ensure public-remote workflows work without cloning when they only need public HTTP data, and local
-      repository workflows work without any forge account.
-- [ ] Update example READMEs with intended output, budget profile, and cache/replay behavior.
+      configuration. (Four shapes built concretely — GitHub-http (pre-existing `pr-review`/`change-risk`/
+      `test-generator`), local `git diff` (`refactor-plan`), generic public patch/diff URL, no `urlRewrite`
+      (`release-notes`), local filesystem read (`dependency-audit`). GitLab MR / Bitbucket PR are
+      documented in `examples/README.md` as the same `http` + `urlRewrite` + allowlist mechanism
+      `pr-review` already proves, not built as separate live-API templates — a disclosed decision to avoid
+      an unverified third-party dependency, PRIN-07 — rather than silently left undemonstrated.)
+- [x] Ensure public-remote workflows work without cloning when they only need public HTTP data, and local
+      repository workflows work without any forge account. (`pr-review`/`change-risk`/`test-generator`/
+      `release-notes` need no clone; `refactor-plan`/`dependency-audit` need no forge account — the `git`
+      tool has no push/clone at all.)
+- [x] Update example READMEs with intended output, budget profile, and cache/replay behavior. (All three
+      new templates' READMEs state this at authoring time; the three existing gallery READMEs
+      (`pr-review`/`test-generator`/`change-risk`) retrofitted with the explicit $/token/second figures,
+      cross-checked against each `workflow.yaml`'s actual `budget` block.)
 
 Acceptance:
 
-- [ ] A new practical example can be authored, validated, imported, run, replayed, and exported without
+- [x] A new practical example can be authored, validated, imported, run, replayed, and exported without
       hand-editing generated UI state.
-- [ ] Published templates avoid surprise spend and declare whether they can write before a user starts them.
-- [ ] The published catalog demonstrates at least two change-source shapes, one of which is not GitHub.
-- [ ] Verification recorded here:
+- [x] Published templates avoid surprise spend and declare whether they can write before a user starts them.
+- [x] The published catalog demonstrates at least two change-source shapes, one of which is not GitHub.
+- [x] Verification recorded here: `go test ./... -race` all green throughout (incl. new
+      `core/registry.TestDeriveTemplateFacts*` covering the WriteCapable allowlist-polarity classifier and
+      the JSON-null-vs-empty-array regression it needed; `core/server`'s new `TestSaveWorkerRejectsSchema
+      InvalidWorker`/`TestSaveWorkerRejectsUncompilableOutputSchema`; `examples`' new per-template shape-lock
+      tests plus the rewritten `TestPublishedTemplateCatalogIsReadOnly`, which decodes every `.tar` and
+      asserts `WriteCapable == false` structurally instead of a hardcoded filename list); `gofmt`/`go vet`
+      clean on changed files (golangci-lint itself can't run in this environment — v1.55.2 built against
+      Go 1.22 can't read Go 1.26's export data for the standard library, a pre-existing environment
+      mismatch unrelated to this milestone). `pnpm --dir ui lint`; `pnpm --dir ui typecheck`; `pnpm --dir ui
+      test` (199 tests, up from 194 at M2.2's close — incl. `WorkerEditor.test.tsx`'s new live-validation/
+      version-legibility cases and `TemplateGallery.test.tsx`'s new badge/cost/tools/inputs and
+      null-drift-defense cases); `pnpm --dir ui build` (known Shiki/wasm chunk-size warning only).
+      Manually verified end to end against a real provider key: `refactor-plan` against this repo's own
+      uncommitted diff ($0.0004, a bounded 5-step plan); `release-notes` against a real public GitHub
+      `.diff` URL ($0.0001, a correct one-line summary for a trivial diff, no invented content);
+      `dependency-audit` against this repo's own `go.mod` ($0.0002, three grounded findings, no fabricated
+      CVEs). Ran a real `wee serve` and hit `GET /api/templates` directly — caught a real bug live
+      (`DeriveTemplateFacts` leaving `Tools`/`Inputs` as nil slices, marshaling to JSON `null` instead of
+      `[]`, which `TemplateGallery.tsx`'s `.length` checks would have thrown on) and fixed it at the source
+      with a regression test. Replayed `refactor-plan`'s recorded execution at zero cost
+      (`wee replay <id>`), confirming per-node cost/tokens/artifact hashes round-trip from the log.
 
 ---
 
