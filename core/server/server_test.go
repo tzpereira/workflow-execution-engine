@@ -568,24 +568,31 @@ func TestImportTemplateWritesRunnableFilesAndReturnsWorkflow(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.WorkflowPath != filepath.Join("demo", "workflow.yaml") {
-		t.Errorf("WorkflowPath = %q, want demo/workflow.yaml", got.WorkflowPath)
+	wantWorkflowPath, err := filepath.Rel(dir, filepath.Join(s.workspace, "imported-templates", "demo", "workflow.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.WorkflowPath != wantWorkflowPath {
+		t.Errorf("WorkflowPath = %q, want %s", got.WorkflowPath, wantWorkflowPath)
 	}
 	if got.Workflow.ID != "demo-template" {
 		t.Errorf("Workflow.ID = %q, want demo-template", got.Workflow.ID)
 	}
 
-	// The files must actually exist under Dir, real YAML, real enough for
-	// wee run to resolve — the whole point of unpacking rather than inventing
-	// an in-memory-only execution path for templates.
-	wfBytes, err := os.ReadFile(filepath.Join(dir, "demo", "workflow.yaml"))
+	if _, err := os.Stat(filepath.Join(dir, "demo")); !os.IsNotExist(err) {
+		t.Fatalf("import should not create %s; stat err=%v", filepath.Join(dir, "demo"), err)
+	}
+	// The files must actually exist as real YAML, real enough for wee run to
+	// resolve through the returned relative path — the whole point of unpacking
+	// rather than inventing an in-memory-only execution path for templates.
+	wfBytes, err := os.ReadFile(filepath.Join(dir, got.WorkflowPath))
 	if err != nil {
 		t.Fatalf("workflow.yaml was not written: %v", err)
 	}
 	if !strings.Contains(string(wfBytes), "demo-template") {
 		t.Errorf("workflow.yaml doesn't mention the workflow id:\n%s", wfBytes)
 	}
-	workerBytes, err := os.ReadFile(filepath.Join(dir, "demo", "reviewer.worker.yaml"))
+	workerBytes, err := os.ReadFile(filepath.Join(s.workspace, "imported-templates", "demo", "reviewer.worker.yaml"))
 	if err != nil {
 		t.Fatalf("reviewer.worker.yaml was not written: %v", err)
 	}
@@ -625,7 +632,10 @@ func TestImportTemplateCopiesSidecarToolConfig(t *testing.T) {
 		t.Fatalf("POST import = %d: %s", resp.StatusCode, b)
 	}
 
-	got, err := os.ReadFile(filepath.Join(dir, "demo", "wee.yaml"))
+	if _, err := os.Stat(filepath.Join(dir, "demo")); !os.IsNotExist(err) {
+		t.Fatalf("import should not create %s; stat err=%v", filepath.Join(dir, "demo"), err)
+	}
+	got, err := os.ReadFile(filepath.Join(s.workspace, "imported-templates", "demo", "wee.yaml"))
 	if err != nil {
 		t.Fatalf("wee.yaml was not copied: %v", err)
 	}

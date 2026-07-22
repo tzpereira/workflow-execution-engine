@@ -57,8 +57,8 @@ export interface TemplateInput {
 
 /** ImportedTemplate mirrors core/server.importTemplateResponse — POST
  *  /api/templates/{name}/import's response: where the unpacked files landed
- *  (for POST /api/run to resolve later) and the workflow itself, ready to
- *  hand straight to the workspace store's existing import path. */
+ *  (for POST /api/run to resolve later) and the workflow itself. Template
+ *  imports live under the server workspace state dir, not the repository root. */
 export interface ImportedTemplate {
   workflowPath: string
   workflow: Workflow

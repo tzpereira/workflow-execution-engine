@@ -118,9 +118,9 @@ export async function fetchTemplates(baseUrl: string): Promise<Template[]> {
   return (await res.json()) as Template[]
 }
 
-/** importTemplate POSTs /api/templates/{name}/import: unpacks the bundle
- *  under the server's --dir and returns where it landed plus the workflow
- *  itself, ready for the workspace store's existing (YAML/JSON) import path. */
+/** importTemplate POSTs /api/templates/{name}/import: unpacks the bundle under
+ *  the server workspace state dir and returns a workflow path POST /api/run can
+ *  resolve, plus the workflow itself. */
 export async function importTemplate(baseUrl: string, name: string): Promise<ImportedTemplate> {
   const res = await fetch(`${baseUrl}/api/templates/${encodeURIComponent(name)}/import`, { method: 'POST' })
   if (!res.ok) {

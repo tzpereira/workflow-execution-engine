@@ -12,8 +12,8 @@ function formatDuration(ms: number): string {
 // TemplateGallery is the one-click-import surface M1.14/REQ-UI-05 asks for —
 // every template is a real `wee export` bundle (no UI-only format), listed
 // via GET /api/templates and materialized via POST /api/templates/{name}/
-// import, which unpacks real YAML files under the server's --dir and hands
-// back the workflow — importing it here goes through the exact same
+// import, which unpacks real YAML files under the server's workspace state dir
+// and hands back the workflow — importing it here goes through the exact same
 // importText path a file picked from disk would (PRIN-02, no second import
 // mechanism). An overlay, same family as the ⌘K CommandPalette (M1.11) — a
 // transient picker, not a panel someone lives in, so it isn't the "no modal"

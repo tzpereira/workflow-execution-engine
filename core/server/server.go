@@ -468,12 +468,11 @@ type importTemplateResponse struct {
 }
 
 // handleImportTemplate unpacks a template bundle (registry.Import) and writes
-// its workflow + Workers as real YAML files under <Dir>/<name>/ — reusing
-// the exact same wee run/serve file-resolution path every other workflow
-// goes through (runner.Load, POST /api/run), rather than inventing a second,
-// in-memory execution path just for templates. "No UI-only/proprietary
-// template format" (M1.14) cuts both ways: the bundle IS a real `wee export`
-// archive, and importing it re-creates real, `wee run`-able files on disk.
+// its workflow + Workers as real YAML files under the workspace state dir, not
+// the user's workflow root. This keeps "try this template" from littering the
+// repository root with pr-review/, change-risk/, etc. while preserving the same
+// file-resolution path POST /api/run already uses: the response returns a path
+// relative to Dir, so runner.Load still reads ordinary YAML from disk.
 func (s *Server) handleImportTemplate(w http.ResponseWriter, r *http.Request) {
 	if s.templatesDir == "" {
 		http.Error(w, "templates not configured on this server", http.StatusNotImplemented)
@@ -497,7 +496,7 @@ func (s *Server) handleImportTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	workers := reg.Workers(wf)
 
-	destDir := filepath.Join(s.dir, name)
+	destDir := s.importedTemplateDir(name)
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		http.Error(w, "create destination directory: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -528,10 +527,20 @@ func (s *Server) handleImportTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workflowPath, err := filepath.Rel(s.dir, filepath.Join(destDir, "workflow.yaml"))
+	if err != nil {
+		http.Error(w, "resolve imported workflow path: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, importTemplateResponse{
-		WorkflowPath: filepath.Join(name, "workflow.yaml"),
+		WorkflowPath: workflowPath,
 		Workflow:     wf,
 	})
+}
+
+func (s *Server) importedTemplateDir(name string) string {
+	return filepath.Join(s.workspace, "imported-templates", name)
 }
 
 // copyTemplateConfig carries a template's sidecar wee.yaml into the imported
@@ -557,8 +566,7 @@ func (s *Server) copyTemplateConfig(name, destDir string) error {
 // picker and "current" editable copy (the last entry) both come from one
 // call. dir (a query param, "" for the server's own --dir root) lets the
 // caller scope the scan to wherever the currently-open workflow's sibling
-// Worker files actually live — the same nesting a template import creates
-// (M1.14's handleImportTemplate writes into <dir>/<name>/, not <dir>/).
+// Worker files actually live, including hidden workspace-state imports.
 type workerVersionsResponse struct {
 	Versions []domain.Worker `json:"versions"`
 }
