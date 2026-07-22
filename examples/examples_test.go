@@ -3,11 +3,11 @@ package examples_test
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
+	"github.com/tzpereira/workflow-execution-engine/core/registry"
 	"github.com/tzpereira/workflow-execution-engine/core/serialize"
 	"github.com/tzpereira/workflow-execution-engine/core/validate"
 )
@@ -61,20 +61,42 @@ func TestExamplesAreValid(t *testing.T) {
 	}
 }
 
-func TestPublishedTemplateCatalogContainsOnlyFastWorkflows(t *testing.T) {
+// TestPublishedTemplateCatalogIsReadOnly is the structural half of M2.3's
+// "published templates ... declare whether they can write before a user
+// starts them": every .tar in the published gallery must decode to
+// registry.DeriveTemplateFacts(wf).WriteCapable == false. This replaces a
+// hardcoded filename list — the read-only curation policy examples/README.md
+// documents is now a self-maintaining CI invariant instead of a name a new
+// template's author has to remember to add here.
+func TestPublishedTemplateCatalogIsReadOnly(t *testing.T) {
 	entries, err := os.ReadDir("templates")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var names []string
+	found := 0
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tar") {
-			names = append(names, entry.Name())
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tar") {
+			continue
+		}
+		found++
+		data, err := os.ReadFile(filepath.Join("templates", entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		reg, err := registry.Import(data)
+		if err != nil {
+			t.Fatalf("import %s: %v", entry.Name(), err)
+		}
+		_, wf, ok := reg.SoleWorkflow()
+		if !ok {
+			t.Fatalf("%s: expected exactly one workflow", entry.Name())
+		}
+		if facts := registry.DeriveTemplateFacts(wf); facts.WriteCapable {
+			t.Errorf("%s (%s) is write-capable (tools=%v); the published gallery must stay read-only until M2.5's approval gate lands", entry.Name(), wf.ID, facts.Tools)
 		}
 	}
-	want := []string{"change-risk.tar", "pr-review.tar", "test-generator.tar"}
-	if !slices.Equal(names, want) {
-		t.Fatalf("published templates = %v, want %v", names, want)
+	if found == 0 {
+		t.Fatal("no .tar files found in examples/templates")
 	}
 }
 
