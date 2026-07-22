@@ -417,7 +417,8 @@ func TestCORSPreflight(t *testing.T) {
 	s, _ := fastServer(t, nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
-	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/api/run", nil)
+	req, _ := http.NewRequest(http.MethodOptions, ts.URL+"/api/settings", nil)
+	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -428,6 +429,12 @@ func TestCORSPreflight(t *testing.T) {
 	}
 	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
 		t.Error("missing CORS allow-origin")
+	}
+	methods := resp.Header.Get("Access-Control-Allow-Methods")
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions} {
+		if !strings.Contains(methods, method) {
+			t.Fatalf("allow-methods = %q, missing %s", methods, method)
+		}
 	}
 }
 
