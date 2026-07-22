@@ -309,18 +309,14 @@ function NodeInspector({
 
   return (
     <div className="space-y-3">
-      <dl className="space-y-2">
-        <Field label="id" value={node.id} />
-        <Field label="kind" value={kind} />
-        <Field
-          label={kind === 'tool' ? 'tool' : 'worker'}
-          value={
-            kind === 'tool'
-              ? (node.tool?.toolName ?? '—')
-              : (node.worker ?? '—')
-          }
+      <Section title="Definition">
+        <NodeDefinitionEditor
+          node={node}
+          kind={kind}
+          otherNodeIds={otherNodeIds}
+          onNodeChange={onNodeChange}
         />
-      </dl>
+      </Section>
 
       {/* Output is the primary inspection task. Definition editing and raw
           execution detail remain available below, collapsed by default. */}
@@ -374,7 +370,7 @@ function NodeInspector({
       </Collapsible>
 
       {kind === 'worker' && node.worker && (
-        <Collapsible title="Worker & Contract">
+        <Collapsible title="Worker & Contract" defaultOpen>
           <WorkerEditor
             workerRef={node.worker}
             dir={dir}
@@ -404,7 +400,7 @@ function NodeInspector({
       )}
 
       {kind === 'tool' && (
-        <Collapsible title="Tool input">
+        <Collapsible title="Raw tool input">
           <pre className="max-h-64 overflow-auto rounded bg-neutral-50 p-2 font-mono text-xs text-neutral-700">
             {JSON.stringify(node.tool?.input ?? {}, null, 2)}
           </pre>
@@ -414,6 +410,165 @@ function NodeInspector({
       <Collapsible title="Events">
         <EventList events={nodeEvents} fixedNodeId={node.id} />
       </Collapsible>
+    </div>
+  )
+}
+
+function NodeDefinitionEditor({
+  node,
+  kind,
+  otherNodeIds,
+  onNodeChange,
+}: {
+  node: WFNode
+  kind: 'worker' | 'tool' | 'invalid'
+  otherNodeIds: string[]
+  onNodeChange: (next: WFNode) => void
+}) {
+  const [nodeId, setNodeId] = useState(node.id)
+  const [toolInputText, setToolInputText] = useState(
+    JSON.stringify(node.tool?.input ?? {}, null, 2),
+  )
+  const [toolInputError, setToolInputError] = useState<string | null>(null)
+  const trimmedId = nodeId.trim()
+  const idError =
+    trimmedId.length === 0
+      ? 'Node id is required.'
+      : otherNodeIds.includes(trimmedId)
+        ? 'Node id must be unique.'
+        : null
+
+  function commitNodeId() {
+    if (idError || trimmedId === node.id) return
+    onNodeChange({ ...node, id: trimmedId })
+  }
+
+  function changeKind(nextKind: 'worker' | 'tool') {
+    const base: WFNode = { id: node.id }
+    if (node.contextPolicy) base.contextPolicy = node.contextPolicy
+    if (node.onFailure) base.onFailure = node.onFailure
+    if (nextKind === 'worker') {
+      onNodeChange({
+        ...base,
+        worker: node.worker ?? `${node.id}@1.0.0`,
+      })
+      return
+    }
+    onNodeChange({
+      ...base,
+      tool: node.tool ?? { toolName: 'terminal', input: {} },
+    })
+  }
+
+  function commitToolInput() {
+    if (kind !== 'tool') return
+    try {
+      const parsed = JSON.parse(toolInputText) as Record<string, unknown>
+      if (
+        parsed == null ||
+        Array.isArray(parsed) ||
+        typeof parsed !== 'object'
+      ) {
+        setToolInputError('Tool input must be a JSON object.')
+        return
+      }
+      setToolInputError(null)
+      onNodeChange({
+        ...node,
+        tool: { toolName: node.tool?.toolName ?? 'terminal', input: parsed },
+      })
+    } catch {
+      setToolInputError('Tool input is not valid JSON.')
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded border border-neutral-200 bg-neutral-50 p-2">
+      <label className="block">
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Node id
+        </span>
+        <input
+          type="text"
+          value={nodeId}
+          onChange={(e) => setNodeId(e.target.value)}
+          onBlur={commitNodeId}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur()
+            }
+          }}
+          className="mt-0.5 w-full rounded border border-neutral-300 bg-white px-1.5 py-1 font-mono text-xs"
+        />
+        {idError && <p className="mt-0.5 text-xs text-red-600">{idError}</p>}
+      </label>
+
+      <label className="block">
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Node type
+        </span>
+        <select
+          value={kind === 'tool' ? 'tool' : 'worker'}
+          onChange={(e) => changeKind(e.target.value as 'worker' | 'tool')}
+          className="mt-0.5 w-full rounded border border-neutral-300 bg-white px-1.5 py-1 text-xs"
+        >
+          <option value="worker">worker</option>
+          <option value="tool">tool</option>
+        </select>
+      </label>
+
+      {kind === 'worker' && (
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+            Worker ref
+          </span>
+          <input
+            type="text"
+            value={node.worker ?? ''}
+            onChange={(e) => onNodeChange({ ...node, worker: e.target.value })}
+            className="mt-0.5 w-full rounded border border-neutral-300 bg-white px-1.5 py-1 font-mono text-xs"
+          />
+        </label>
+      )}
+
+      {kind === 'tool' && (
+        <>
+          <label className="block">
+            <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+              Tool name
+            </span>
+            <input
+              type="text"
+              value={node.tool?.toolName ?? ''}
+              onChange={(e) =>
+                onNodeChange({
+                  ...node,
+                  tool: {
+                    toolName: e.target.value,
+                    input: node.tool?.input ?? {},
+                  },
+                })
+              }
+              className="mt-0.5 w-full rounded border border-neutral-300 bg-white px-1.5 py-1 font-mono text-xs"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+              Tool input JSON
+            </span>
+            <textarea
+              value={toolInputText}
+              onChange={(e) => setToolInputText(e.target.value)}
+              onBlur={commitToolInput}
+              rows={5}
+              className="mt-0.5 w-full rounded border border-neutral-300 bg-white px-1.5 py-1 font-mono text-[11px]"
+            />
+            {toolInputError && (
+              <p className="mt-0.5 text-xs text-red-600">{toolInputError}</p>
+            )}
+          </label>
+        </>
+      )}
     </div>
   )
 }
@@ -442,13 +597,15 @@ function Section({
 
 function Collapsible({
   title,
+  defaultOpen = false,
   children,
 }: {
   title: string
+  defaultOpen?: boolean
   children: React.ReactNode
 }) {
   return (
-    <details className="border-t border-neutral-200 pt-2">
+    <details className="border-t border-neutral-200 pt-2" open={defaultOpen}>
       <summary className="cursor-pointer select-none text-xs font-semibold uppercase text-neutral-500 hover:text-neutral-800">
         {title}
       </summary>

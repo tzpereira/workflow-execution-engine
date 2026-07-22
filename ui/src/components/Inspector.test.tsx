@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Audit } from '../core/audit'
@@ -130,6 +130,7 @@ describe('Inspector', () => {
       selectedNodeId: null,
       fileName: null,
       error: null,
+      history: [],
     })
     useLive.setState({
       live: emptyLive(),
@@ -142,6 +143,38 @@ describe('Inspector', () => {
   it('shows workflow metadata and the Budget form when no node is selected', () => {
     render(<Inspector />)
     expect(screen.getByText('Workflow')).toBeInTheDocument()
+  })
+
+  it('edits a manually created node definition in place', () => {
+    useWorkspace.getState().addNode({ id: 'manual', worker: 'manual@1.0.0' })
+    render(<Inspector />)
+
+    const idInput = screen.getByLabelText('Node id')
+    fireEvent.change(idInput, { target: { value: 'analysis' } })
+    fireEvent.blur(idInput)
+    expect(useWorkspace.getState().nodes[0].id).toBe('analysis')
+
+    fireEvent.change(screen.getByLabelText('Worker ref'), {
+      target: { value: 'analysis-worker@1.0.0' },
+    })
+    expect(useWorkspace.getState().workflow().nodes[0].worker).toBe(
+      'analysis-worker@1.0.0',
+    )
+
+    fireEvent.change(screen.getByLabelText('Node type'), {
+      target: { value: 'tool' },
+    })
+    fireEvent.change(screen.getByLabelText('Tool name'), {
+      target: { value: 'shell' },
+    })
+    const input = screen.getByLabelText('Tool input JSON')
+    fireEvent.change(input, { target: { value: '{ "command": "pwd" }' } })
+    fireEvent.blur(input)
+
+    expect(useWorkspace.getState().workflow().nodes[0]).toEqual({
+      id: 'analysis',
+      tool: { toolName: 'shell', input: { command: 'pwd' } },
+    })
   })
 
   it("shows the run's resolved Inputs (REQ-INPUT-01) when the loaded audit has any", () => {

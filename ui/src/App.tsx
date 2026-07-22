@@ -46,9 +46,23 @@ export default function App() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (!(e.metaKey || e.ctrlKey)) return
+
+      const key = e.key.toLowerCase()
+      if (key === 'k') {
         e.preventDefault()
         setPaletteOpen((o) => !o)
+        return
+      }
+      if (isEditableTarget(e.target)) return
+      if (key === 'z') {
+        e.preventDefault()
+        useWorkspace.getState().undo()
+        return
+      }
+      if (key === 'w' || key === 't') {
+        e.preventDefault()
+        addShortcutNode(key === 'w' ? 'worker' : 'tool')
       }
     }
     window.addEventListener('keydown', onKey)
@@ -161,6 +175,33 @@ export default function App() {
   )
 }
 
+function addShortcutNode(kind: 'worker' | 'tool') {
+  const workspace = useWorkspace.getState()
+  const id = uniqueNodeId(kind, new Set(workspace.nodes.map((n) => n.id)))
+  workspace.addNode(
+    kind === 'worker'
+      ? { id, worker: `${id}@1.0.0` }
+      : { id, tool: { toolName: 'terminal', input: {} } },
+  )
+}
+
+function uniqueNodeId(kind: string, taken: Set<string>): string {
+  let i = 1
+  while (taken.has(`${kind}-${i}`)) i++
+  return `${kind}-${i}`
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName.toLowerCase()
+  return (
+    tag === 'input' ||
+    tag === 'textarea' ||
+    tag === 'select' ||
+    target.isContentEditable
+  )
+}
+
 function PanelActions({
   panel,
   maximized,
@@ -218,11 +259,7 @@ function PanelRail({
   )
 }
 
-function PanelIcon({
-  name,
-}: {
-  name: 'minimize' | 'expand'
-}) {
+function PanelIcon({ name }: { name: 'minimize' | 'expand' }) {
   if (name === 'minimize') {
     return (
       <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
@@ -252,21 +289,38 @@ function PanelIcon({
 
 function HelpModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/25 pt-24" onClick={onClose}>
-      <div className="token-card w-[42rem] max-w-[94vw] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/25 pt-24"
+      onClick={onClose}
+    >
+      <div
+        className="token-card w-[42rem] max-w-[94vw] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2.5">
           <div>
             <div className="text-sm font-semibold">WEE help</div>
-            <div className="token-subtle text-xs">versioned with this running UI</div>
+            <div className="token-subtle text-xs">
+              versioned with this running UI
+            </div>
           </div>
           <button type="button" className="btn" onClick={onClose}>
             close
           </button>
         </div>
         <div className="grid gap-3 p-3 text-sm md:grid-cols-3">
-          <HelpCard title="Quickstart" body="Import a workflow or pick a template, configure Connections and runtime defaults, then Run." />
-          <HelpCard title="Core concepts" body="Contracts define output shape; Context Policy controls admitted artifacts; cache hits reuse recorded artifacts." />
-          <HelpCard title="Keyboard" body="Use Cmd/Ctrl+K for run, templates, settings, theme, document, and node navigation actions." />
+          <HelpCard
+            title="Quickstart"
+            body="Import a workflow or pick a template, configure Connections and runtime defaults, then Run."
+          />
+          <HelpCard
+            title="Core concepts"
+            body="Contracts define output shape; Context Policy controls admitted artifacts; cache hits reuse recorded artifacts."
+          />
+          <HelpCard
+            title="Keyboard"
+            body="Use Cmd/Ctrl+K for commands, Cmd/Ctrl+Z for undo, Cmd/Ctrl+W for worker nodes, and Cmd/Ctrl+T for tool nodes."
+          />
         </div>
       </div>
     </div>

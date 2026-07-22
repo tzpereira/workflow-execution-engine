@@ -46,7 +46,7 @@ export function WorkerEditor({
    *  without duplicating the fetch. */
   onWorkerLoaded?: (worker: Worker) => void
 }) {
-  const [id] = workerRef.split('@')
+  const [id = 'worker', version = '1.0.0'] = workerRef.split('@')
   const [versions, setVersions] = useState<Worker[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Worker | null>(null)
@@ -113,12 +113,16 @@ export function WorkerEditor({
         const current =
           vs.find((v) => `${v.id}@${v.version}` === workerRef) ??
           vs[vs.length - 1]
-        if (current) loadDraft(current)
+        loadDraft(current ?? blankWorker(id, version))
       })
       .catch(
         (e) =>
           !cancelled &&
-          setLoadError(e instanceof Error ? e.message : String(e)),
+          (() => {
+            setLoadError(e instanceof Error ? e.message : String(e))
+            setVersions([])
+            loadDraft(blankWorker(id, version))
+          })(),
       )
     return () => {
       cancelled = true
@@ -192,11 +196,17 @@ export function WorkerEditor({
     }
   }
 
-  if (loadError) return <p className="text-xs text-red-600">{loadError}</p>
   if (!draft) return <p className="text-xs text-neutral-400">loading…</p>
+  const versionOptions = versions && versions.length > 0 ? versions : [draft]
 
   return (
     <div className="space-y-2">
+      {loadError && (
+        <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+          No saved worker was loaded yet. Editing a new draft for{' '}
+          <span className="font-mono">{workerRef}</span>: {loadError}
+        </p>
+      )}
       <div className="flex items-center gap-1.5">
         <select
           value={draft.version}
@@ -204,7 +214,7 @@ export function WorkerEditor({
           className="rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-xs"
           aria-label="Worker version"
         >
-          {versions?.map((v) => (
+          {versionOptions.map((v) => (
             <option key={v.version} value={v.version}>
               {v.version} — {truncate(v.objective, 40)}
             </option>
@@ -494,6 +504,25 @@ export function WorkerEditor({
       )}
     </div>
   )
+}
+
+function blankWorker(id: string, version: string): Worker {
+  return {
+    id,
+    version,
+    objective: '',
+    constraints: [],
+    tools: [],
+    contextPolicy: { mode: 'full' },
+    contract: {
+      goal: '',
+      rules: [],
+      outputSchema: { type: 'object' },
+      successCriteria: [],
+      maxRetries: 0,
+    },
+    model: { provider: 'openai', model: 'gpt-4o-mini', params: {} },
+  }
 }
 
 function FieldHeader({

@@ -24,7 +24,16 @@ budget:
 `
 
 function reset() {
-  const meta = { id: 'untitled', version: '0.1.0', budget: { maxCostUsd: 0, maxTokens: 0, maxDurationMs: 0, maxRetriesPerNode: 0 } }
+  const meta = {
+    id: 'untitled',
+    version: '0.1.0',
+    budget: {
+      maxCostUsd: 0,
+      maxTokens: 0,
+      maxDurationMs: 0,
+      maxRetriesPerNode: 0,
+    },
+  }
   useWorkspace.setState({
     meta,
     nodes: [],
@@ -33,7 +42,18 @@ function reset() {
     fileName: null,
     error: null,
     activeDocumentId: 'untitled',
-    documents: [{ id: 'untitled', label: 'untitled', meta, nodes: [], edges: [], fileName: null, dirty: false }],
+    history: [],
+    documents: [
+      {
+        id: 'untitled',
+        label: 'untitled',
+        meta,
+        nodes: [],
+        edges: [],
+        fileName: null,
+        dirty: false,
+      },
+    ],
   })
 }
 
@@ -64,11 +84,53 @@ describe('workspace store', () => {
     const s = useWorkspace.getState()
     s.addNode({ id: 'x', worker: 'wx@1.0.0' })
     s.addNode({ id: 'y', tool: { toolName: 't', input: {} } })
-    useWorkspace.getState().onConnect({ source: 'x', target: 'y', sourceHandle: null, targetHandle: null })
+    useWorkspace
+      .getState()
+      .onConnect({
+        source: 'x',
+        target: 'y',
+        sourceHandle: null,
+        targetHandle: null,
+      })
     const st = useWorkspace.getState()
     expect(st.nodes.map((n) => n.id)).toEqual(['x', 'y'])
     expect(st.edges).toHaveLength(1)
     expect(st.edges[0].source).toBe('x')
+  })
+
+  it('renames a node body and rewrites connected edges', () => {
+    const s = useWorkspace.getState()
+    s.addNode({ id: 'x', worker: 'wx@1.0.0' })
+    s.addNode({ id: 'y', tool: { toolName: 't', input: {} } })
+    useWorkspace
+      .getState()
+      .onConnect({
+        source: 'x',
+        target: 'y',
+        sourceHandle: null,
+        targetHandle: null,
+      })
+    useWorkspace.getState().selectNode('x')
+
+    useWorkspace
+      .getState()
+      .updateNodeBody('x', { id: 'renamed', worker: 'wx@1.0.1' })
+
+    const st = useWorkspace.getState()
+    expect(st.nodes.map((n) => n.id)).toEqual(['renamed', 'y'])
+    expect(st.edges[0].source).toBe('renamed')
+    expect(st.selectedNodeId).toBe('renamed')
+  })
+
+  it('undo restores the previous authoring state', () => {
+    const s = useWorkspace.getState()
+    s.addNode({ id: 'x', worker: 'wx@1.0.0' })
+    s.addNode({ id: 'y', tool: { toolName: 't', input: {} } })
+    expect(useWorkspace.getState().nodes.map((n) => n.id)).toEqual(['x', 'y'])
+
+    useWorkspace.getState().undo()
+
+    expect(useWorkspace.getState().nodes.map((n) => n.id)).toEqual(['x'])
   })
 
   it('places added nodes without overlap and can re-layout them', () => {
