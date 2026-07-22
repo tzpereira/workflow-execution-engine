@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tzpereira/workflow-execution-engine/cli/internal/runner"
+	"github.com/tzpereira/workflow-execution-engine/core/domain"
+	"github.com/tzpereira/workflow-execution-engine/core/engine"
 	"github.com/tzpereira/workflow-execution-engine/core/model/providers"
 	"github.com/tzpereira/workflow-execution-engine/core/server"
 	"github.com/tzpereira/workflow-execution-engine/core/settings"
@@ -87,9 +89,30 @@ func runAssembler(dir, workspace string) server.Assembler {
 	return func(ref string) (*server.Assembly, error) {
 		path := filepath.Join(dir, ref)
 		set, _ := settings.New(workspace).Load()
+		openAICompatible := map[string]string{}
+		openAIBaseURL := set.ProviderBaseURLs["openai"]
+		anthropicBaseURL := set.ProviderBaseURLs["anthropic"]
+		for _, c := range set.Connections {
+			if c.Kind != settings.ConnectionKindModelProvider || c.ID == "" {
+				continue
+			}
+			switch c.Type {
+			case "openai":
+				if c.ID == "openai" && c.BaseURL != "" {
+					openAIBaseURL = c.BaseURL
+				}
+			case "anthropic":
+				if c.ID == "anthropic" && c.BaseURL != "" {
+					anthropicBaseURL = c.BaseURL
+				}
+			case "openai-compatible":
+				openAICompatible[c.ID] = c.BaseURL
+			}
+		}
 		provReg := providers.Configured(providers.Config{
-			OpenAIBaseURL:    set.ProviderBaseURLs["openai"],
-			AnthropicBaseURL: set.ProviderBaseURLs["anthropic"],
+			OpenAIBaseURL:    openAIBaseURL,
+			AnthropicBaseURL: anthropicBaseURL,
+			OpenAICompatible: openAICompatible,
 		})
 		asm, err := runner.LoadWith(path, workspace, provReg)
 		if err != nil {
@@ -103,6 +126,32 @@ func runAssembler(dir, workspace string) server.Assembler {
 			Workflow:         asm.Workflow,
 			DefinitionHashes: asm.Registry.DefinitionHashes(*asm.Workflow),
 			Workers:          asm.Registry.Workers(*asm.Workflow),
+			ConnectionRefs:   connectionRefs(set, asm.Registry.Workers(*asm.Workflow)),
 		}, nil
 	}
+}
+
+func connectionRefs(set settings.Settings, workers map[string]domain.Worker) map[string]engine.ConnectionRef {
+	byID := map[string]settings.Connection{}
+	for _, c := range set.Connections {
+		byID[c.ID] = c
+	}
+	out := map[string]engine.ConnectionRef{}
+	for _, w := range workers {
+		if c, ok := byID[w.Model.Provider]; ok {
+			out[c.ID] = engine.ConnectionRef{
+				ID:        c.ID,
+				Label:     c.Label,
+				Kind:      string(c.Kind),
+				Type:      c.Type,
+				BaseURL:   c.BaseURL,
+				SecretEnv: c.SecretEnv,
+				Defaults:  c.Defaults,
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

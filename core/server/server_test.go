@@ -22,6 +22,7 @@ import (
 	"github.com/tzpereira/workflow-execution-engine/core/eventlog"
 	"github.com/tzpereira/workflow-execution-engine/core/registry"
 	"github.com/tzpereira/workflow-execution-engine/core/serialize"
+	"github.com/tzpereira/workflow-execution-engine/core/settings"
 	"github.com/tzpereira/workflow-execution-engine/core/store"
 )
 
@@ -305,6 +306,96 @@ func TestRunStartsExecutionAndReturnsID(t *testing.T) {
 	}
 	if rp.Workflow != "examples/hello.yaml" || rp.Inputs["prUrl"] != "https://example.com/42" {
 		t.Errorf("run params = %+v, want workflow+inputs recorded", rp)
+	}
+}
+
+func TestRunRecordsConnectionRefsWithoutSecretValues(t *testing.T) {
+	ws := t.TempDir()
+	const secret = "ghp-should-never-hit-disk"
+	t.Setenv("GITHUB_AUTH_HEADER", secret)
+	asm := func(string) (*Assembly, error) {
+		sched := engine.New(stubExec{}, store.New(ws), eventlog.New(ws), cache.New(ws))
+		wf := &domain.Workflow{ID: "connected", Version: "1.0.0", Nodes: []domain.Node{{ID: "a"}}}
+		return &Assembly{
+			Scheduler: sched,
+			Workflow:  wf,
+			ConnectionRefs: map[string]engine.ConnectionRef{
+				"kimi": {
+					ID:        "kimi",
+					Label:     "Kimi",
+					Kind:      string(settings.ConnectionKindModelProvider),
+					Type:      "openai-compatible",
+					BaseURL:   "https://api.moonshot.ai/v1",
+					SecretEnv: "MOONSHOT_API_KEY",
+				},
+			},
+		}, nil
+	}
+	s := New(Config{Workspace: ws, Assemble: asm, NewID: func(string) string { return "connected-1" }})
+	if err := s.settings.Save(settings.Settings{Connections: []settings.Connection{{
+		ID:        "github",
+		Label:     "GitHub",
+		Kind:      settings.ConnectionKindChangeSource,
+		Type:      "github",
+		BaseURL:   "https://api.github.com",
+		SecretEnv: "GITHUB_AUTH_HEADER",
+	}}}); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/run", "application/json", strings.NewReader(`{"workflow":"connected.yaml","connections":["github"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d: %s", resp.StatusCode, body)
+	}
+	waitForEvent(t, eventlog.New(ws), "connected-1", domain.ExecutionFinished)
+
+	var snap engine.Snapshot
+	if err := eventlog.New(ws).ReadSnapshot("connected-1", &snap); err != nil {
+		t.Fatalf("read snapshot: %v", err)
+	}
+	if snap.ConnectionRefs["kimi"].BaseURL != "https://api.moonshot.ai/v1" {
+		t.Fatalf("provider connection ref missing: %+v", snap.ConnectionRefs)
+	}
+	if snap.ConnectionRefs["github"].SecretEnv != "GITHUB_AUTH_HEADER" {
+		t.Fatalf("source connection secret ref = %+v, want env-name only", snap.ConnectionRefs["github"])
+	}
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), secret) {
+		t.Fatalf("snapshot leaked secret value:\n%s", data)
+	}
+}
+
+func TestNoForgeNamedPackagesUnderCore(t *testing.T) {
+	forbidden := map[string]bool{"github": true, "gitlab": true, "bitbucket": true}
+	root := filepath.Clean("../")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		name := strings.ToLower(d.Name())
+		if forbidden[name] {
+			t.Fatalf("forge-specific core package/directory found: %s", path)
+		}
+		if name == ".git" || name == "testdata" {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk core: %v", err)
 	}
 }
 

@@ -52,6 +52,7 @@ type Assembly struct {
 	Workflow         *domain.Workflow
 	DefinitionHashes map[string]string
 	Workers          map[string]domain.Worker
+	ConnectionRefs   map[string]engine.ConnectionRef
 }
 
 // Assembler builds an Assembly from a workflow ref (a path under Dir). The CLI
@@ -292,10 +293,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 // overrides (REQ-CTRL-07); both optional — omitted falls back to persisted
 // settings, then the server default / workflow budget.
 type runRequest struct {
-	Workflow  string            `json:"workflow"`
-	Inputs    map[string]string `json:"inputs,omitempty"`
-	Cache     string            `json:"cache,omitempty"`
-	BudgetUsd float64           `json:"budgetUsd,omitempty"`
+	Workflow    string            `json:"workflow"`
+	Inputs      map[string]string `json:"inputs,omitempty"`
+	Cache       string            `json:"cache,omitempty"`
+	BudgetUsd   float64           `json:"budgetUsd,omitempty"`
+	Connections []string          `json:"connections,omitempty"`
 }
 
 type runResponse struct {
@@ -329,6 +331,11 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	cacheMode := s.effectiveCache(req.Cache)
 	budget := s.effectiveBudget(asm.Workflow, req.BudgetUsd)
+	connectionRefs, err := s.resolveConnectionRefs(asm, req.Connections)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	execID := s.newID(asm.Workflow.ID)
 	if err := s.writeRunParams(execID, runParams{
 		Workflow:  req.Workflow,
@@ -347,11 +354,57 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		DefinitionHashes: asm.DefinitionHashes,
 		Workers:          asm.Workers,
 		Inputs:           req.Inputs,
+		ConnectionRefs:   connectionRefs,
 	}
 	s.launch(execID, func(ctx context.Context) (*engine.Result, error) {
 		return asm.Scheduler.Run(ctx, asm.Workflow, opts)
 	})
 	writeJSON(w, http.StatusOK, runResponse{ExecutionID: execID})
+}
+
+func (s *Server) resolveConnectionRefs(asm *Assembly, requested []string) (map[string]engine.ConnectionRef, error) {
+	out := map[string]engine.ConnectionRef{}
+	for id, ref := range asm.ConnectionRefs {
+		out[id] = ref
+	}
+	if len(requested) == 0 {
+		if len(out) == 0 {
+			return nil, nil
+		}
+		return out, nil
+	}
+	set, err := s.settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]settings.Connection{}
+	for _, c := range set.Connections {
+		byID[c.ID] = c
+	}
+	for _, id := range requested {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		c, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("unknown connection %q", id)
+		}
+		out[id] = connectionRef(c)
+	}
+	return out, nil
+}
+
+func connectionRef(c settings.Connection) engine.ConnectionRef {
+	return engine.ConnectionRef{
+		ID:        c.ID,
+		Label:     c.Label,
+		Kind:      string(c.Kind),
+		Type:      c.Type,
+		BaseURL:   c.BaseURL,
+		SecretEnv: c.SecretEnv,
+		Defaults:  c.Defaults,
+	}
 }
 
 // Template is one row of GET /api/templates — enough for the gallery card

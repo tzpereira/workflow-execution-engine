@@ -30,6 +30,9 @@ type Snapshot struct {
 	// run actually run against". omitempty for the same byte-identical-when-
 	// unused reason as DefinitionHashes/Workers.
 	Inputs map[string]string `json:"inputs,omitempty"`
+	// ConnectionRefs records the non-secret connection references resolved for
+	// this run (REQ-CONN-06). Secret values are never present.
+	ConnectionRefs map[string]ConnectionRef `json:"connectionRefs,omitempty"`
 }
 
 // Resume restarts an execution from its recorded state. It reads the snapshot
@@ -123,6 +126,7 @@ func resumeOpts(executionID string, snap Snapshot) RunOptions {
 		Inputs:           snap.Inputs,
 		DefinitionHashes: snap.DefinitionHashes,
 		Workers:          snap.Workers,
+		ConnectionRefs:   snap.ConnectionRefs,
 	}
 }
 

@@ -5,10 +5,11 @@
 // config dir) and is written crash-safe (temp file + rename, NFR-CTRL-01) so an
 // ill-timed kill never leaves a truncated file.
 //
-// It never holds a secret value. Provider keys stay env/keychain references
-// (PRIN-10): ProviderKeyEnv records the *name* of the environment variable a
-// provider's key comes from, never the key itself. Nothing in the Settings
-// struct can carry key material by construction.
+// It never holds a secret value. Provider keys and Connection secrets stay
+// env/keychain references (PRIN-10): ProviderKeyEnv / Connection.SecretEnv
+// record the *name* of the environment variable a secret comes from, never the
+// secret itself. Nothing in the Settings struct can carry key material by
+// construction.
 package settings
 
 import (
@@ -46,6 +47,31 @@ type Settings struct {
 	WorkspaceRoot string `json:"workspaceRoot,omitempty"`
 	// TemplatePaths are directories of `wee export` bundles the gallery lists.
 	TemplatePaths []string `json:"templatePaths,omitempty"`
+	// Connections are named, reusable, non-secret reference bundles for model
+	// providers and change sources (M2.9, ADR 0013). SecretEnv is an env-var
+	// NAME, never the secret value.
+	Connections []Connection `json:"connections,omitempty"`
+}
+
+// ConnectionKind describes the two connection families M2.9 introduces.
+type ConnectionKind string
+
+const (
+	ConnectionKindModelProvider ConnectionKind = "model-provider"
+	ConnectionKindChangeSource  ConnectionKind = "change-source"
+)
+
+// Connection is a persisted non-secret reference bundle. Type is intentionally
+// data, not behavior: provider types are bound only by core/model/providers;
+// source types stay workflow/tool metadata and never become engine concepts.
+type Connection struct {
+	ID        string            `json:"id"`
+	Label     string            `json:"label"`
+	Kind      ConnectionKind    `json:"kind"`
+	Type      string            `json:"type"`
+	BaseURL   string            `json:"baseUrl,omitempty"`
+	SecretEnv string            `json:"secretEnv,omitempty"`
+	Defaults  map[string]string `json:"defaults,omitempty"`
 }
 
 // Store reads and writes a workspace's settings.json. Safe for concurrent use.

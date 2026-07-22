@@ -20,6 +20,15 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		CacheMode:        "readonly",
 		WorkspaceRoot:    "/repo",
 		TemplatePaths:    []string{"examples"},
+		Connections: []settings.Connection{{
+			ID:        "kimi",
+			Label:     "Kimi",
+			Kind:      settings.ConnectionKindModelProvider,
+			Type:      "openai-compatible",
+			BaseURL:   "https://api.moonshot.ai/v1",
+			SecretEnv: "MOONSHOT_API_KEY",
+			Defaults:  map[string]string{"model": "moonshot-v1-8k"},
+		}},
 	}
 	if err := settings.New(ws).Save(want); err != nil {
 		t.Fatalf("save: %v", err)
@@ -31,7 +40,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if got.CacheMode != want.CacheMode || got.DefaultBudgetUSD != want.DefaultBudgetUSD ||
 		got.WorkspaceRoot != want.WorkspaceRoot || got.ProviderBaseURLs["openai"] != want.ProviderBaseURLs["openai"] ||
-		got.ProviderKeyEnv["openai"] != want.ProviderKeyEnv["openai"] || len(got.TemplatePaths) != 1 {
+		got.ProviderKeyEnv["openai"] != want.ProviderKeyEnv["openai"] || len(got.TemplatePaths) != 1 ||
+		len(got.Connections) != 1 || got.Connections[0].ID != "kimi" ||
+		got.Connections[0].SecretEnv != "MOONSHOT_API_KEY" {
 		t.Fatalf("round-trip mismatch:\n got=%+v\nwant=%+v", got, want)
 	}
 }
@@ -58,6 +69,14 @@ func TestSecretValueNeverPersisted(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", secret)
 	if err := settings.New(ws).Save(settings.Settings{
 		ProviderKeyEnv: map[string]string{"openai": "OPENAI_API_KEY"},
+		Connections: []settings.Connection{{
+			ID:        "github",
+			Label:     "GitHub",
+			Kind:      settings.ConnectionKindChangeSource,
+			Type:      "github",
+			BaseURL:   "https://api.github.com",
+			SecretEnv: "GITHUB_AUTH_HEADER",
+		}},
 	}); err != nil {
 		t.Fatalf("save: %v", err)
 	}

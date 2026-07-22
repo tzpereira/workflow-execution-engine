@@ -63,7 +63,7 @@ func (e *ToolExecutor) execute(ctx context.Context, req NodeRequest, emit func(d
 
 	secrets := make(map[string]string)
 	refHashes := make(map[string]bool)
-	resolved, err := resolveToolInput(call.Input, req.Inputs, req.WorkflowInputs, secrets, refHashes)
+	resolved, err := resolveToolInput(call.Input, req.Inputs, req.WorkflowInputs, req.ConnectionRefs, secrets, refHashes)
 	if err != nil {
 		return NodeResult{}, Fatal(fmt.Errorf("engine: node %q: resolving tool input: %w", req.Node.ID, err))
 	}

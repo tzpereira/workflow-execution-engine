@@ -106,6 +106,23 @@ type RunOptions struct {
 	// nil is byte-identical to a run that supplied nothing, for a Workflow with
 	// no declared Inputs.
 	Inputs map[string]string
+	// ConnectionRefs records the non-secret connection resolutions a caller made
+	// before dispatch (connection id -> reference metadata). The engine treats
+	// it as opaque provenance and never interprets or resolves it (REQ-CONN-06).
+	ConnectionRefs map[string]ConnectionRef
+}
+
+// ConnectionRef is snapshot provenance for a resolved Connection. It contains
+// only labels, ids, endpoint references, and env-var names — never secret
+// values (PRIN-10).
+type ConnectionRef struct {
+	ID        string            `json:"id"`
+	Label     string            `json:"label,omitempty"`
+	Kind      string            `json:"kind"`
+	Type      string            `json:"type"`
+	BaseURL   string            `json:"baseUrl,omitempty"`
+	SecretEnv string            `json:"secretEnv,omitempty"`
+	Defaults  map[string]string `json:"defaults,omitempty"`
 }
 
 // Scheduler runs workflows against a NodeExecutor, persisting artifacts and
@@ -256,7 +273,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 	}
 
 	if fresh {
-		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers, Inputs: wfInputs}); err != nil {
+		if err := s.log.WriteSnapshot(execID, Snapshot{Workflow: *wf, Budget: opts.Budget, Concurrency: opts.Concurrency, DefinitionHashes: opts.DefinitionHashes, Workers: opts.Workers, Inputs: wfInputs, ConnectionRefs: opts.ConnectionRefs}); err != nil {
 			return &Result{ExecutionID: execID, State: domain.ExecutionFailed, Nodes: outcomes}, fmt.Errorf("engine: write snapshot: %w", err)
 		}
 		s.emit(execID, domain.ExecutionStarted, "", map[string]any{"workflow": wf.ID, "version": wf.Version})
@@ -359,7 +376,7 @@ func (s *Scheduler) run(parent context.Context, wf *domain.Workflow, opts RunOpt
 		go func() {
 			defer wg.Done()
 			for t := range tasks {
-				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode, wfInputs)
+				res, err := s.executeNode(ctx, execID, t.node, t.attrTo, t.inputs, opts.Budget.MaxRetriesPerNode, backoff, cacheMode, wfInputs, opts.ConnectionRefs)
 				completions <- completion{id: t.attrTo, node: t.node, res: res, err: err}
 			}
 		}()

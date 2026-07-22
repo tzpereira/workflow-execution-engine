@@ -22,6 +22,9 @@ import (
 type Config struct {
 	OpenAIBaseURL    string
 	AnthropicBaseURL string
+	// OpenAICompatible maps provider names (for example "kimi") to base URLs
+	// served through the existing OpenAI-compatible client (REQ-CONN-02).
+	OpenAICompatible map[string]string
 }
 
 // Default returns a Registry wired with the built-in providers on their public
@@ -38,6 +41,13 @@ func Configured(cfg Config) *model.Registry {
 		oo = append(oo, openai.WithBaseURL(cfg.OpenAIBaseURL))
 	}
 	r.Register("openai", openai.New(oo...))
+	for name, baseURL := range cfg.OpenAICompatible {
+		var opts []openai.Option
+		if baseURL != "" {
+			opts = append(opts, openai.WithBaseURL(baseURL))
+		}
+		r.Register(name, openai.New(opts...))
+	}
 	var ao []anthropic.Option
 	if cfg.AnthropicBaseURL != "" {
 		ao = append(ao, anthropic.WithBaseURL(cfg.AnthropicBaseURL))

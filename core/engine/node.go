@@ -32,6 +32,10 @@ type NodeRequest struct {
 	// — distinct from Inputs (upstream artifacts): this is the workflow-level,
 	// caller-supplied-or-defaulted parameter map, same for every node in the run.
 	WorkflowInputs map[string]string
+	// ConnectionRefs is the run's resolved, non-secret connection provenance.
+	// Tool-backed nodes may read fields from it via "${connection:id.field}"
+	// placeholders; secret values are still read only through "${env:NAME}".
+	ConnectionRefs map[string]ConnectionRef
 }
 
 // NodeResult is what a NodeExecutor returns for one node. Hash is filled in by
@@ -97,6 +101,7 @@ func (s *Scheduler) executeNode(
 	backoff backoffFunc,
 	cacheMode CacheMode,
 	wfInputs map[string]string,
+	connectionRefs map[string]ConnectionRef,
 ) (NodeResult, error) {
 	s.emit(execID, domain.WorkerStarted, logicalID, nil)
 
@@ -130,11 +135,11 @@ func (s *Scheduler) executeNode(
 		var r NodeResult
 		var e error
 		if hasToolEmitter {
-			r, e = toolEmitter.ExecuteWithEmit(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback, WorkflowInputs: wfInputs}, func(t domain.EventType, payload map[string]any) {
+			r, e = toolEmitter.ExecuteWithEmit(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback, WorkflowInputs: wfInputs, ConnectionRefs: connectionRefs}, func(t domain.EventType, payload map[string]any) {
 				s.emit(execID, t, logicalID, payload)
 			})
 		} else {
-			r, e = s.exec.Execute(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback, WorkflowInputs: wfInputs})
+			r, e = s.exec.Execute(ctx, NodeRequest{Node: runNode, Inputs: inputs, RetryFeedback: feedback, WorkflowInputs: wfInputs, ConnectionRefs: connectionRefs})
 		}
 		if e == nil {
 			res = r

@@ -112,6 +112,40 @@ func TestToolExecutorResolvesUpstreamPlaceholder(t *testing.T) {
 	}
 }
 
+func TestToolExecutorResolvesConnectionPlaceholders(t *testing.T) {
+	ft := &fakeTool{name: "fake"}
+	ex := engine.NewToolExecutor(registryWith(ft))
+	node := domain.Node{ID: "fetch", Tool: &domain.ToolCall{
+		ToolName: "fake",
+		Input: map[string]any{
+			"url":       "${connection:gitlab.baseUrl}",
+			"secretEnv": "${connection:gitlab.secretEnv}",
+			"header":    "${connection:gitlab.tokenHeader}",
+		},
+	}}
+	req := engine.NodeRequest{
+		Node: node,
+		ConnectionRefs: map[string]engine.ConnectionRef{
+			"gitlab": {
+				ID:        "gitlab",
+				Kind:      "change-source",
+				Type:      "gitlab",
+				BaseURL:   "https://gitlab.example/api/v4",
+				SecretEnv: "GITLAB_AUTH_HEADER",
+				Defaults:  map[string]string{"tokenHeader": "PRIVATE-TOKEN"},
+			},
+		},
+	}
+	if _, err := ex.Execute(context.Background(), req); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(ft.lastInput, &got)
+	if got["url"] != "https://gitlab.example/api/v4" || got["secretEnv"] != "GITLAB_AUTH_HEADER" || got["header"] != "PRIVATE-TOKEN" {
+		t.Fatalf("tool received unresolved connection fields: %s", ft.lastInput)
+	}
+}
+
 func TestToolExecutorNotToolBackedIsFatal(t *testing.T) {
 	ex := engine.NewToolExecutor(tool.NewRegistry())
 	_, err := ex.Execute(context.Background(), engine.NodeRequest{Node: domain.Node{ID: "a", Worker: "w@1"}})
