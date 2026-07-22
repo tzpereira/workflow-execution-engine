@@ -112,61 +112,75 @@ export function TemplateGallery({
             </div>
           )}
           <div className="grid grid-cols-1 gap-2">
-            {templates.map((t) => (
-              <button
-                key={t.name}
-                type="button"
-                disabled={importingName !== null}
-                onClick={() => void pick(t.name)}
-                className="rounded-md border border-neutral-200 p-3 text-left hover:border-neutral-400 disabled:opacity-50"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-neutral-900">{t.name}</div>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                      t.writeCapable
-                        ? 'bg-amber-50 text-amber-700'
-                        : 'bg-emerald-50 text-emerald-700'
-                    }`}
-                  >
-                    {t.writeCapable ? 'write-capable' : 'read-only'}
-                  </span>
-                </div>
-                <div className="mt-0.5 font-mono text-xs text-neutral-500">
-                  {t.workflowId}@{t.version}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-400">
-                  <span>
-                    {t.nodeCount} node{t.nodeCount === 1 ? '' : 's'}
-                  </span>
-                  <span>≤ ${t.expectedCostUsd.toFixed(2)}</span>
-                  <span>≤ {formatDuration(t.expectedDurationMs)}</span>
-                  <span>{t.tools.length > 0 ? t.tools.join(', ') : 'no tools'}</span>
-                </div>
-                {t.inputs.length > 0 && (
-                  <ul className="mt-1.5 space-y-0.5 border-t border-neutral-100 pt-1.5">
-                    {t.inputs.map((input) => (
-                      <li key={input.name} className="text-xs text-neutral-500">
-                        <span className="font-mono text-neutral-700">
-                          {input.name}
-                        </span>
-                        {input.required && (
-                          <span className="ml-1 text-[10px] text-red-600">
-                            required
-                          </span>
-                        )}
-                        {input.description && <span> — {input.description}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {importingName === t.name && (
-                  <div className="mt-1 text-xs text-neutral-400">
-                    importing…
+            {templates.map((t) => {
+              // Defensive: tools/inputs are server-guaranteed non-null arrays
+              // (core/registry.DeriveTemplateFacts), but a client shouldn't
+              // crash on .length if that guarantee ever drifts.
+              const tools = t.tools ?? []
+              const inputs = t.inputs ?? []
+              return (
+                <button
+                  key={t.name}
+                  type="button"
+                  disabled={importingName !== null}
+                  onClick={() => void pick(t.name)}
+                  className="rounded-md border border-neutral-200 p-3 text-left hover:border-neutral-400 disabled:opacity-50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-neutral-900">{t.name}</div>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        t.writeCapable
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-emerald-50 text-emerald-700'
+                      }`}
+                    >
+                      {t.writeCapable ? 'write-capable' : 'read-only'}
+                    </span>
                   </div>
-                )}
-              </button>
-            ))}
+                  <div className="mt-0.5 font-mono text-xs text-neutral-500">
+                    {t.workflowId}@{t.version}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-400">
+                    <span>
+                      {t.nodeCount} node{t.nodeCount === 1 ? '' : 's'}
+                    </span>
+                    <span>≤ ${t.expectedCostUsd.toFixed(2)}</span>
+                    <span>≤ {formatDuration(t.expectedDurationMs)}</span>
+                    <span>
+                      {tools.length > 0 ? tools.join(', ') : 'no tools'}
+                    </span>
+                  </div>
+                  {inputs.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 border-t border-neutral-100 pt-1.5">
+                      {inputs.map((input) => (
+                        <li
+                          key={input.name}
+                          className="text-xs text-neutral-500"
+                        >
+                          <span className="font-mono text-neutral-700">
+                            {input.name}
+                          </span>
+                          {input.required && (
+                            <span className="ml-1 text-[10px] text-red-600">
+                              required
+                            </span>
+                          )}
+                          {input.description && (
+                            <span> — {input.description}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {importingName === t.name && (
+                    <div className="mt-1 text-xs text-neutral-400">
+                      importing…
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>

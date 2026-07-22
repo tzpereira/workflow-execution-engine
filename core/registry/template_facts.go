@@ -32,11 +32,19 @@ type TemplateInput struct {
 }
 
 // DeriveTemplateFacts computes TemplateFacts for wf. It needs no Registry
-// state — a pure function of the canonical Workflow.
+// state — a pure function of the canonical Workflow. Tools/Inputs are always
+// non-nil (empty rather than nil when there are none): both travel over the
+// wire as a JSON array, and a nil Go slice marshals to `null`, not `[]` — a
+// client typed against a non-nullable array (ui/src/core/audit.ts's
+// Template) would crash calling .length on it (caught live: refactor-plan,
+// which declares no workflow inputs, round-tripped as "inputs": null through
+// the real GET /api/templates before this fix).
 func DeriveTemplateFacts(wf domain.Workflow) TemplateFacts {
 	facts := TemplateFacts{
+		Tools:              []string{},
 		ExpectedCostUsd:    wf.Budget.MaxCostUSD,
 		ExpectedDurationMs: wf.Budget.MaxDurationMs,
+		Inputs:             []TemplateInput{},
 	}
 
 	seen := make(map[string]bool)

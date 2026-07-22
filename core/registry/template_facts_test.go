@@ -1,6 +1,8 @@
 package registry_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/tzpereira/workflow-execution-engine/core/domain"
@@ -88,6 +90,29 @@ func TestDeriveTemplateFactsAggregatesAcrossNodes(t *testing.T) {
 	}
 	if len(got.Inputs) != 2 || got.Inputs[0].Name != "prUrl" || !got.Inputs[0].Required {
 		t.Errorf("Inputs = %+v, want [{prUrl required=true ...} {note ...}]", got.Inputs)
+	}
+}
+
+// TestDeriveTemplateFactsToolsAndInputsNeverMarshalNull covers a real
+// regression: a nil Go slice marshals to JSON `null`, not `[]`. A client
+// typed against a non-nullable array (ui/src/core/audit.ts's Template)
+// crashes calling .length on `null` — caught live when refactor-plan (no
+// declared workflow inputs) round-tripped through a real GET /api/templates
+// as "inputs": null before DeriveTemplateFacts initialized these non-nil.
+func TestDeriveTemplateFactsToolsAndInputsNeverMarshalNull(t *testing.T) {
+	wf := domain.Workflow{ID: "wf", Version: "1.0.0", Nodes: []domain.Node{{ID: "review", Worker: "reviewer@1.0.0"}}}
+	facts := registry.DeriveTemplateFacts(wf)
+
+	raw, err := json.Marshal(facts)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	got := string(raw)
+	if want := `"tools":[]`; !strings.Contains(got, want) {
+		t.Errorf("marshaled JSON = %s, want it to contain %s (not null)", got, want)
+	}
+	if want := `"inputs":[]`; !strings.Contains(got, want) {
+		t.Errorf("marshaled JSON = %s, want it to contain %s (not null)", got, want)
 	}
 }
 

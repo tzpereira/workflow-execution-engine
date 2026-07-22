@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Template } from '../core/audit'
 import * as liveClient from '../liveClient'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
@@ -72,6 +73,33 @@ describe('TemplateGallery', () => {
     expect(screen.getByText('prUrl')).toBeInTheDocument()
     expect(screen.getByText('required')).toBeInTheDocument()
     expect(screen.getByText(/PR diff URL/)).toBeInTheDocument()
+  })
+
+  it('renders without crashing when tools/inputs arrive as null (server contract drift)', () => {
+    // Regression: a nil Go slice marshals to JSON `null`, not `[]` — caught
+    // live when refactor-plan (no declared inputs) round-tripped through a
+    // real GET /api/templates as "inputs": null before core/registry's
+    // DeriveTemplateFacts was fixed to always return non-nil slices. The
+    // client stays defensive even though the server is now fixed.
+    useLive.setState({
+      templates: [
+        {
+          name: 'refactor-plan',
+          workflowId: 'refactor-plan',
+          version: '1.0.0',
+          nodeCount: 2,
+          tools: null as unknown as string[],
+          writeCapable: false,
+          expectedCostUsd: 0.03,
+          expectedDurationMs: 90000,
+          inputs: null as unknown as Template['inputs'],
+        },
+      ],
+    })
+    render(<TemplateGallery open onOpenChange={() => {}} />)
+
+    expect(screen.getByText('refactor-plan')).toBeInTheDocument()
+    expect(screen.getByText('no tools')).toBeInTheDocument()
   })
 
   it('shows a write-capable badge for a template with a write-capable tool call', () => {
