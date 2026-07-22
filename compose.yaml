@@ -1,0 +1,15 @@
+services:
+  wee:
+    build: .
+    image: wee:local
+    ports:
+      - "7676:7676"
+    volumes:
+      - wee-data:/data/.workflow
+      - wee-workflows:/workflows
+      - ./examples/templates:/templates:ro
+    restart: unless-stopped
+
+volumes:
+  wee-data:
+  wee-workflows:

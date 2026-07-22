@@ -53,6 +53,48 @@ func fastServer(t *testing.T, assemble Assembler) (*Server, *eventlog.Log) {
 	return s, eventlog.New(ws)
 }
 
+func TestServesStaticUIWithSPAFallback(t *testing.T) {
+	uiDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(uiDir, "index.html"), []byte("<main>wee ui</main>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(uiDir, "app.js"), []byte("console.log('wee')"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := New(Config{Workspace: t.TempDir(), UIDir: uiDir})
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	for _, path := range []string{"/", "/runs/e1"} {
+		resp, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || !strings.Contains(string(data), "wee ui") {
+			t.Fatalf("GET %s = %d %q, want index fallback", path, resp.StatusCode, data)
+		}
+	}
+	resp, err := http.Get(ts.URL + "/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(data), "console.log") {
+		t.Fatalf("asset response = %d %q", resp.StatusCode, data)
+	}
+	resp, err = http.Get(ts.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("health through UI server = %d", resp.StatusCode)
+	}
+}
+
 // stubExec is a NodeExecutor that returns a fixed JSON artifact without a model
 // or tool — enough to drive a run to completion through the real Scheduler.
 type stubExec struct{}

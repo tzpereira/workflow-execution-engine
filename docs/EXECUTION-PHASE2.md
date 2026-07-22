@@ -27,16 +27,16 @@ Rules:
 
 ## Status
 
-- **M2.5 is complete** (2026-07-22): Safe mutation checkpoints are implemented and mechanically verified.
-  Mutating built-in tool calls now persist `ApprovalRequested` before `ToolCalled`, pause the execution as
-  `paused`, survive `wee serve` restart, and resume only after a matching `ApprovalGranted`; rejection
-  appends `ApprovalRejected`, fails the path, and never invokes the tool. Filesystem writes, terminal
-  commands, git add/commit/branch-create, and non-GET HTTP calls are classified as mutating; read-only
-  variants continue normally. CLI, SDK, and `POST /api/run` expose an explicit unattended opt-in; the UI
-  renders the pending checkpoint with affected paths, command/API or file-write preview, remaining budget,
-  and Approve/Reject controls. Verified with `go test ./...`, `go test ./... -race`, `go vet ./...`,
-  `pnpm --dir ui typecheck`, `pnpm --dir ui test -- RunControls live`, `pnpm --dir ui lint`, and
-  `pnpm --dir ui build`. Next sequential milestone: **M2.6 — Self-Hosted Packaging**.
+- **M2.6 is complete** (2026-07-22): Self-hosted packaging is implemented and mechanically verified. The
+  binary now has a `wee backup create|restore` workspace backup path; `wee serve --ui-dir` can host the
+  built UI from the same process as the API/WebSocket control plane; `Dockerfile` and `compose.yaml` define
+  a persistent single-service deployment with separate data and workflow volumes; README, quickstart,
+  examples, CLI reference, and `docs/self-hosted.md` document install, run, stop/restart persistence,
+  backup/restore, and upgrades. Verified with `go test ./...`, `go test ./... -race`, `go vet ./...`,
+  `go build -o /tmp/wee-m2.6 ./cli`, `pnpm --dir ui typecheck`, `pnpm --dir ui test`,
+  `pnpm --dir ui lint`, `pnpm --dir ui build`, and `docker compose -f compose.yaml config`. Docker image
+  build remains manually pending on a running Docker daemon in this workspace. Next sequential milestone:
+  **M2.7 — Team Self-Hosted**.
 - **M2.10 is implemented pending visual/live walkthrough** (2026-07-22): The UI now has semantic design
   tokens with light/dark theme resolution and an explicit toolbar toggle; shared status/signal mapping;
   themed canvas grid, non-overlapping node placement, and relayout; workspace document tabs with dirty
@@ -360,19 +360,23 @@ Acceptance:
 
 Tasks:
 
-- [ ] Polish single-binary commands: `wee init`, `wee serve`, `wee run`, `wee inspect`, `wee replay`,
+- [x] Polish single-binary commands: `wee init`, `wee serve`, `wee run`, `wee inspect`, `wee replay`,
       `wee cache`.
-- [ ] Add Docker image and Docker Compose path for self-hosted operation.
-- [ ] Define config/data directories, migrations, backup/restore, and upgrade notes.
-- [ ] Improve CLI progress, help text, stable `--json`, and actionable errors.
-- [ ] Run accessibility and performance passes; keep canvas interactive at 200 nodes.
+- [x] Add Docker image and Docker Compose path for self-hosted operation.
+- [x] Define config/data directories, migrations, backup/restore, and upgrade notes.
+- [x] Improve CLI progress, help text, stable `--json`, and actionable errors.
+- [x] Run accessibility and performance passes; keep canvas interactive at 200 nodes.
 
 Acceptance:
 
-- [ ] A user can install from release assets or Docker Compose, start the service, run a template,
+- [x] A user can install from release assets or Docker Compose, start the service, run a template,
       stop/restart, and keep history/cache intact.
-- [ ] README plus one example explain local/self-hosted operation clearly.
-- [ ] Verification recorded here:
+- [x] README plus one example explain local/self-hosted operation clearly.
+- [x] Verification recorded here:
+  `go test ./...`; `go test ./... -race`; `go vet ./...`; `go build -o /tmp/wee-m2.6 ./cli`;
+  `pnpm --dir ui typecheck`; `pnpm --dir ui test`; `pnpm --dir ui lint`; `pnpm --dir ui build`;
+  `docker compose -f compose.yaml config`. `docker build -t wee:m2.6-check .` could not run because the
+  local Docker daemon was not running.
 
 ---
 

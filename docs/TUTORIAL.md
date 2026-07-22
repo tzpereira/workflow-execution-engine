@@ -19,7 +19,7 @@ The fastest way to understand it is to run one. The first workflow below is **to
 - **An `OPENAI_API_KEY`** — *only* for the LLM-Worker part in [§6](#6-running-an-llm-worker-needs-a-provider-key).
   Everything before that runs offline, for free, and deterministically.
 
-There is no released binary yet (Phase 1, pre-release), so you build it from the repo.
+Install a release archive when one is available, or build it from the repo:
 
 ---
 
@@ -51,14 +51,23 @@ Usage:
   wee [command]
 
 Available Commands:
+  backup      Back up or restore the workspace state directory
   cache       Inspect and manage the node cache
+  completion  Generate the autocompletion script for the specified shell
   export      Export a workflow and its Workers as a portable bundle
+  help        Help about any command
   init        Scaffold a workspace with a minimal, runnable example workflow
   inspect     Inspect a recorded execution's nodes, costs, and artifacts
   list        List workflows in this directory and recorded executions
   replay      Audit a recorded execution, or re-execute it and report divergence
   run         Run (or resume) a workflow, streaming events live
+  serve       Serve the local control plane (event stream + run controls) for the UI
   validate    Validate a workflow definition against the schema and graph rules
+
+Flags:
+  -h, --help   help for wee
+
+Use "wee [command] --help" for more information about a command.
 ```
 
 ---
@@ -415,14 +424,15 @@ Either way you'll see one JSON text frame per `domain.Event` — byte-identical 
 | `wee run <file> --json` | Same, but emit line-delimited event JSON (what `wee serve` also streams). |
 | `wee list` | List workflows in the directory and recorded executions. |
 | `wee inspect <id>` | Reconstruct a recorded run from disk (add `--node <id>` for detail + artifact). |
-| `wee replay <id>` | Audit a recorded run; `--reexecute` runs it again and reports divergence. |
+| `wee replay <id>` | Audit a recorded run; `--execute` runs it again and reports divergence. |
 | `wee cache ls` / `inspect <key>` / `clear` | Inspect and manage the node cache. |
+| `wee backup create <archive.tar.gz>` / `restore <archive.tar.gz>` | Back up or restore the workspace state directory. |
 | `wee export <file> [-o out.tar]` | Bundle a workflow + its Workers into a portable tar. |
-| `wee serve [--addr host:port] [--dir .] [--workspace .workflow]` | Serve the live WebSocket event stream + run API for the UI. |
+| `wee serve [--addr host:port] [--dir .] [--workspace .workflow] [--templates dir] [--ui-dir ui/dist]` | Serve the run API, live WebSocket stream, and optionally the built UI. |
 
 Common flags on `run`: `--cache on\|off\|readonly`, `--concurrency N` (0 = engine default),
 `--resume <id>`, `--budget <usd>` (override the workflow's max cost), `--workspace <dir>` (state directory,
-default `.workflow`).
+default `.workflow`), `--allow-mutations-without-approval` (explicitly bypass approval checkpoints).
 
 ## 10. Exit codes
 

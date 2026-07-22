@@ -1,14 +1,14 @@
 # Spec — CLI
 
-**Prefix:** `REQ-CLI` · **Status:** STABLE (delivery M1.9) · **Principles:** PRIN-02, PRIN-05, PRIN-06 ·
-**Implementation:** `cli/` (M1.9)
+**Prefix:** `REQ-CLI` · **Status:** STABLE (delivery M1.9; backup/restore M2.6) ·
+**Principles:** PRIN-02, PRIN-05, PRIN-06 · **Implementation:** `cli/` (M1.9)
 
 One static Go binary, `wee`, that feels like Git or Terraform: instant startup, everything works from the
 terminal, no UI required. The CLI is a pure client of the engine and its event stream.
 
 ### REQ-CLI-01 — Command surface
-The binary shall provide `run`, `replay`, `inspect`, `validate`, `export`, `cache`, `init`, `list`, and
-(M1.12) `serve` — each wrapping its core package, with filled-in help text.
+The binary shall provide `run`, `replay`, `inspect`, `validate`, `export`, `cache`, `init`, `list`,
+(M1.12) `serve`, and (M2.6) `backup` — each wrapping its core package, with filled-in help text.
 - **Delivered by:** M1.9 (+`serve` in M1.12 — `cli/cmd/serve.go`, wrapping `core/server`; see
   [spec/ui.md](ui.md) REQ-UI-02 and [ADR 0010](../adr/0010-websocket-transport.md)). Note: `export` takes a
   workflow *file*, not a bare `<name>@<version>` — M1.8's registry is in-memory, so there is no persistent
@@ -16,7 +16,8 @@ The binary shall provide `run`, `replay`, `inspect`, `validate`, `export`, `cach
   id@version. **Verified by:** `cmd.TestReplayAuditReadsRecordedRun`, `cmd.TestInspectNodeShowsArtifact`,
   `cmd.TestExportRoundTrips`, `cmd.TestListShowsWorkflowAndExecution`, `cmd.TestCacheClear`,
   `cmd.TestValidateAcceptsGoodWorkflow`, `cmd.TestServeCommandRegistered`,
-  `cmd.TestRunStarterExecutesInBackground`.
+  `cmd.TestRunStarterExecutesInBackground`, `cmd.TestBackupCreateRestoreRoundTrip`,
+  `cmd.TestBackupRestoreRefusesNonEmptyWithoutForce`.
 
 ### REQ-CLI-02 — Zero-config first run
 `wee init && wee run examples/hello.yaml` shall work with only the default provider's key in the
@@ -50,3 +51,10 @@ error, `130` on SIGINT.
 `wee --help` shall complete in under 50ms (measured).
 - **Delivered by:** M1.9. **Verified by:** `cmd.TestStartupUnder50ms` (builds the real binary, asserts
   best-of-7 under 50ms; measured ~10ms).
+
+### REQ-CLI-05 — Workspace backup and restore
+The binary shall back up and restore the workspace state directory, including execution records, artifacts,
+cache, and non-secret settings. Restore shall reject path-traversal entries and shall refuse to write into a
+non-empty workspace unless the operator explicitly passes `--force`.
+- **Delivered by:** M2.6. **Verified by:** `cmd.TestBackupCreateRestoreRoundTrip`,
+  `cmd.TestBackupRestoreRefusesNonEmptyWithoutForce`, `cmd.TestBackupRestoreRejectsUnsafeEntry`.

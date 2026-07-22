@@ -30,6 +30,16 @@ and History tabs cover cost/cache/retry numbers per run and across runs. See [ui
 for the UI's own structure, and the [Makefile](../Makefile) for `make serve`/`make ui`/`make stop`
 (backend-only, frontend-only, and cleanup).
 
+## Path C — Docker Compose
+
+```sh
+docker compose up --build
+```
+
+Open `http://localhost:7676`, import a template, and run it. The `wee-data` and `wee-workflows` volumes
+preserve history, artifacts, cache, settings, and imported workflows across stop/restart. Backup and upgrade
+steps live in [self-hosted.md](self-hosted.md).
+
 ## What you just ran
 
 A **Workflow** — a versioned graph of **Worker** and **Tool** nodes. Every Worker's output is validated
@@ -43,4 +53,5 @@ concept: [concepts/](concepts/).
 - [writing-contracts.md](writing-contracts.md) — design a Contract that resists slop
 - [cache-deep-dive.md](cache-deep-dive.md) — why the second run of anything unchanged is free
 - [replay-honesty.md](replay-honesty.md) — what audit and re-execution do and do not guarantee
+- [self-hosted.md](self-hosted.md) — Docker Compose, persistent paths, backup/restore, upgrades
 - [examples/](../examples/README.md) — every shipped template, with expected cost

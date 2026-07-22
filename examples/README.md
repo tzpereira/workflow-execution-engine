@@ -8,10 +8,11 @@ domain model.
 The published UI gallery deliberately contains only read-only workflows that
 are useful on first run: `pr-review`, `test-generator`, `change-risk`,
 `refactor-plan`, `release-notes`, and `dependency-audit`. Examples that write
-files or use Git mutations remain available as source references, but will
-not return to the beginner gallery until the persisted human-approval gate in
-M2.5 is delivered. Read-only-ness is a structural guarantee, not a naming
-convention: `core/registry.DeriveTemplateFacts` classifies every published
+files or use Git mutations remain available as source references, now guarded
+by M2.5's persisted human-approval checkpoints, but they stay out of the
+beginner gallery until the product has a fuller guided mutation flow.
+Read-only-ness is a structural guarantee, not a naming convention:
+`core/registry.DeriveTemplateFacts` classifies every published
 `.tar`, and `examples_test.go`'s `TestPublishedTemplateCatalogIsReadOnly`
 fails CI if a write-capable workflow is ever added to `templates/`.
 
@@ -102,3 +103,15 @@ The **local file** change-source shape (M2.3): a read-only filesystem read
 of a dependency manifest, no network at all. Deliberately does not call a
 live vulnerability-lookup API — see its [README](dependency-audit/README.md)
 for that disclosed scope boundary.
+
+## Self-hosted template run
+
+With Docker Compose, open `http://localhost:7676`, click **Templates**, import one of the read-only
+templates, and run it. The Compose volumes keep imported workflows, history, artifacts, and cache after:
+
+```sh
+docker compose down
+docker compose up
+```
+
+See [docs/self-hosted.md](../docs/self-hosted.md) for backup/restore and upgrade steps.

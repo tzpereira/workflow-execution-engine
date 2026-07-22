@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -21,7 +22,7 @@ import (
 // re-execute, clear cache, export bundle — plus durable non-secret settings. On
 // startup it reconciles any run a prior process left in flight (ADR 0012).
 func newServeCmd() *cobra.Command {
-	var addr, workspace, dir, cache, templates string
+	var addr, workspace, dir, cache, templates, uiDir string
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Serve the local control plane (event stream + run controls) for the UI",
@@ -40,12 +41,18 @@ func newServeCmd() *cobra.Command {
 			"  GET|PUT /api/settings             durable, non-secret settings\n" +
 			"  GET  /api/templates               list `wee export` bundles under --templates\n\n" +
 			"Each event frame is byte-identical to one line of `wee run --json` and is\n" +
-			"pushed, not polled (ADR 0010). The UI is a pure client of it.",
+			"pushed, not polled (ADR 0010). The UI is a pure client of it. With --ui-dir,\n" +
+			"serve also hosts the built React app at / for single-process self-hosting.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cacheMode, err := parseCacheMode(cache)
 			if err != nil {
 				return coded(ExitValidation, err)
+			}
+			if uiDir != "" {
+				if _, err := os.Stat(filepath.Join(uiDir, "index.html")); err != nil {
+					return coded(ExitValidation, fmt.Errorf("--ui-dir %s does not contain index.html: %w", uiDir, err))
+				}
 			}
 			srv := server.New(server.Config{
 				Workspace:    workspace,
@@ -54,6 +61,7 @@ func newServeCmd() *cobra.Command {
 				DefaultCache: cacheMode,
 				Dir:          dir,
 				TemplatesDir: templates,
+				UIDir:        uiDir,
 			})
 			// Settle any run a prior process left in flight before accepting
 			// requests, so no execution is ever reported as silently running.
@@ -66,6 +74,9 @@ func newServeCmd() *cobra.Command {
 			if templates != "" {
 				fmt.Fprintf(out, "  templates: %s\n", templates)
 			}
+			if uiDir != "" {
+				fmt.Fprintf(out, "  ui:        http://%s/ (%s)\n", addr, uiDir)
+			}
 			return srv.ListenAndServe(addr)
 		},
 	}
@@ -75,6 +86,7 @@ func newServeCmd() *cobra.Command {
 	fl.StringVar(&dir, "dir", ".", "base directory that run/control workflow paths resolve against")
 	fl.StringVar(&cache, "cache", "on", "default cache mode for started runs: on | off | readonly")
 	fl.StringVar(&templates, "templates", "", "directory of `wee export` bundles (*.tar) for the UI's template gallery; empty disables it")
+	fl.StringVar(&uiDir, "ui-dir", "", "serve a built UI directory at / for self-hosted operation")
 	return cmd
 }
 

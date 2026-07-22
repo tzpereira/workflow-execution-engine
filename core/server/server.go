@@ -82,6 +82,7 @@ type Server struct {
 	workspace    string
 	dir          string
 	templatesDir string
+	uiDir        string
 	assemble     Assembler
 	newID        func(workflowID string) string
 	defaultCache engine.CacheMode
@@ -113,6 +114,9 @@ type Config struct {
 	// TemplatesDir holds `wee export` bundles (*.tar) for GET /api/templates
 	// and POST /api/templates/{name}/import; "" means no templates configured.
 	TemplatesDir string
+	// UIDir, when set, serves a built UI from this directory at /. API routes
+	// remain under /api and /healthz; unknown UI paths fall back to index.html.
+	UIDir string
 }
 
 // New builds a Server per cfg. Config.Assemble may be nil (a read-only server
@@ -140,6 +144,7 @@ func New(cfg Config) *Server {
 		workspace:    cfg.Workspace,
 		dir:          dir,
 		templatesDir: cfg.TemplatesDir,
+		uiDir:        cfg.UIDir,
 		assemble:     cfg.Assemble,
 		newID:        cfg.NewID,
 		defaultCache: cfg.DefaultCache,
@@ -172,6 +177,9 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("GET /api/secrets", s.handleSecretsStatus)
 	s.mux.HandleFunc("POST /api/secrets", s.handleSetSecret)
 	s.mux.HandleFunc("DELETE /api/secrets", s.handleUnsetSecret)
+	if cfg.UIDir != "" {
+		s.mux.HandleFunc("GET /", s.handleUI)
+	}
 	return s
 }
 
@@ -188,6 +196,22 @@ func (s *Server) ListenAndServe(addr string) error {
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok"))
+}
+
+func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
+	if s.uiDir == "" {
+		http.NotFound(w, r)
+		return
+	}
+	name := strings.TrimPrefix(filepath.Clean("/"+r.URL.Path), "/")
+	if name == "" || name == "." {
+		name = "index.html"
+	}
+	path := filepath.Join(s.uiDir, name)
+	if info, err := os.Stat(path); err != nil || info.IsDir() {
+		path = filepath.Join(s.uiDir, "index.html")
+	}
+	http.ServeFile(w, r, path)
 }
 
 // ExecutionSummary is one row of GET /api/executions. Workflow/Version come from

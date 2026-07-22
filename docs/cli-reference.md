@@ -50,6 +50,7 @@ WebSocket transport consumes (ADR 0010).
 | `--json` | | emit line-delimited event JSON instead of live status |
 | `--resume` | | resume a prior execution by id instead of starting fresh |
 | `--workspace` | `".workflow"` | workspace state directory |
+| `--allow-mutations-without-approval` | | explicitly allow mutating tool calls without approval checkpoints |
 | `-h`, `--help` | | help for run |
 
 **Exit codes:** `0` success, `1` node failure, `2` budget exceeded, `3` validation error (including a
@@ -137,6 +138,28 @@ wee cache ls
 wee cache clear
 ```
 
+## `wee backup`
+
+Create or restore a compressed backup of the workspace state directory: execution snapshots, event logs,
+artifacts, cache, and non-secret settings.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--workspace` | `".workflow"` | workspace state directory |
+| `-h`, `--help` | | help for backup |
+
+Subcommands:
+
+| Subcommand | Does |
+|---|---|
+| `wee backup create <archive.tar.gz>` | Create a compressed backup of `--workspace` |
+| `wee backup restore <archive.tar.gz>` | Restore a backup into `--workspace`; refuses non-empty destinations without `--force` |
+
+```sh
+wee backup create wee-backup.tar.gz --workspace .workflow
+wee backup restore wee-backup.tar.gz --workspace .workflow-restored
+```
+
 ## `wee export <workflow.yaml>`
 
 Bundles a workflow and every Worker it references into one tar of canonical JSON (ADR 0004), importable
@@ -156,6 +179,25 @@ This is exactly how every bundle under `examples/templates/` was produced — th
 imports them through the same `wee.yaml`-free path `wee run` already resolves against
 (`POST /api/templates/{name}/import`), so an exported bundle needing non-default tools still needs its
 `wee.yaml` hand-added after import.
+
+## `wee serve`
+
+Starts the local/self-hosted HTTP control plane. It exposes JSON APIs under `/api`, WebSocket execution
+events under `/api/executions/{id}/events`, and, with `--ui-dir`, a built UI at `/`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--addr` | `"127.0.0.1:7676"` | host:port to listen on |
+| `--cache` | `"on"` | default cache mode for API-started runs: `on` \| `off` \| `readonly` |
+| `--dir` | `"."` | base directory workflow paths resolve against |
+| `--templates` | `""` | directory of `wee export` bundles for the UI Template gallery |
+| `--ui-dir` | `""` | serve a built UI directory at `/` |
+| `--workspace` | `".workflow"` | workspace state directory |
+| `-h`, `--help` | | help for serve |
+
+```sh
+wee serve --workspace .workflow --dir . --templates examples/templates --ui-dir ui/dist
+```
 
 ## Related
 

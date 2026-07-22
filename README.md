@@ -37,14 +37,12 @@ Everyone is programming their organization's processes, not prompting a model. S
 Phase 1 (MVP) is complete through the engine, CLI, SDK, and interface (M1.0–M1.15); the old M1.16/M1.17
 release gates are superseded by the Phase 2 local-first product-hardening plan.
 
-Phase 2 is in progress. The durable local control plane (M2.2) is done, and **M2.3 — Workflow Authoring &
-Practical Examples — is the current milestone.** An appended **experience track** takes the local product to
-a professional, themeable, guided bar: **M2.9 Connections** (add any provider — including Kimi — and any
-change source as non-secret references), **M2.10 Professional Shell & Visual System** (design tokens,
-light/dark, document tabs, KPIs, onboarding, accessibility), and **M2.11 Notifications**. It branches after
-M2.2/M2.3 — see [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/EXECUTION-PHASE2.md](docs/EXECUTION-PHASE2.md).
+Phase 2 is in progress. The durable local control plane, safe mutation checkpoints, and self-hosted
+packaging path are implemented through **M2.6**. The next sequential milestone is M2.7 (team
+self-hosting). See [docs/ROADMAP.md](docs/ROADMAP.md) and
+[docs/EXECUTION-PHASE2.md](docs/EXECUTION-PHASE2.md).
 
-There is no stable binary or API yet.
+There is no v1-stable API yet.
 
 Hosted/managed operation is intentionally later; the primary product should work when a user downloads `wee`
 and runs it in their own environment.
@@ -70,6 +68,27 @@ export
 ```
 
 The first workflow does not require an API key.
+
+### Self-hosted service
+
+Run the single-process service with the built UI:
+
+```sh
+pnpm --dir ui install
+pnpm --dir ui build
+go build -o wee ./cli
+./wee serve --addr 127.0.0.1:7676 --workspace .workflow --dir . --templates examples/templates --ui-dir ui/dist
+```
+
+Or run the Docker Compose path:
+
+```sh
+docker compose up --build
+```
+
+Open `http://localhost:7676`. History, artifacts, cache, settings, and imported workflows are kept in
+Compose volumes across stop/restart. See [docs/self-hosted.md](docs/self-hosted.md) for backup/restore and
+upgrade notes.
 
 ### Running the CLI and UI together
 
@@ -143,6 +162,7 @@ Start with [AGENTS.md](AGENTS.md), the index for the project's documentation:
 - roadmap: milestones and sequencing
 - execution plan: implementation strategy for Phase 1
 - execution plan, Phase 2: [docs/EXECUTION-PHASE2.md](docs/EXECUTION-PHASE2.md)
+- self-hosted operation: [docs/self-hosted.md](docs/self-hosted.md)
 - ADRs: architectural decisions
 - glossary: shared terminology
 
