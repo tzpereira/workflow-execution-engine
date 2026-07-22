@@ -563,6 +563,86 @@ Acceptance (Phase 2 exit):
 
 ---
 
+## Experience track (M2.9–M2.11)
+
+Added 2026-07-21 (owner decision). These three milestones turn the functional local product into one that is
+**inevitable to notice and useful on sight** for a developer, SM, PO, PM, or CTO. They **branch after M2.2
+(control plane) and M2.3 (authoring)** and can be pulled forward ahead of M2.4–M2.8 — the dependency graph
+below shows the branch. They add normative behavior, so their spec IDs
+([connections](spec/connections.md), [notifications](spec/notifications.md),
+[ui](spec/ui.md) REQ-UI-07..16 + NFR-UI-01..02) and decisions
+([ADR 0013](adr/0013-connections-model.md), [ADR 0014](adr/0014-notifications-model.md),
+[ADR 0015](adr/0015-ui-shell-and-visual-system.md)) were written before implementation, per the Phase 2
+rule. The Phase 2 exit criterion now also requires the experience track: outputs, costs, failures, and
+status must be understandable and pilotable, not merely present.
+
+### M2.9 — Connections & Configuration Experience
+
+Delivers: REQ-CONN-01..06 · NFR-CONN-01 · REQ-UI-16 (see [ADR 0013](adr/0013-connections-model.md)).
+
+Deliverables:
+
+* Connections as named, non-secret reference bundles in workspace settings: add, edit, remove — replacing the hardcoded provider/field list
+* Provider connections bound to the existing `Provider` registry: OpenAI (default), Anthropic, and Kimi/Moonshot as an OpenAI-compatible endpoint via base-URL override — no new engine code
+* Source connections (GitHub, GitLab, Bitbucket, local repository path, public patch/diff URL) consumed only through generic HTTP/git/filesystem tools; **no forge-specific code in Core**
+* "Add connection" surface with presets (base URL, token header shape, typical scopes) as client convenience metadata only
+* Secret lifecycle made unambiguous: set/unset badge, **Save** on first set, **Update** once set, **Clear** — never rendering a stored secret value
+* Workflows reference connections by id; resolution recorded in the frozen snapshot as references, never secrets
+
+Acceptance:
+
+* A user adds a new model provider (including Kimi) and a non-GitHub source without editing code, and runs a workflow against each.
+* No secret value is ever written to settings/snapshot/events/export/logs or rendered in the UI; `core/` contains no forge-named package.
+
+**Depends on:** M2.2, M2.3.
+
+### M2.10 — Professional Shell & Visual System
+
+Delivers: REQ-UI-07..15 · NFR-UI-01, NFR-UI-02 (see [ADR 0015](adr/0015-ui-shell-and-visual-system.md)).
+
+Deliverables:
+
+* Design-token layer (color, elevation, radius, motion, spacing) with light and dark themes (system preference + explicit toggle), both contrast AA
+* Expressive-but-disciplined visual language per the amended UI/UX laws: depth, restrained gradients, purposeful motion — Linear/Vercel/Figma standard, never consumer-AI-toy
+* Themed dot/grid "whiteboard" canvas; readable initial layout; new nodes never overlap; explicit re-layout action
+* Multi-document workspace tabs with a "+" to create/open, per-tab unsaved-edit indicator, and safe close for unsaved/running documents — distinct from execution/run tabs
+* Command palette (⌘K) as the interaction spine: icons, shortcut hints, and contextual actions (run, cancel, settings, templates, theme, add connection, jump to node)
+* Expand-to-modal editor with markdown for long-text fields, editing the canonical value so content hashes stay byte-stable
+* Dashboard-style KPI/observability surface: primary figures prominent, detail behind progressive disclosure, bounded and readable
+* One centralized status/signal system: color **and** icon **and** label, color-blind-safe, read from a single module
+* Guided first-run onboarding from empty state to first successful run, with in-context concept explainers
+* In-app docs/help access, versioned to the running binary
+* Accessibility pass (WCAG 2.1 AA) and a performance budget: canvas interactive at 200 nodes, dense surfaces responsive; no silent telemetry
+
+Acceptance:
+
+* A first-time user reaches a first successful run from an empty workspace guided by the UI, in light or dark theme, fully by keyboard.
+* Status is legible to a color-blind user; the canvas stays interactive at 200 nodes; screenshots read as a professional developer tool.
+
+**Depends on:** M2.2, M2.3.
+
+### M2.11 — Notifications & Alerts
+
+Delivers: REQ-NOTIFY-01..05 · NFR-NOTIFY-01 (see [ADR 0014](adr/0014-notifications-model.md)).
+
+Deliverables:
+
+* In-app notification center: transient toasts plus a persistent, dismissible list
+* Browser/OS notifications (opt-in, permission-gated) for backgrounded tabs, degrading gracefully to the in-app center
+* Configurable rules: per-event-type toggles, threshold rules (cost/duration/on-failure), and quiet hours — persisted in settings, no secrets
+* All triggers derived from the existing event stream; **no new event type, no writes to the hash-chained log**
+* Off-machine delivery (webhook/Slack/email) explicitly left as a workflow-defined integration, never a Core notifier
+* Notifications carry status/identifiers/metrics only — never artifact content or secret material
+
+Acceptance:
+
+* A user starts a long run, backgrounds the tab, and is notified on completion/failure per their rules; quiet hours suppress as configured.
+* The event catalog and hash chain are unchanged; no notification path in `core/engine` delivers off-machine.
+
+**Depends on:** M2.10 (shell/notification center), M2.2 (event stream).
+
+---
+
 ## Dependency Overview
 
 ```text
@@ -571,8 +651,12 @@ M1.0 → M1.1 → M1.2 → M1.3 → M1.4 → M1.5 → M1.6 → M1.7 → M1.8 →
                                             │
                                             └── (freeze) → M1.11 → M1.12 → M1.13 → M1.14 → M1.15 → M1.16 → M1.17
 
-Phase 2:
+Phase 2 (main line):
 M2.0 → M2.1 → M2.2 → M2.3 → M2.4 → M2.5 → M2.6 → M2.7 → M2.8
+
+Experience track (branches after M2.2/M2.3; pull-forward vs M2.4–M2.8):
+M2.3 ┬→ M2.9  (Connections)
+     └→ M2.10 (Shell / Visual System) → M2.11 (Notifications)
 ```
 
 ---
