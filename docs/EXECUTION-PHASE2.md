@@ -32,6 +32,13 @@ Rules:
   and settings never store a secret value (ADR 0012, REQ-CTRL-01..07, NFR-CTRL-01).
 - **Transition decision:** M1.16/M1.17 are superseded for now by this Phase 2 plan. Do not tag a public
   release or start managed hosting work until the local/self-hosted product quality gates here pass.
+- **Experience track added (2026-07-21, owner decision):** M2.9 (Connections & Configuration Experience),
+  M2.10 (Professional Shell & Visual System), and M2.11 (Notifications & Alerts) were appended with their
+  specs ([connections](spec/connections.md), [notifications](spec/notifications.md), ui REQ-UI-07..16) and
+  ADRs ([0013](adr/0013-connections-model.md), [0014](adr/0014-notifications-model.md),
+  [0015](adr/0015-ui-shell-and-visual-system.md)) written up front. They branch after M2.2/M2.3 and may be
+  pulled forward ahead of M2.4–M2.8 — the owner sets the exact order before any of them starts. The current
+  milestone is unchanged: **M2.3**.
 
 ---
 
@@ -307,4 +314,129 @@ Acceptance:
 
 - [ ] A small team uses the self-hosted product weekly on real work with shared cache savings visible.
 - [ ] Managed runtime can start without changing the product architecture.
+- [ ] Verification recorded here:
+
+---
+
+## Experience track (M2.9–M2.11)
+
+> Added 2026-07-21 (owner decision). This track makes the local product **inevitable to notice and useful on
+> sight** for a developer, SM, PO, PM, or CTO. It **branches after M2.2/M2.3** and may be pulled forward
+> ahead of M2.4–M2.8 (see the ROADMAP dependency graph). Specs and ADRs were written before implementation
+> per the Phase 2 rule: [connections](spec/connections.md), [notifications](spec/notifications.md),
+> [ui](spec/ui.md) (REQ-UI-07..16 + NFR-UI-01..02); [ADR 0013](adr/0013-connections-model.md),
+> [ADR 0014](adr/0014-notifications-model.md), [ADR 0015](adr/0015-ui-shell-and-visual-system.md).
+
+## M2.9 — Connections & Configuration Experience
+
+**Goal:** replace the hardcoded provider/field list with a **Connections** model — add any provider
+(including Kimi) and any change source (including non-GitHub) as non-secret reference bundles, with an
+unambiguous secret lifecycle, while keeping forges out of Core.
+
+**Depends on:** M2.3.
+
+**Requirements:** REQ-CONN-01..06, NFR-CONN-01, REQ-UI-16 ([spec/connections.md](spec/connections.md),
+[spec/ui.md](spec/ui.md)). **Decision:** [ADR 0013](adr/0013-connections-model.md).
+
+Tasks:
+
+- [ ] Define the Connection record in `core/settings` (id, label, kind, endpoint/base-URL fields, non-secret
+      defaults, secret env/keychain **reference**); persist in `.workflow/settings.json` temp-then-rename
+      (NFR-CTRL-01).
+- [ ] Provider connections bound to the existing `Provider` registry (REQ-MODEL-01); ship Kimi/Moonshot as an
+      OpenAI-compatible base-URL preset (REQ-MODEL-04) — **no new provider package**.
+- [ ] Source connections (GitHub, GitLab, Bitbucket, local repo path, public patch/diff URL) as references
+      consumed by the generic HTTP/git/filesystem tools; add an import-boundary test asserting **no
+      forge-named package under `core/`**.
+- [ ] Build the "add connection" surface with presets (base URL, token header shape, typical scopes) as
+      client metadata only.
+- [ ] Secret lifecycle in the settings/connections UI: set/unset badge, **Save** on first set, **Update**
+      once set, **Clear**; never read a stored value back into a field/DOM/log.
+- [ ] Resolve connections by id at run start; record **references** (never secrets) in the frozen snapshot
+      (REQ-EVENT-04).
+- [ ] API + UI tests for add/edit/remove, provider+source resolution, and the never-persist-secret guarantee
+      (grep-of-written-files, in the style of `openai.TestNoKeyMaterialInExecutionRecord`).
+
+Acceptance:
+
+- [ ] A user adds a new model provider (including Kimi) and a non-GitHub source without editing code, and
+      runs a workflow against each.
+- [ ] No secret value reaches settings/snapshot/events/export/logs or the DOM; `core/` contains no
+      forge-named package.
+- [ ] Verification recorded here:
+
+## M2.10 — Professional Shell & Visual System
+
+**Goal:** turn the functional interface into a themeable, guided, information-dense, accessible professional
+shell that clears the "inevitable / CTO-grade" bar — expressive but disciplined.
+
+**Depends on:** M2.3 (coordinates with M2.9's settings surface).
+
+**Requirements:** REQ-UI-07..15, NFR-UI-01, NFR-UI-02 ([spec/ui.md](spec/ui.md)). **Decision:**
+[ADR 0015](adr/0015-ui-shell-and-visual-system.md).
+
+Tasks:
+
+- [ ] Introduce the semantic design-token layer (color, elevation, radius, motion, spacing) and light/dark
+      themes (system preference + explicit toggle); migrate hardcoded hex and inline neutrals to tokens.
+- [ ] Apply the amended visual language (expressive, disciplined) within the ADR 0015 guardrails; define the
+      elevation/gradient/motion scales.
+- [ ] Centralize the status/signal system into one module (color + icon + label); replace the ~5 duplicated
+      status→color maps.
+- [ ] Rework the canvas surface (themed dot/grid), fix palette-added-node placement (no overlap), add an
+      explicit re-layout action.
+- [ ] Add multi-document workspace tabs + "+", per-tab unsaved-edit indicator, safe close for
+      unsaved/running documents — reconciled with the existing execution/run tabs.
+- [ ] Enrich the command palette (icons, shortcut hints, contextual run/cancel/settings/templates/theme/add-
+      connection/jump-to-node) as the interaction spine.
+- [ ] Add the expand-to-modal markdown editor for long-text fields, editing the **canonical value** so
+      round-trip content hashes stay byte-stable (REQ-UI-01 preserved).
+- [ ] Build the dashboard-style KPI/observability surface (primary figures prominent, detail behind
+      progressive disclosure, bounded).
+- [ ] Build guided first-run onboarding (empty → first successful run) and keep concept explainers reachable
+      in context.
+- [ ] Add in-app docs/help access, versioned to the running binary.
+- [ ] Accessibility pass (WCAG 2.1 AA) and performance budget (200-node canvas, dense-surface
+      responsiveness); confirm no silent telemetry.
+- [ ] Tests: token/theme application, status-module single-source, tab state, palette actions, round-trip
+      after modal edit, a11y checks.
+
+Acceptance:
+
+- [ ] A first-time user reaches a first successful run from an empty workspace guided by the UI, in light or
+      dark theme, fully by keyboard.
+- [ ] Status is legible to a color-blind user; the canvas stays interactive at 200 nodes; screenshots read
+      as a professional developer tool.
+- [ ] Verification recorded here:
+
+## M2.11 — Notifications & Alerts
+
+**Goal:** tell the user when a run finishes, fails, or crosses a threshold — configurably — without
+polluting the hash-chained log or pulling delivery into Core.
+
+**Depends on:** M2.10 (notification center), M2.2 (event stream).
+
+**Requirements:** REQ-NOTIFY-01..05, NFR-NOTIFY-01 ([spec/notifications.md](spec/notifications.md)).
+**Decision:** [ADR 0014](adr/0014-notifications-model.md).
+
+Tasks:
+
+- [ ] Fold notification triggers from the existing event stream — **no new event type**, no writes to
+      `events.jsonl`.
+- [ ] Build the in-app notification center (transient toasts + persistent, dismissible list).
+- [ ] Add browser/OS notifications (opt-in, permission-gated) for backgrounded tabs, degrading gracefully to
+      the in-app center.
+- [ ] Add configurable rules: per-event-type toggles, threshold rules (cost/duration/on-failure), quiet
+      hours — persisted in settings (no secrets).
+- [ ] Enforce redaction: status/identifiers/metrics only; never artifact content or secret material.
+- [ ] Keep delivery out of Core; document the webhook/Slack/email path as a future workflow-defined
+      integration (an HTTP tool node), never a Core notifier.
+- [ ] Tests: fold-from-events, rules/quiet-hours, permission fallback, redaction, and catalog-unchanged
+      (`domain.TestSchemaDrift`).
+
+Acceptance:
+
+- [ ] A user backgrounds a long run and is notified on completion/failure per their rules; quiet hours
+      suppress as configured.
+- [ ] The event catalog and hash chain are unchanged; no off-machine delivery path exists in `core/engine`.
 - [ ] Verification recorded here:
