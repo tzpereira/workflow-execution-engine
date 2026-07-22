@@ -100,6 +100,49 @@ func TestRefactorPlanIsReadOnlyLocalGitDiffShape(t *testing.T) {
 	}
 }
 
+// TestReleaseNotesIsReadOnlyGenericPatchURLShape locks in M2.3's generic
+// public-patch/diff-URL change-source shape: a plain http GET with no
+// urlRewrite and no GitHub-API media type — distinct from pr-review/
+// change-risk's api.github.com JSON dance, and gallery-eligible (read-only)
+// without waiting on M2.5.
+func TestReleaseNotesIsReadOnlyGenericPatchURLShape(t *testing.T) {
+	v, err := validate.NewValidator()
+	if err != nil {
+		t.Fatalf("NewValidator: %v", err)
+	}
+
+	wf := readWorkflow(t, "release-notes/workflow.yaml")
+	if err := v.Validate(validate.KindWorkflow, wf, nil); err != nil {
+		t.Errorf("workflow.yaml failed schema validation:\n%v", err)
+	}
+	if err := validate.Graph(&wf, nil); err != nil {
+		t.Errorf("workflow.yaml failed graph validation:\n%v", err)
+	}
+	if len(wf.Nodes) != 2 || wf.Nodes[0].Tool == nil || wf.Nodes[1].Worker == "" {
+		t.Fatal("release-notes should stay a two-node, one-model-call patch-URL path")
+	}
+	if wf.Nodes[0].Tool.ToolName != "http" {
+		t.Errorf("fetch node tool = %q, want http", wf.Nodes[0].Tool.ToolName)
+	}
+	if _, hasRewrite := wf.Nodes[0].Tool.Input["urlRewrite"]; hasRewrite {
+		t.Error("release-notes should need no urlRewrite — that's the point of the generic patch-URL shape")
+	}
+	if method, _ := wf.Nodes[0].Tool.Input["method"].(string); method != "GET" {
+		t.Errorf("fetch node http method = %q, want GET (read-only)", method)
+	}
+	if facts := registry.DeriveTemplateFacts(wf); facts.WriteCapable {
+		t.Error("release-notes must be read-only (WriteCapable == false) to be gallery-eligible without the M2.5 approval gate")
+	}
+
+	worker := readWorker(t, "release-notes/notes.worker.yaml")
+	if err := v.Validate(validate.KindWorker, worker, nil); err != nil {
+		t.Errorf("notes.worker.yaml failed schema validation:\n%v", err)
+	}
+	if _, err := validate.CompileSchema(worker.Contract.OutputSchema); err != nil {
+		t.Errorf("notes output schema does not compile: %v", err)
+	}
+}
+
 // TestPublishedTemplateCatalogIsReadOnly is the structural half of M2.3's
 // "published templates ... declare whether they can write before a user
 // starts them": every .tar in the published gallery must decode to
@@ -191,7 +234,7 @@ func TestSecondaryDemosAreValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewValidator: %v", err)
 	}
-	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk", "refactor-plan"} {
+	for _, dir := range []string{"bug-investigation", "prd-generation", "architecture-review", "test-generator", "change-risk", "refactor-plan", "release-notes"} {
 		validateExampleDir(t, v, dir)
 	}
 }

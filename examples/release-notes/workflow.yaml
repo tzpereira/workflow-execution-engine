@@ -1,0 +1,38 @@
+# Read-only release notes from a GENERIC public patch/diff URL — a distinct
+# non-GitHub-API change-source shape (M2.3): a plain GET with no urlRewrite
+# and no forge-specific media type, unlike pr-review/change-risk's
+# api.github.com dance. The workflow only knows "fetch this URL as text" —
+# any host that serves a raw diff/patch works once wee.yaml allows it
+# (README.md documents adding your own).
+#
+# fetch-patch is read-only (a GET, no writes anywhere in this graph), so this
+# workflow is gallery-eligible immediately (WriteCapable == false,
+# core/registry.DeriveTemplateFacts) — no M2.5 approval-gate wait.
+id: release-notes
+version: 1.0.0
+inputs:
+  - name: patchUrl
+    required: true
+    description: Any public URL serving a raw diff/patch as plain text (e.g. a GitHub commit's .diff URL, a GitLab MR's .diff URL, or a hosted .patch file)
+nodes:
+  - id: fetch-patch
+    tool:
+      toolName: http
+      input:
+        method: GET
+        url: "${input:patchUrl}"
+        failOnStatus: true
+        headers:
+          Accept: text/plain
+
+  - id: notes
+    worker: notes@1.0.0
+
+edges:
+  - { from: fetch-patch, to: notes }
+
+budget:
+  maxCostUsd: 0.03
+  maxTokens: 30000
+  maxDurationMs: 90000
+  maxRetriesPerNode: 1

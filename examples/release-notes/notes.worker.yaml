@@ -1,0 +1,52 @@
+# One bounded summarization call. The http tool emits a JSON artifact
+# ({"status":int,"body":string}, core/tool/http), so the policy admits
+# fetch-patch by node id — same pattern as pr-review/reviewer.worker.yaml.
+id: notes
+version: 1.0.0
+objective: Summarize a patch/diff into user-facing release notes — what changed, grouped by category, in language a user (not just a developer) can understand.
+constraints:
+  - Judge only what the diff proves; do not invent missing repository context or a version number.
+  - Prefer plain language over commit-message jargon.
+  - Never include a change the diff does not show.
+  - Return no entry when the diff gives nothing user-facing to report.
+tools: []
+contextPolicy:
+  mode: artifacts
+  params:
+    artifacts: [fetch-patch]
+contract:
+  goal: Produce concise, categorized release notes a user can read in under a minute.
+  rules:
+    - Return at most eight entries, most user-relevant first.
+    - Every entry names a category and a one-line, plain-language description.
+  successCriteria:
+    - Every entry is grounded in the supplied diff.
+    - A breaking change visible in the diff is never omitted or downgraded.
+  maxRetries: 1
+  outputSchema:
+    type: object
+    additionalProperties: false
+    required: [summary, changes]
+    properties:
+      summary:
+        type: string
+        maxLength: 300
+      changes:
+        type: array
+        maxItems: 8
+        items:
+          type: object
+          additionalProperties: false
+          required: [category, description]
+          properties:
+            category:
+              enum: [feature, fix, breaking, performance, docs, chore]
+            description:
+              type: string
+              maxLength: 200
+model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0
+    max_tokens: 700

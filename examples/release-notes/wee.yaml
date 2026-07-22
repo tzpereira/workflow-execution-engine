@@ -1,0 +1,9 @@
+# github.com (not api.github.com) serves a commit/PR/compare diff as plain
+# text via the .diff suffix — a well-known, documented GitHub feature, and a
+# genuinely different mechanism from pr-review/change-risk's JSON API calls:
+# no urlRewrite, no media-type negotiation, just a GET. Add your own
+# patch-serving host here (a GitLab MR's .diff URL, a Bitbucket PR diff
+# endpoint, or any hosted .patch file) to point this at something else —
+# the workflow itself has zero forge-specific knowledge.
+http:
+  allow: ["github.com"]
