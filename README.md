@@ -23,18 +23,31 @@ Agentic systems can retry, loop, expand context, call tools, and keep going unle
 
 The runtime, not the model, decides how work executes.
 
+## Who it's for
+
+- **Developers** — run PR review, test generation, or a refactor plan like git/terraform, for a few cents, with receipts.
+- **Scrum Masters / delivery leads** — encode recurring ceremonies and gates as versioned workflows, not checklists.
+- **Product Owners / Managers** — research → PRD → review workflows that produce auditable, contracted artifacts.
+- **CTOs / engineering leaders** — reproducible process, bounded and attributed spend, a tamper-evident record, nothing leaving your environment.
+
+Everyone is programming their organization's processes, not prompting a model. See [docs/VISION.md](docs/VISION.md).
+
 ## Status
 
-Phase 1 (MVP) is in development and is being closed as a local-first product proof.
+Phase 1 (MVP) is complete through the engine, CLI, SDK, and interface (M1.0–M1.15); the old M1.16/M1.17
+release gates are superseded by the Phase 2 local-first product-hardening plan.
 
-M1.15 is in progress. The old M1.16/M1.17 release gates may be superseded by the Phase 2 local-first
-product-hardening plan before any public release.
+Phase 2 is in progress. The durable local control plane (M2.2) is done, and **M2.3 — Workflow Authoring &
+Practical Examples — is the current milestone.** An appended **experience track** takes the local product to
+a professional, themeable, guided bar: **M2.9 Connections** (add any provider — including Kimi — and any
+change source as non-secret references), **M2.10 Professional Shell & Visual System** (design tokens,
+light/dark, document tabs, KPIs, onboarding, accessibility), and **M2.11 Notifications**. It branches after
+M2.2/M2.3 — see [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/EXECUTION-PHASE2.md](docs/EXECUTION-PHASE2.md).
 
 There is no stable binary or API yet.
 
-The next product arc is Phase 2: a local/self-hosted service focused on usability, control, observability,
-robust execution, safe mutations, and packaging. Hosted/managed operation is intentionally later; the
-primary product should work when a user downloads `wee` and runs it in their own environment.
+Hosted/managed operation is intentionally later; the primary product should work when a user downloads `wee`
+and runs it in their own environment.
 
 ## Quickstart
 

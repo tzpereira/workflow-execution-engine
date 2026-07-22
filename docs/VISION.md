@@ -72,6 +72,24 @@ In the places engineering work already happens — never in a chat window:
 
 ---
 
+## Who it's for
+
+WEE is built for the people who own engineering processes and answer for their cost and quality:
+
+- **Developers** run it like git or terraform — a PR review, test generation, or refactor plan from the
+  terminal or the UI, against a local diff or a public patch, for a few cents, with the receipts to prove it.
+- **Scrum Masters / delivery leads** encode recurring ceremonies and gates (release notes, change risk,
+  definition-of-done checks) as versioned workflows instead of tribal checklists.
+- **Product Owners / Product Managers** run research → PRD → review workflows that produce auditable,
+  contracted artifacts — not a chat transcript.
+- **CTOs / engineering leaders** get what they actually buy on: reproducible process, bounded and attributed
+  spend, a tamper-evident record, and nothing leaving their environment. The savings have receipts.
+
+The through-line: everyone is **programming their organization's processes**, not prompting a model. For any
+of them to adopt it, the product has to be good enough to notice on sight — which is the experience bar below.
+
+---
+
 ## Product Philosophy
 
 The product answers one question: **how do we execute knowledge?**
@@ -82,6 +100,32 @@ executes that process — versioned, observable, replayable, budgeted.
 The design principles that govern every feature — reproducible & auditable, observable, composable,
 engineering-first, token economy, minimalism, ownership, anti-slop, tamper-evidence, secure by default —
 are law, not aspiration: [CONSTITUTION.md](CONSTITUTION.md) (PRIN-01…10).
+
+---
+
+## The experience bar
+
+A governance layer only governs what people actually use. The local product must therefore be **inevitable
+to notice and trivial to pilot** — professional enough that a developer keeps it open and a CTO is
+comfortable standing behind it. Concretely (decision [ADR 0015](adr/0015-ui-shell-and-visual-system.md);
+requirements in [spec/ui.md](spec/ui.md)):
+
+- **Expressive, disciplined craft.** The interface is premium — depth, restrained gradients, purposeful
+  motion, light and dark — anchored to the Linear / Vercel / Figma neighborhood, never a consumer AI toy.
+  Impact through craft, bounded by accessibility (WCAG AA) and performance (200-node canvas).
+- **Pilotable at a glance.** One status/signal system (color *and* icon *and* label), dashboard-grade KPIs,
+  and a command-palette spine make state and cost legible in seconds.
+- **Guided, not gatekept.** A first-time user reaches a first successful run from an empty canvas without
+  reading docs; docs are one keystroke away when they want them.
+- **Private by default.** No silent telemetry or phone-home; secrets are references, never values, everywhere
+  they could leak.
+
+External systems reach the product as **connections** — named, non-secret references that workflows consume:
+model providers (OpenAI, Anthropic, Kimi, self-hosted) and change sources (GitHub, GitLab, Bitbucket, local
+repositories). They let WEE work everywhere a team already does, without any of those integrations becoming
+part of the engine (decision [ADR 0013](adr/0013-connections-model.md)). Long or backgrounded runs surface
+their completion through local, configurable notifications ([ADR 0014](adr/0014-notifications-model.md)), so
+a run is never silently forgotten.
 
 ---
 
