@@ -140,4 +140,19 @@ describe('WorkerEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'save as new version' }))
     await waitFor(() => expect(saveWorkerSpy).toHaveBeenCalled())
   })
+
+  it('edits long text through the expand modal without rewriting other fields (M2.10)', async () => {
+    vi.spyOn(liveClient, 'fetchWorkerVersions').mockResolvedValue([demoWorker('1.0.0')])
+    render(<WorkerEditor workerRef="reviewer@1.0.0" dir="" serverUrl="http://x" onWorkerRefChange={() => {}} />)
+    await waitFor(() => expect(screen.getByDisplayValue('review code')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Expand' })[0])
+    const editors = await screen.findAllByDisplayValue('review code')
+    const editor = editors[editors.length - 1]
+    fireEvent.change(editor, { target: { value: 'review code\n\n## Notes' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    expect(screen.getByLabelText('Objective')).toHaveValue('review code\n\n## Notes')
+    expect(screen.getByLabelText('Output schema (JSON)')).toHaveValue('{\n  "type": "object"\n}')
+  })
 })

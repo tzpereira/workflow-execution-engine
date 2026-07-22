@@ -1,3 +1,4 @@
+import { signal } from '../core/status'
 import { useLive } from '../liveStore'
 
 export function RunTabs() {
@@ -14,6 +15,7 @@ export function RunTabs() {
         {tabs.map((tab) => {
           const active = tab.id === activeTabId
           const state = tab.live.state
+          const tabSignal = signal(tab.connected ? 'watching' : state)
           return (
             <div
               key={tab.id}
@@ -30,17 +32,7 @@ export function RunTabs() {
                 title={tab.id}
               >
                 <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    tab.connected
-                      ? 'bg-blue-500'
-                      : state === 'failed'
-                        ? 'bg-red-500'
-                        : state === 'succeeded'
-                          ? 'bg-emerald-500'
-                          : state === 'cancelled'
-                            ? 'bg-neutral-500'
-                            : 'bg-neutral-300'
-                  }`}
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${tabSignal.dotClass}`}
                   aria-hidden="true"
                 />
                 <span className="truncate font-mono">{tab.label}</span>

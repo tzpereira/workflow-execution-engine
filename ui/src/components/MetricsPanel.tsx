@@ -22,14 +22,21 @@ export function MetricsPanel({ audit }: { audit: Audit | null }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-4 gap-2 font-mono text-xs">
-        <Stat label="cost" value={`$${m.totalCostUsd.toFixed(4)}`} />
-        <Stat label="tokens" value={String(m.totalTokens)} />
-        <Stat label="duration" value={fmtMs(m.durationMs)} />
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <Stat primary label="cost" value={`$${m.totalCostUsd.toFixed(4)}`} />
+        <Stat primary label="tokens" value={String(m.totalTokens)} />
+        <Stat primary label="duration" value={fmtMs(m.durationMs)} />
         <Stat
+          primary
           label="cache hit rate"
           value={`${Math.round(m.cacheHitRate * 100)}%`}
         />
+      </div>
+      <details className="rounded border border-neutral-200 p-2" open>
+        <summary className="cursor-pointer text-[10px] font-semibold uppercase text-neutral-500">
+          execution detail
+        </summary>
+      <div className="mt-2 grid grid-cols-4 gap-2 font-mono text-xs">
         <Stat label="retries" value={String(m.retries)} />
         <Stat
           label="contract violations"
@@ -42,6 +49,7 @@ export function MetricsPanel({ audit }: { audit: Audit | null }) {
           highlight={m.savedCostUsd > 0}
         />
       </div>
+      </details>
 
       <NodeUsageChart nodes={m.nodes} />
       <ExecutionHealthChart metrics={m} />
@@ -311,17 +319,19 @@ function Stat({
   label,
   value,
   highlight,
+  primary,
 }: {
   label: string
   value: string
   highlight?: boolean
+  primary?: boolean
 }) {
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-neutral-400">
+    <div className={primary ? 'token-card p-2' : ''}>
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500">
         {label}
       </div>
-      <div className={highlight ? 'text-amber-700' : 'text-neutral-900'}>
+      <div className={`${primary ? 'text-lg font-semibold' : ''} ${highlight ? 'text-amber-700' : 'text-neutral-900'}`}>
         {value}
       </div>
     </div>

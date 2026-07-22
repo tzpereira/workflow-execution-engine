@@ -56,6 +56,11 @@ export function WorkerEditor({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedNotice, setSavedNotice] = useState<string | null>(null)
+  const [expandedEditor, setExpandedEditor] = useState<{
+    title: string
+    value: string
+    onSave: (value: string) => void
+  } | null>(null)
 
   // Live, informational schema validation — debounced so typing stays smooth.
   // Two independent checks, mirroring the server (see the header comment):
@@ -227,23 +232,40 @@ export function WorkerEditor({
       </p>
       {saveError && <p className="text-xs text-red-600">{saveError}</p>}
 
-      <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
-          Objective
-        </span>
+      <div className="block">
+        <FieldHeader
+          label="Objective"
+          onExpand={() =>
+            setExpandedEditor({
+              title: 'Objective',
+              value: draft.objective,
+              onSave: (value) => setDraft({ ...draft, objective: value }),
+            })
+          }
+        />
         <textarea
+          aria-label="Objective"
           value={draft.objective}
           onChange={(e) => setDraft({ ...draft, objective: e.target.value })}
           rows={2}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 text-xs"
         />
-      </label>
+      </div>
 
-      <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
-          Constraints (one per line)
-        </span>
+      <div className="block">
+        <FieldHeader
+          label="Constraints (one per line)"
+          onExpand={() =>
+            setExpandedEditor({
+              title: 'Constraints',
+              value: draft.constraints.join('\n'),
+              onSave: (value) =>
+                setDraft({ ...draft, constraints: linesOf(value) }),
+            })
+          }
+        />
         <textarea
+          aria-label="Constraints (one per line)"
           value={draft.constraints.join('\n')}
           onChange={(e) =>
             setDraft({ ...draft, constraints: linesOf(e.target.value) })
@@ -251,9 +273,9 @@ export function WorkerEditor({
           rows={3}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
         />
-      </label>
+      </div>
 
-      <label className="block">
+      <div className="block">
         <span className="text-[11px] uppercase tracking-wide text-neutral-500">
           Tools (one per line)
         </span>
@@ -265,9 +287,9 @@ export function WorkerEditor({
           rows={2}
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 font-mono text-xs"
         />
-      </label>
+      </div>
 
-      <label className="block">
+      <div className="block">
         <span className="text-[11px] uppercase tracking-wide text-neutral-500">
           Contract goal
         </span>
@@ -282,13 +304,25 @@ export function WorkerEditor({
           }
           className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 text-xs"
         />
-      </label>
+      </div>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
-          Rules (one per line)
-        </span>
+        <FieldHeader
+          label="Rules (one per line)"
+          onExpand={() =>
+            setExpandedEditor({
+              title: 'Rules',
+              value: draft.contract.rules.join('\n'),
+              onSave: (value) =>
+                setDraft({
+                  ...draft,
+                  contract: { ...draft.contract, rules: linesOf(value) },
+                }),
+            })
+          }
+        />
         <textarea
+          aria-label="Rules (one per line)"
           value={draft.contract.rules.join('\n')}
           onChange={(e) =>
             setDraft({
@@ -302,10 +336,25 @@ export function WorkerEditor({
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
-          Success criteria (one per line)
-        </span>
+        <FieldHeader
+          label="Success criteria (one per line)"
+          onExpand={() =>
+            setExpandedEditor({
+              title: 'Success criteria',
+              value: draft.contract.successCriteria.join('\n'),
+              onSave: (value) =>
+                setDraft({
+                  ...draft,
+                  contract: {
+                    ...draft.contract,
+                    successCriteria: linesOf(value),
+                  },
+                }),
+            })
+          }
+        />
         <textarea
+          aria-label="Success criteria (one per line)"
           value={draft.contract.successCriteria.join('\n')}
           onChange={(e) =>
             setDraft({
@@ -432,6 +481,93 @@ export function WorkerEditor({
           </ul>
         </div>
       )}
+      {expandedEditor && (
+        <LongTextModal
+          title={expandedEditor.title}
+          value={expandedEditor.value}
+          onCancel={() => setExpandedEditor(null)}
+          onSave={(value) => {
+            expandedEditor.onSave(value)
+            setExpandedEditor(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function FieldHeader({
+  label,
+  onExpand,
+}: {
+  label: string
+  onExpand: () => void
+}) {
+  return (
+    <span className="flex items-center justify-between gap-2">
+      <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+        {label}
+      </span>
+      <button
+        type="button"
+        className="btn px-1.5 py-0.5 text-[10px]"
+        onClick={onExpand}
+        aria-label="Expand"
+      >
+        Expand
+      </button>
+    </span>
+  )
+}
+
+function LongTextModal({
+  title,
+  value,
+  onCancel,
+  onSave,
+}: {
+  title: string
+  value: string
+  onCancel: () => void
+  onSave: (value: string) => void
+}) {
+  const [draft, setDraft] = useState(value)
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/25 pt-20"
+      onClick={onCancel}
+    >
+      <div
+        className="token-card w-[48rem] max-w-[94vw] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2.5">
+          <div>
+            <div className="text-sm font-semibold">{title}</div>
+            <div className="token-subtle text-xs">
+              Markdown/plain text, canonical value
+            </div>
+          </div>
+          <div className="flex gap-1.5">
+            <button type="button" className="btn" onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => onSave(draft)}
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="h-[50vh] w-full resize-none border-0 bg-white p-3 font-mono text-sm outline-none"
+        />
+      </div>
     </div>
   )
 }

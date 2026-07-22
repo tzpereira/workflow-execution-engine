@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 
 import { downloadText } from '../download'
+import { signal, type SignalKey } from '../core/status'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 import { RunInputsModal } from './RunInputsModal'
@@ -14,10 +15,16 @@ export function Toolbar({
   onOpenPalette,
   onOpenTemplates,
   onOpenSettings,
+  onOpenHelp = () => {},
+  theme = 'light',
+  onToggleTheme = () => {},
 }: {
   onOpenPalette: () => void
   onOpenTemplates: () => void
   onOpenSettings: () => void
+  onOpenHelp?: () => void
+  theme?: 'light' | 'dark'
+  onToggleTheme?: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const meta = useWorkspace((s) => s.meta)
@@ -26,6 +33,7 @@ export function Toolbar({
   const error = useWorkspace((s) => s.error)
   const importFromPath = useWorkspace((s) => s.importFromPath)
   const exportText = useWorkspace((s) => s.exportText)
+  const markSaved = useWorkspace((s) => s.markSaved)
 
   const serverUrl = useLive((s) => s.serverUrl)
   const setServerUrl = useLive((s) => s.setServerUrl)
@@ -50,6 +58,7 @@ export function Toolbar({
       exportText(format),
       `${meta.id}.${format === 'json' ? 'json' : 'yaml'}`,
     )
+    markSaved()
   }
 
   // fileName is the imported file's basename (browser file inputs never expose
@@ -93,6 +102,7 @@ export function Toolbar({
           ? 'ready'
           : 'empty'
       : live.state
+  const runSignal = signal(runState as SignalKey)
   const issueText = error ?? liveError
   const issue = issueText ? classifyIssue(issueText, live.state) : null
   const runButtonTitle = !fileName
@@ -104,25 +114,13 @@ export function Toolbar({
         : undefined
 
   return (
-    <header className="app-toolbar border-b border-neutral-200 bg-white px-2 py-1.5 md:px-3">
+    <header className="app-toolbar token-surface border-b px-2 py-1.5 md:px-3">
       <div className="flex min-h-10 flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              runState === 'running'
-                ? 'bg-blue-500'
-                : runState === 'failed'
-                  ? 'bg-red-500'
-                  : runState === 'succeeded'
-                    ? 'bg-emerald-500'
-                    : runState === 'cancelled'
-                      ? 'bg-neutral-500'
-                      : hasWorkflow
-                        ? 'bg-amber-500'
-                        : 'bg-neutral-300'
-            }`}
-            title={runState}
-            aria-label={`run state ${runState}`}
+            className={`h-2 w-2 shrink-0 rounded-full ${runSignal.dotClass}`}
+            title={runSignal.label}
+            aria-label={`run state ${runSignal.label}`}
           />
           <div className="min-w-0">
             <div className="flex min-w-0 items-baseline gap-2">
@@ -164,7 +162,7 @@ export function Toolbar({
         )}
         <div className="toolbar-controls items-center gap-1.5">
           <span
-            className={`hidden h-1.5 w-1.5 rounded-full md:block ${connected ? 'bg-emerald-500' : 'bg-neutral-300'}`}
+            className={`hidden h-1.5 w-1.5 rounded-full md:block ${signal(connected ? 'connected' : 'disconnected').dotClass}`}
             title={connected ? 'connected' : 'not connected'}
           />
           <input
@@ -226,9 +224,20 @@ export function Toolbar({
             type="button"
             className="btn"
             onClick={onOpenSettings}
-            title="API keys, GitHub token"
+            title="Connections and runtime defaults"
           >
             Settings
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={onToggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          >
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+          <button type="button" className="btn" onClick={onOpenHelp}>
+            Help
           </button>
           <button
             type="button"

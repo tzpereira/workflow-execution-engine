@@ -9,7 +9,9 @@ import { SettingsModal } from './components/SettingsModal'
 import { TemplateGallery } from './components/TemplateGallery'
 import { Timeline } from './components/Timeline'
 import { Toolbar } from './components/Toolbar'
+import { WorkspaceTabs } from './components/WorkspaceTabs'
 import { usePersistedSize } from './core/resizable'
+import { useThemeMode } from './core/theme'
 import { useWorkspace } from './store'
 
 // App is the single workspace — one screen, no router, no page navigation
@@ -20,6 +22,8 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const theme = useThemeMode()
   const [inspectorWidth, setInspectorWidth] = usePersistedSize(
     'wee.inspectorWidth',
     320,
@@ -48,12 +52,16 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app-shell flex h-screen flex-col bg-neutral-50 text-neutral-900">
+    <div className="app-shell token-shell flex h-screen flex-col">
       <RunTabs />
+      <WorkspaceTabs />
       <Toolbar
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenTemplates={() => setGalleryOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        theme={theme.resolved}
+        onToggleTheme={theme.toggleTheme}
       />
       <div className="flex min-h-0 flex-1">
         <main className="min-w-0 flex-1" aria-label="Canvas">
@@ -96,9 +104,49 @@ export default function App() {
           <Inspector width="100%" />
         </div>
       )}
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onOpenTemplates={() => setGalleryOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        onToggleTheme={theme.toggleTheme}
+      />
       <TemplateGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+    </div>
+  )
+}
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/25 pt-24" onClick={onClose}>
+      <div className="token-card w-[42rem] max-w-[94vw] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2.5">
+          <div>
+            <div className="text-sm font-semibold">WEE help</div>
+            <div className="token-subtle text-xs">versioned with this running UI</div>
+          </div>
+          <button type="button" className="btn" onClick={onClose}>
+            close
+          </button>
+        </div>
+        <div className="grid gap-3 p-3 text-sm md:grid-cols-3">
+          <HelpCard title="Quickstart" body="Import a workflow or pick a template, configure Connections and runtime defaults, then Run." />
+          <HelpCard title="Core concepts" body="Contracts define output shape; Context Policy controls admitted artifacts; cache hits reuse recorded artifacts." />
+          <HelpCard title="Keyboard" body="Use Cmd/Ctrl+K for run, templates, settings, theme, document, and node navigation actions." />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HelpCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded border border-neutral-200 bg-neutral-50 p-2">
+      <div className="font-medium text-neutral-900">{title}</div>
+      <p className="mt-1 text-xs text-neutral-600">{body}</p>
     </div>
   )
 }

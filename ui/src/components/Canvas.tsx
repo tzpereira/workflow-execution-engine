@@ -23,6 +23,7 @@ export function Canvas() {
   const onEdgesChange = useWorkspace((s) => s.onEdgesChange)
   const onConnect = useWorkspace((s) => s.onConnect)
   const selectNode = useWorkspace((s) => s.selectNode)
+  const relayout = useWorkspace((s) => s.relayout)
 
   // Data actively flowing into a node currently running a live execution
   // (REQ-UI-02's "animated edge flow") — a pure rendering overlay, never
@@ -38,7 +39,18 @@ export function Canvas() {
   }))
 
   return (
-    <div className="relative h-full">
+    <div className="canvas-grid relative h-full">
+      <div className="absolute right-3 top-3 z-10 flex gap-1.5">
+        <button
+          type="button"
+          className="btn"
+          onClick={relayout}
+          disabled={nodes.length === 0}
+          title="Re-layout workflow nodes"
+        >
+          Re-layout
+        </button>
+      </div>
       <ReactFlow
         nodes={typedNodes}
         edges={renderedEdges}
@@ -51,7 +63,7 @@ export function Canvas() {
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#e5e5e5" gap={16} />
+        <Background color="transparent" gap={18} />
         <Controls showInteractive={false} />
         <MiniMap pannable zoomable className="!bg-neutral-50" />
       </ReactFlow>

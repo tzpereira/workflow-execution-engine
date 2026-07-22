@@ -4,6 +4,7 @@ import type { Audit } from '../core/audit'
 import { contextHashesFor, nodeIdForHash } from '../core/audit'
 import type { WorkflowMeta } from '../core/graph'
 import type { LiveState } from '../core/live'
+import { signal } from '../core/status'
 import {
   nodeKind,
   type ContextPolicy,
@@ -231,11 +232,7 @@ function WorkflowInspector({
 }
 
 function stateTone(state: LiveState['state']) {
-  if (state === 'succeeded') return 'text-emerald-700'
-  if (state === 'failed') return 'text-red-700'
-  if (state === 'cancelled') return 'text-neutral-700'
-  if (state === 'running') return 'text-blue-700'
-  return 'text-neutral-900'
+  return signal(state).textClass
 }
 
 function WorkflowStat({

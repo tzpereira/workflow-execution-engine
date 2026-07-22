@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import { bars, type NodeStatus } from '../core/live'
+import { bars } from '../core/live'
+import { signal } from '../core/status'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 import { EventList } from './EventList'
@@ -9,14 +10,6 @@ import { MetricsPanel } from './MetricsPanel'
 import { RunControls } from './RunControls'
 
 type Tab = 'timeline' | 'logs' | 'metrics' | 'history'
-
-const barColor: Record<NodeStatus, string> = {
-  pending: 'bg-neutral-200',
-  running: 'bg-blue-500',
-  succeeded: 'bg-emerald-500',
-  cached: 'bg-amber-500', // distinct from a fresh success (REQ-UI-02)
-  failed: 'bg-red-500',
-}
 
 // Timeline is the bottom panel with Timeline / Logs / Metrics / History tabs. While a
 // wee serve execution is being watched (liveStore), it renders a live Gantt
@@ -176,7 +169,7 @@ export function Timeline({
                     <div className="relative h-4 flex-1 rounded bg-neutral-100">
                       {bar && (
                         <div
-                          className={`absolute inset-y-0 rounded ${barColor[status]}`}
+                          className={`absolute inset-y-0 rounded ${signal(status).barClass}`}
                           style={{
                             left: `${bar.left * 100}%`,
                             width: `${Math.max(bar.width * 100, 1.5)}%`,
