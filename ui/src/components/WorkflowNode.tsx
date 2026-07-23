@@ -18,6 +18,13 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const kind = nodeKind(node)
   const detail =
     kind === 'tool' ? (node.tool?.toolName ?? '—') : (node.worker ?? '—')
+  const kindSignal = signal(
+    kind === 'worker'
+      ? 'model-backed'
+      : kind === 'tool'
+        ? 'deterministic'
+        : 'invalid-kind',
+  )
 
   const live = useLive((s) => s.live)
   const audit = useLive((s) => s.audit)
@@ -53,16 +60,9 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
       />
       <div className="flex items-center justify-between gap-2">
         <span className="truncate font-medium text-neutral-900">{node.id}</span>
-        <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-            kind === 'tool'
-              ? 'bg-neutral-100 text-neutral-600'
-              : kind === 'worker'
-                ? 'bg-neutral-900 text-white'
-                : 'bg-red-100 text-red-700'
-          }`}
-        >
-          {kind}
+        <span className={kindSignal.badgeClass}>
+          <span aria-hidden="true">{kindSignal.icon}</span>
+          {kindSignal.label}
         </span>
       </div>
       <div className="mt-0.5 truncate font-mono text-xs text-neutral-500">

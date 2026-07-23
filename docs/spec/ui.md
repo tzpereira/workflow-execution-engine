@@ -1,7 +1,7 @@
 # Spec — Interface (Commercial Client)
 
 **Prefix:** `REQ-UI` · **Status:** DRAFT (delivery M1.11 → M1.15; approval surface REQ-UI-06 in M2.5;
-experience track REQ-UI-07..16 + NFR-UI-01..02 in M2.9/M2.10) · **Principles:** PRIN-02, PRIN-06 ·
+experience track REQ-UI-07..19 + NFR-UI-01..02 in M2.9–M2.12) · **Principles:** PRIN-02, PRIN-06 ·
 **Decisions:** ADR 0015 (shell & visual system), ADR 0013 (connections), ADR 0014 (notifications) ·
 **Implementation:** `ui/` (React + TypeScript)
 
@@ -233,7 +233,8 @@ Tool node), using the centralized status/signal module (color **and** icon **and
 per NFR-UI-01), so the model/deterministic boundary is legible without opening a node.
 - **Rationale:** the owner's ask that it be evident whether a node uses a model; derived structurally from
   `Node.Worker` vs `Node.Tool` (REQ-WORKER-01/04), no new event type.
-- **Delivered by:** M2.12. **Verified by:** _pending_.
+- **Delivered by:** M2.12. **Verified by:** `App.live.test.tsx` canvas kind-label case;
+  `core/status.test.ts` centralized model/deterministic signals.
 
 ### REQ-UI-18 — Model identity in the Inspector
 When a model-backed node is selected, the Inspector shall show the Worker's name (`id`), `version`, and
@@ -242,7 +243,8 @@ deterministic tool node is selected, it shall show an explicit "no model" indica
 version.
 - **Rationale:** the owner's ask for "which model, name/version/description" per node; reads the existing
   `Worker.model` and the new `Worker.description`.
-- **Delivered by:** M2.12. **Verified by:** _pending_.
+- **Delivered by:** M2.12. **Verified by:** `Inspector.test.tsx` model-backed and deterministic identity
+  cases (including explicit no-model + recorded Tool version).
 
 ### REQ-UI-19 — Displayed model identity reflects the resolved run
 The model identity shown per node shall be the model resolved for the execution after connection/base-URL
@@ -250,7 +252,8 @@ resolution (REQ-CONN-01..06), consistent with the frozen snapshot (REQ-EVENT-04)
 matches what actually executed rather than only an authored default.
 - **Rationale:** PRIN-02 (observable) — a displayed provider/model that differs from the resolved connection
   would be a misleading surface; ties the transparency to the audit record.
-- **Delivered by:** M2.12. **Verified by:** _pending_.
+- **Delivered by:** M2.12. **Verified by:** `core/audit.test.ts` frozen Worker/Connection resolver;
+  `Inspector.test.tsx` resolved-vs-authored model case; `replay.TestAuditExposesFrozenConnectionRefs`.
 
 ### NFR-UI-01 — Accessibility (WCAG 2.1 AA)
 The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast in both themes, appropriate

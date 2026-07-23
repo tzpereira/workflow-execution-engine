@@ -14,7 +14,8 @@
 import type { Budget, Worker, Workflow } from './model'
 import type { WFEvent } from './live'
 
-export type NodeRecordState = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped'
+export type NodeRecordState =
+  'pending' | 'running' | 'succeeded' | 'failed' | 'skipped'
 
 /** NodeRecord mirrors core/replay.NodeRecord. Content is base64 (encoding/json's
  *  default for a Go []byte field) — decode with contentText/contentBytes below. */
@@ -39,6 +40,7 @@ export interface Template {
   workflowId: string
   version: string
   nodeCount: number
+  requiredConnections?: string[]
   tools: string[]
   writeCapable: boolean
   expectedCostUsd: number
@@ -164,7 +166,10 @@ export function contentText(rec: NodeRecord | undefined): string | undefined {
  *  type too (an image, an arbitrary Report). mimeType defaults to a generic
  *  binary type since domain.Artifact.mimeType isn't recorded on the wire yet
  *  (see core/domain/artifact.go — never actually populated at runtime). */
-export function contentDataURL(rec: NodeRecord | undefined, mimeType = 'application/octet-stream'): string | undefined {
+export function contentDataURL(
+  rec: NodeRecord | undefined,
+  mimeType = 'application/octet-stream',
+): string | undefined {
   if (!rec?.content) return undefined
   return `data:${mimeType};base64,${rec.content}`
 }
@@ -175,9 +180,13 @@ export function contentDataURL(rec: NodeRecord | undefined, mimeType = 'applicat
  *  hasn't finished yet, was cached (no contextHashes recorded on that path —
  *  core/engine/node.go:236), or saw nothing (mode: none). */
 export function contextHashesFor(audit: Audit, nodeId: string): string[] {
-  const ev = audit.events.find((e) => e.type === 'WorkerFinished' && e.nodeId === nodeId)
+  const ev = audit.events.find(
+    (e) => e.type === 'WorkerFinished' && e.nodeId === nodeId,
+  )
   const hashes = ev?.payload?.contextHashes
-  return Array.isArray(hashes) ? hashes.filter((h): h is string => typeof h === 'string') : []
+  return Array.isArray(hashes)
+    ? hashes.filter((h): h is string => typeof h === 'string')
+    : []
 }
 
 /** nodeIdForHash finds which node in this execution produced a given artifact
@@ -192,4 +201,59 @@ export function nodeIdForHash(audit: Audit, hash: string): string | undefined {
  *  tool-backed (or malformed) node — the key into Audit.workers. */
 export function workerRef(audit: Audit, nodeId: string): string | undefined {
   return audit.workflow.nodes.find((n) => n.id === nodeId)?.worker
+}
+
+export interface ModelIdentity {
+  worker: Worker
+  provider: string
+  model: string
+  connection?: Connection
+}
+
+/** resolvedModelIdentity reads only the frozen execution snapshot: the Worker
+ * definition that actually ran plus the non-secret connection reference the
+ * service resolved for its provider. It never consults current Settings or a
+ * re-fetched Worker, so later authored edits cannot rewrite history
+ * (REQ-UI-19). */
+export function resolvedModelIdentity(
+  audit: Audit,
+  nodeId: string,
+): ModelIdentity | undefined {
+  const ref = workerRef(audit, nodeId)
+  const worker = ref ? audit.workers?.[ref] : undefined
+  if (!worker) return undefined
+  const provider = worker.model.provider || 'openai'
+  return {
+    worker,
+    provider,
+    model: worker.model.model,
+    connection: audit.connectionRefs?.[provider],
+  }
+}
+
+/** resolvedToolVersion returns the implementation version recorded at the
+ * invocation/approval boundary. A not-yet-run deterministic node has no
+ * resolved tool version in the frozen definition, so callers must say that
+ * plainly rather than inventing one (REQ-UI-18). */
+export function resolvedToolVersion(
+  audit: Audit,
+  nodeId: string,
+): string | undefined {
+  for (let i = audit.events.length - 1; i >= 0; i -= 1) {
+    const event = audit.events[i]
+    if (event.nodeId !== nodeId) continue
+    if (
+      event.type === 'ToolCalled' &&
+      typeof event.payload?.version === 'string'
+    ) {
+      return event.payload.version
+    }
+    if (
+      event.type === 'ApprovalRequested' &&
+      typeof event.payload?.toolVersion === 'string'
+    ) {
+      return event.payload.toolVersion
+    }
+  }
+  return undefined
 }

@@ -129,3 +129,20 @@ func TestParallelMergeGraphShape(t *testing.T) {
 		t.Errorf("merge node should fan in from both branches, got %d edges into m", toM)
 	}
 }
+
+// TestDescribeWorkerPreservesDescriptionInSDKDefinition is REQ-WORKER-08's
+// Go authoring surface: SDK-authored Workers carry the same canonical optional
+// description as YAML-authored Workers.
+func TestDescribeWorkerPreservesDescriptionInSDKDefinition(t *testing.T) {
+	w := sdk.DescribeWorker(reviewer("reviewer"), "Reviews a change for correctness.")
+	if w.Description != "Reviews a change for correctness." {
+		t.Fatalf("Description = %q", w.Description)
+	}
+	built, err := sdk.New("wf", "1.0.0").Worker("review", w).Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if built.Definition().Nodes[0].Worker != "reviewer@1.0.0" {
+		t.Fatalf("worker ref = %q", built.Definition().Nodes[0].Worker)
+	}
+}

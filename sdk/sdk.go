@@ -44,6 +44,16 @@ func Worker(nodeID string, w domain.Worker) Spec {
 	return Spec{nodeID: nodeID, node: domain.Node{ID: nodeID, Worker: w.ID + "@" + w.Version}, worker: &w}
 }
 
+// DescribeWorker returns a copy of w with its optional human-facing
+// description set. The description remains part of the canonical Worker
+// definition while the Contract compiler deliberately excludes it from model
+// input (REQ-WORKER-08). Keeping this as a value helper lets it compose with
+// Worker, Builder.Worker, Parallel, and Merge without a second Worker model.
+func DescribeWorker(w domain.Worker, description string) domain.Worker {
+	w.Description = description
+	return w
+}
+
 // Tool returns a tool-backed node spec for use inside Parallel.
 func Tool(nodeID string, tc domain.ToolCall) Spec {
 	call := tc

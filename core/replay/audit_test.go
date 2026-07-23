@@ -154,6 +154,43 @@ func TestAuditExposesResolvedInputs(t *testing.T) {
 	}
 }
 
+// TestAuditExposesFrozenConnectionRefs is REQ-UI-19's audit substrate: model
+// identity can be paired with the exact non-secret connection resolution from
+// snapshot.json instead of today's mutable Settings.
+func TestAuditExposesFrozenConnectionRefs(t *testing.T) {
+	base := t.TempDir()
+	log := eventlog.New(base)
+	st := store.New(base)
+	sched := engine.New(&recordingExecutor{}, st, log, cache.New(base))
+	wf := &domain.Workflow{
+		ID: "wf", Version: "1.0.0",
+		Nodes: []domain.Node{{ID: "review", Worker: "reviewer@1.0.0"}},
+		Edges: []domain.Edge{},
+	}
+
+	const execID = "exec-audit-connections"
+	if _, err := sched.Run(context.Background(), wf, engine.RunOptions{
+		ExecutionID: execID,
+		ConnectionRefs: map[string]engine.ConnectionRef{
+			"kimi-prod": {
+				ID: "kimi-prod", Label: "Kimi production", Kind: "model-provider",
+				Type: "openai-compatible", BaseURL: "https://api.moonshot.ai/v1",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	tl, err := replay.NewAuditor(eventlog.New(base), store.New(base)).Audit(execID)
+	if err != nil {
+		t.Fatalf("Audit: %v", err)
+	}
+	got := tl.ConnectionRefs["kimi-prod"]
+	if got.ID != "kimi-prod" || got.BaseURL != "https://api.moonshot.ai/v1" {
+		t.Fatalf("ConnectionRefs = %+v", tl.ConnectionRefs)
+	}
+}
+
 // TestAuditUnknownExecutionErrors mirrors eventlog's own
 // TestReadAllMissingIsError: auditing an execution id that was never run is
 // an error, not a zero-value Timeline.

@@ -298,6 +298,21 @@ export function WorkerEditor({
       </p>
       {saveError && <p className="text-xs text-red-600">{saveError}</p>}
 
+      <label className="block">
+        <span className="block text-[11px] uppercase tracking-wide text-neutral-500">
+          Description
+        </span>
+        <input
+          type="text"
+          value={draft.description ?? ''}
+          onChange={(e) =>
+            setDraft({ ...draft, description: e.target.value || undefined })
+          }
+          placeholder="What this Worker is for (human-facing)"
+          className="mt-0.5 w-full rounded border border-neutral-300 px-1.5 py-1 text-xs"
+        />
+      </label>
+
       <div className="block">
         <FieldHeader
           label="Objective"

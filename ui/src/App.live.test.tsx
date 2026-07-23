@@ -112,6 +112,14 @@ describe('live execution renders end to end', () => {
     expect(screen.queryByText('done')).not.toBeInTheDocument()
   })
 
+  it('labels model-backed and deterministic nodes on the canvas (REQ-UI-17)', () => {
+    render(<App />)
+    expect(screen.getByText('model')).toBeInTheDocument()
+    expect(screen.getByText('deterministic')).toBeInTheDocument()
+    expect(screen.getByText('◆')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText('⚙')).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('renders node status, running cost, and logs from a folded run', () => {
     render(<App />)
 

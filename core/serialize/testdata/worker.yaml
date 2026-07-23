@@ -1,5 +1,6 @@
 id: reviewer
 version: 1.0.0
+description: Reviews a change for correctness and style.
 objective: Review the diff for correctness and style.
 constraints:
   - Only comment on the provided diff.

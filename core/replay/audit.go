@@ -59,6 +59,11 @@ type Timeline struct {
 	// this run was run against. Not a secret, so unlike a "${env:...}" value it
 	// belongs here in the audit record.
 	Inputs map[string]string `json:"inputs,omitempty"`
+	// ConnectionRefs is the non-secret provider/source resolution frozen for
+	// this execution (REQ-CONN-06). The UI uses it with Workers to explain the
+	// provider/model that actually ran rather than a later authored value
+	// (REQ-UI-19).
+	ConnectionRefs map[string]engine.ConnectionRef `json:"connectionRefs,omitempty"`
 }
 
 // Auditor renders past executions from their on-disk record alone (REQ-
@@ -159,5 +164,6 @@ func (a *Auditor) Audit(executionID string) (Timeline, error) {
 		DefinitionHashes: snap.DefinitionHashes,
 		Workers:          snap.Workers,
 		Inputs:           snap.Inputs,
+		ConnectionRefs:   snap.ConnectionRefs,
 	}, nil
 }

@@ -62,6 +62,7 @@ const audit: Audit = {
     'reviewer@1.0.0': {
       id: 'reviewer',
       version: '1.0.0',
+      description: 'Reviews a diff for correctness.',
       objective:
         'Review a unified diff and report a bounded, structured verdict.',
       constraints: ['Judge only what the diff shows.'],
@@ -241,6 +242,14 @@ describe('Inspector', () => {
     expect(screen.getByText('$0.0200')).toBeInTheDocument()
     expect(screen.getByText('10 tok')).toBeInTheDocument()
     expect(screen.getByText('2.0s')).toBeInTheDocument()
+    // Execution identity comes from the frozen Worker snapshot, not only the
+    // editor's current disk copy (REQ-UI-18/19).
+    expect(
+      screen.getByText('Reviews a diff for correctness.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('frozen execution snapshot')).toBeInTheDocument()
+    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.getAllByText('gpt-4o-mini').length).toBeGreaterThan(0)
     // Artifact viewer presents the review semantically, not as raw JSON.
     expect(screen.getByText('approve')).toBeInTheDocument()
     expect(screen.getByText('95/100')).toBeInTheDocument()
@@ -255,6 +264,96 @@ describe('Inspector', () => {
     expect(
       screen.queryByLabelText('Context policy mode'),
     ).not.toBeInTheDocument()
+  })
+
+  it('prefers the frozen resolved model over a later authored model (REQ-UI-19)', async () => {
+    selectReviewNode()
+    vi.mocked(liveClient.fetchWorkerVersions).mockResolvedValue([
+      {
+        ...audit.workers!['reviewer@1.0.0'],
+        description: 'Later authored copy',
+        model: { provider: 'openai', model: 'gpt-4.1' },
+      },
+    ])
+    useLive.setState({
+      audit: {
+        ...audit,
+        workers: {
+          'reviewer@1.0.0': {
+            ...audit.workers!['reviewer@1.0.0'],
+            description: 'Frozen Kimi reviewer',
+            model: { provider: 'kimi-prod', model: 'kimi-k2.6' },
+          },
+        },
+        connectionRefs: {
+          'kimi-prod': {
+            id: 'kimi-prod',
+            label: 'Kimi production',
+            kind: 'model-provider',
+            type: 'openai-compatible',
+            baseUrl: 'https://api.moonshot.ai/v1',
+          },
+        },
+      },
+    })
+
+    render(<Inspector />)
+    expect(screen.getByText('Frozen Kimi reviewer')).toBeInTheDocument()
+    expect(screen.getByText('kimi-prod')).toBeInTheDocument()
+    expect(screen.getByText('kimi-k2.6')).toBeInTheDocument()
+    expect(
+      screen.getByText('Kimi production · openai-compatible'),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Later authored copy'),
+      ).toBeInTheDocument(),
+    )
+    const resolvedModelField = screen.getByText('model id').parentElement
+    expect(resolvedModelField).toHaveTextContent('kimi-k2.6')
+    expect(resolvedModelField).not.toHaveTextContent('gpt-4.1')
+  })
+
+  it('shows deterministic tool identity with explicit no-model and recorded version', () => {
+    const toolWorkflow = {
+      ...workflow,
+      nodes: [{ id: 'test', tool: { toolName: 'terminal', input: {} } }],
+    }
+    useWorkspace.setState({
+      meta: { id: 'demo', version: '1.0.0', budget: workflow.budget },
+      nodes: [
+        {
+          id: 'test',
+          position: { x: 0, y: 0 },
+          data: { node: toolWorkflow.nodes[0] },
+        },
+      ],
+      edges: [],
+      selectedNodeId: 'test',
+      fileName: 'demo.yaml',
+    })
+    useLive.setState({
+      audit: {
+        ...audit,
+        workflow: toolWorkflow,
+        events: [
+          {
+            type: 'ToolCalled',
+            timestamp: 't',
+            executionId: audit.executionId,
+            nodeId: 'test',
+            prevHash: 'x',
+            payload: { tool: 'terminal', version: '1.0.0' },
+          },
+        ],
+      },
+    })
+
+    render(<Inspector />)
+    expect(screen.getByText('deterministic')).toBeInTheDocument()
+    expect(screen.getByText('no model')).toBeInTheDocument()
+    expect(screen.getByText('terminal')).toBeInTheDocument()
+    expect(screen.getByText('1.0.0')).toBeInTheDocument()
   })
 
   it('shows a contract-violation summary when the node retried', () => {

@@ -2,7 +2,12 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 
 import type { Audit } from '../core/audit'
-import { contextHashesFor, nodeIdForHash } from '../core/audit'
+import {
+  contextHashesFor,
+  nodeIdForHash,
+  resolvedModelIdentity,
+  resolvedToolVersion,
+} from '../core/audit'
 import type { WorkflowMeta } from '../core/graph'
 import type { LiveState } from '../core/live'
 import { signal } from '../core/status'
@@ -10,6 +15,7 @@ import {
   nodeKind,
   type ContextPolicy,
   type Node as WFNode,
+  type Worker,
 } from '../core/model'
 import { useLive } from '../liveStore'
 import { budget as budgetSchema } from '../schemas'
@@ -283,6 +289,7 @@ function NodeInspector({
   const [workerDefaultPolicy, setWorkerDefaultPolicy] = useState<
     ContextPolicy | undefined
   >(undefined)
+  const [authoredWorker, setAuthoredWorker] = useState<Worker | undefined>()
 
   // Prefer the audit's recorded events (available as soon as the snapshot is
   // fetched, incl. for a run started before this page loaded); fall back to
@@ -315,6 +322,14 @@ function NodeInspector({
           kind={kind}
           otherNodeIds={otherNodeIds}
           onNodeChange={onNodeChange}
+        />
+      </Section>
+
+      <Section title="Execution identity">
+        <NodeExecutionIdentity
+          node={node}
+          audit={audit}
+          authoredWorker={authoredWorker}
         />
       </Section>
 
@@ -378,7 +393,10 @@ function NodeInspector({
             onWorkerRefChange={(newRef) =>
               onNodeChange({ ...node, worker: newRef })
             }
-            onWorkerLoaded={(w) => setWorkerDefaultPolicy(w.contextPolicy)}
+            onWorkerLoaded={(w) => {
+              setWorkerDefaultPolicy(w.contextPolicy)
+              setAuthoredWorker(w)
+            }}
           />
         </Collapsible>
       )}
@@ -412,6 +430,80 @@ function NodeInspector({
       </Collapsible>
     </div>
   )
+}
+
+function NodeExecutionIdentity({
+  node,
+  audit,
+  authoredWorker,
+}: {
+  node: WFNode
+  audit: Audit | null
+  authoredWorker?: Worker
+}) {
+  const kind = nodeKind(node)
+  if (kind === 'tool') {
+    const version = audit ? resolvedToolVersion(audit, node.id) : undefined
+    return (
+      <div className="space-y-2 rounded border border-cyan-200 bg-cyan-50 p-2 text-xs">
+        <span className={signal('deterministic').badgeClass}>
+          <span aria-hidden="true">{signal('deterministic').icon}</span>
+          {signal('deterministic').label}
+        </span>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+          <Field label="model" value="no model" />
+          <Field label="tool" value={node.tool?.toolName ?? 'unknown'} />
+          <Field label="version" value={version ?? 'not resolved yet'} />
+          <Field
+            label="source"
+            value={version ? 'frozen execution event' : 'authored definition'}
+          />
+        </dl>
+      </div>
+    )
+  }
+
+  if (kind === 'worker') {
+    const frozen = audit ? resolvedModelIdentity(audit, node.id) : undefined
+    const worker = frozen?.worker ?? authoredWorker
+    const provider =
+      frozen?.provider ?? worker?.model.provider ?? 'not resolved yet'
+    const model = frozen?.model ?? worker?.model.model ?? 'not resolved yet'
+    return (
+      <div className="space-y-2 rounded border border-violet-200 bg-violet-50 p-2 text-xs">
+        <span className={signal('model-backed').badgeClass}>
+          <span aria-hidden="true">{signal('model-backed').icon}</span>
+          {signal('model-backed').label}
+        </span>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+          <Field label="name" value={worker?.id ?? node.worker ?? 'unknown'} />
+          <Field label="version" value={worker?.version ?? 'not loaded'} />
+          <Field label="provider" value={provider} />
+          <Field label="model id" value={model} />
+          <Field
+            label="source"
+            value={frozen ? 'frozen execution snapshot' : 'authored definition'}
+          />
+          {frozen?.connection && (
+            <Field
+              label="connection"
+              value={`${frozen.connection.label || frozen.connection.id} · ${frozen.connection.type}`}
+            />
+          )}
+        </dl>
+        <div>
+          <div className="text-[10px] uppercase text-neutral-500">
+            description
+          </div>
+          <p className="text-neutral-800">
+            {worker?.description || 'No description provided.'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return <p className="text-xs text-red-700">Invalid node definition.</p>
 }
 
 function NodeDefinitionEditor({

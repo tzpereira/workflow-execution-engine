@@ -87,4 +87,6 @@ change `worker.schema.json`'s `required` list.
   `objective`. Recorded as a narrow, disclosed exception to the M1.6 domain freeze in
   [ADR 0017](../adr/0017-worker-description-field.md) (precedent
   [ADR 0008](../adr/0008-tool-backed-graph-nodes.md)).
-- **Delivered by:** M2.12. **Verified by:** _pending_.
+- **Delivered by:** M2.12. **Verified by:** `domain.TestSchemaDrift`; `serialize.TestRoundTrip/worker`;
+  `sdk.TestDescribeWorkerPreservesDescriptionInSDKDefinition`;
+  `contract.TestCompileExcludesWorkerDescription`; `examples.TestFlagshipIsValid`.

@@ -1,6 +1,16 @@
 import type { NodeStatus, RunState } from './live'
 
-export type SignalKey = NodeStatus | RunState | 'ready' | 'empty' | 'watching' | 'connected' | 'disconnected'
+export type SignalKey =
+  | NodeStatus
+  | RunState
+  | 'ready'
+  | 'empty'
+  | 'watching'
+  | 'connected'
+  | 'disconnected'
+  | 'model-backed'
+  | 'deterministic'
+  | 'invalid-kind'
 
 export interface Signal {
   label: string
@@ -12,7 +22,8 @@ export interface Signal {
   textClass: string
 }
 
-const baseBadge = 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase'
+const baseBadge =
+  'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase'
 
 export const signals: Record<SignalKey, Signal> = {
   pending: {
@@ -131,6 +142,33 @@ export const signals: Record<SignalKey, Signal> = {
     borderClass: 'border-neutral-300',
     barClass: 'bg-neutral-300',
     textClass: 'text-neutral-700',
+  },
+  'model-backed': {
+    label: 'model',
+    icon: '◆',
+    dotClass: 'bg-violet-500',
+    badgeClass: `${baseBadge} bg-violet-100 text-violet-800`,
+    borderClass: 'border-violet-500',
+    barClass: 'bg-violet-500',
+    textClass: 'text-violet-800',
+  },
+  deterministic: {
+    label: 'deterministic',
+    icon: '⚙',
+    dotClass: 'bg-cyan-600',
+    badgeClass: `${baseBadge} bg-cyan-100 text-cyan-900`,
+    borderClass: 'border-cyan-600',
+    barClass: 'bg-cyan-600',
+    textClass: 'text-cyan-900',
+  },
+  'invalid-kind': {
+    label: 'invalid',
+    icon: '!',
+    dotClass: 'bg-red-500',
+    badgeClass: `${baseBadge} bg-red-100 text-red-800`,
+    borderClass: 'border-red-500',
+    barClass: 'bg-red-500',
+    textClass: 'text-red-800',
   },
 }
 

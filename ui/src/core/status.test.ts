@@ -17,4 +17,15 @@ describe('status signals', () => {
     expect(signal('cached').label).toBe('cache hit')
     expect(signal('cached').barClass).not.toBe(signal('succeeded').barClass)
   })
+
+  it('centrally encodes model-backed and deterministic node kinds (REQ-UI-17)', () => {
+    expect(signal('model-backed')).toMatchObject({ label: 'model', icon: '◆' })
+    expect(signal('deterministic')).toMatchObject({
+      label: 'deterministic',
+      icon: '⚙',
+    })
+    expect(signal('model-backed').badgeClass).not.toBe(
+      signal('deterministic').badgeClass,
+    )
+  })
 })

@@ -8,6 +8,7 @@
   "properties": {
     "id": { "type": "string" },
     "version": { "type": "string" },
+    "description": { "type": "string" },
     "objective": { "type": "string" },
     "constraints": { "type": "array", "items": { "type": "string" } },
     "tools": { "type": "array", "items": { "type": "string" } },

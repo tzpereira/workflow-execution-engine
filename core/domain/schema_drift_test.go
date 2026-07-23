@@ -35,7 +35,7 @@ func TestSchemaDrift(t *testing.T) {
 	}
 	model := domain.ModelConfig{Provider: "anthropic", Model: "claude-sonnet-5", Params: map[string]any{"temperature": 0}}
 	worker := domain.Worker{
-		ID: "reviewer", Version: "1.0.0", Objective: "review",
+		ID: "reviewer", Version: "1.0.0", Description: "Reviews a change for correctness.", Objective: "review",
 		Constraints: []string{"diff only"}, Tools: []string{"git"},
 		ContextPolicy: domain.ContextPolicy{Mode: domain.ContextDiffOnly}, Contract: contract, Model: model,
 	}

@@ -14,6 +14,7 @@ type ModelConfig struct {
 type Worker struct {
 	ID            string        `json:"id" yaml:"id"`
 	Version       string        `json:"version" yaml:"version"`
+	Description   string        `json:"description,omitempty" yaml:"description,omitempty"`
 	Objective     string        `json:"objective" yaml:"objective"`
 	Constraints   []string      `json:"constraints" yaml:"constraints"`
 	Tools         []string      `json:"tools" yaml:"tools"`

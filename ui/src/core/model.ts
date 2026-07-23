@@ -98,6 +98,7 @@ export interface Workflow {
 export interface Worker {
   id: string
   version: string
+  description?: string
   objective: string
   constraints: string[]
   tools: string[]

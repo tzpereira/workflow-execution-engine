@@ -65,3 +65,21 @@ func TestCompileSystemStatesSchema(t *testing.T) {
 		t.Errorf("system message should state the output schema:\n%s", msgs[0].Content)
 	}
 }
+
+// TestCompileExcludesWorkerDescription is REQ-WORKER-08: description is
+// human-facing definition metadata. It is canonical and versioned, but must
+// never enter the model input or alter model behavior.
+func TestCompileExcludesWorkerDescription(t *testing.T) {
+	const description = "Human-only reviewer description that must stay out of model input."
+	w := domain.Worker{
+		ID: "reviewer", Version: "1.0.0", Description: description,
+		Objective: "review the change",
+		Contract:  domain.Contract{OutputSchema: map[string]any{"type": "object"}},
+	}
+
+	for _, msg := range contract.Compile(w, nil, "") {
+		if strings.Contains(msg.Content, description) {
+			t.Fatalf("compiled model input contains Worker.description (REQ-WORKER-08): %q", msg.Content)
+		}
+	}
+}
