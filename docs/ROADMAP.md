@@ -563,9 +563,9 @@ Acceptance (Phase 2 exit):
 
 ---
 
-## Experience track (M2.9–M2.11)
+## Experience track (M2.9–M2.13)
 
-Added 2026-07-21 (owner decision). These three milestones turn the functional local product into one that is
+Added 2026-07-21 (owner decision). These milestones turn the functional local product into one that is
 **inevitable to notice and useful on sight** for a developer, SM, PO, PM, or CTO. They **branch after M2.2
 (control plane) and M2.3 (authoring)** and can be pulled forward ahead of M2.4–M2.8 — the dependency graph
 below shows the branch. They add normative behavior, so their spec IDs
@@ -574,7 +574,10 @@ below shows the branch. They add normative behavior, so their spec IDs
 ([ADR 0013](adr/0013-connections-model.md), [ADR 0014](adr/0014-notifications-model.md),
 [ADR 0015](adr/0015-ui-shell-and-visual-system.md)) were written before implementation, per the Phase 2
 rule. The Phase 2 exit criterion now also requires the experience track: outputs, costs, failures, and
-status must be understandable and pilotable, not merely present.
+status must be understandable and pilotable, not merely present. M2.12 (Model Transparency & Template Demo)
+and M2.13 (Flagship Public Proof) were added 2026-07-22 on the same track, branching after M2.10; M2.12's
+spec IDs (REQ-UI-17..19, REQ-WORKER-08) and [ADR 0017](adr/0017-worker-description-field.md) were likewise
+written before implementation.
 
 ### M2.9 — Connections & Configuration Experience
 
@@ -641,6 +644,68 @@ Acceptance:
 
 **Depends on:** M2.10 (shell/notification center), M2.2 (event stream).
 
+### M2.12 — Model Transparency & Template Demo
+
+Delivers: REQ-UI-17..19 · REQ-WORKER-08 · `pr-review-autofix` template-demo readiness (see
+[ADR 0017](adr/0017-worker-description-field.md)). Adds normative behavior, so its spec IDs were written
+before implementation per the Phase 2 rule.
+
+Deliverables:
+
+* Per-node model transparency in the UI: the canvas encodes model-backed (Worker) vs deterministic (Tool)
+  nodes through the single status/signal module (color and icon and label, color-blind-safe, NFR-UI-01); the
+  Inspector shows, for a model-backed Worker, its name (`id`), version, and description, plus the resolved
+  model as `provider / model-id`; for a deterministic tool node, an explicit "no model" plus the tool name
+  and version. The displayed model is the resolved one (after connection resolution), consistent with the
+  frozen snapshot.
+* New optional `Worker.description` field (distinct from `objective`), added to `schemas/worker.schema.json`,
+  the Go struct, and the SDK, with round-trip/drift tests; a narrow, disclosed exception to the M1.6 domain
+  freeze recorded in [ADR 0017](adr/0017-worker-description-field.md) (precedent
+  [ADR 0008](adr/0008-tool-backed-graph-nodes.md)). It is hashed as part of the definition but never compiled
+  into model context.
+* `pr-review-autofix` published as a selectable template in the gallery/import path used by the public demo,
+  with write-capable metadata, required connection/input hints, the approval checkpoint preserved, and model
+  vs deterministic node descriptions visible in the UI.
+* A five-minute demo path documented for the template: import, configure connections/inputs, run to approval,
+  inspect model vs deterministic nodes, and understand write-capable safety before approval.
+
+Acceptance:
+
+* Opening pr-review-autofix in the UI, a viewer can tell at a glance which nodes call a model and which are
+  deterministic; one click reveals the resolved provider/model id and the Worker name/version/description.
+* The template gallery offers `pr-review-autofix`; importing it creates the workflow needed for the public
+  demo with the approval gate and write-capable warning intact.
+* The UI's model/deterministic split matches the published workflow diagram for pr-review-autofix (6 model,
+  7 deterministic).
+
+**Depends on:** M2.10 (shell, Inspector, status module); M2.3 (done). Branches after M2.10.
+
+### M2.13 — Flagship Public Proof
+
+Delivers: product-proof acceptance for the flagship demo built in M2.12.
+
+Deliverables:
+
+* Target selection for a known, low-risk issue in Bitcoin Core or another reputable public repository where a
+  small contribution is appropriate, with rationale recorded before running the workflow.
+* One real, recorded end-to-end run of the imported `pr-review-autofix` template against the selected public
+  target in a disposable local clone, through the M2.5 approval checkpoint to a real local commit, with real
+  cost/tokens/metrics captured.
+* Evidence bundle for the flagship demo: execution id, commit hash, selected provider/model, cost/tokens/
+  metrics, and screenshots/video stills; the example README's "not yet re-validated against a real repo" note
+  is closed with the run's figures.
+* Public contribution handoff: prepare or open a draft PR only after explicit owner approval, and record the
+  PR URL or the reason the contribution stopped at local commit.
+
+Acceptance:
+
+* One recorded run reviews a real PR, pauses at the approval checkpoint, and on approval applies, tests, and
+  commits in a throwaway clone, with real metrics and no unapproved write (REQ-RUNTIME-07 upheld).
+* The flagship proof either opens a draft PR for the accepted local commit against the selected public
+  repository or records why the contribution stopped at local commit.
+
+**Depends on:** M2.12 (template + model transparency); M2.5 + M2.3 (done).
+
 ---
 
 ## Dependency Overview
@@ -656,7 +721,8 @@ M2.0 → M2.1 → M2.2 → M2.3 → M2.4 → M2.5 → M2.6 → M2.7 → M2.8
 
 Experience track (branches after M2.2/M2.3; pull-forward vs M2.4–M2.8):
 M2.3 ┬→ M2.9  (Connections)
-     └→ M2.10 (Shell / Visual System) → M2.11 (Notifications)
+     └→ M2.10 (Shell / Visual System) ┬→ M2.11 (Notifications)
+                                       └→ M2.12 (Model Transparency & Template Demo) → M2.13 (Flagship Public Proof)
 ```
 
 ---

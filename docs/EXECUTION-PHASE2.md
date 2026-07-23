@@ -27,6 +27,14 @@ Rules:
 
 ## Status
 
+- **M2.12 and M2.13 added to the plan (2026-07-22, owner decision) — not started.** M2.12 (Model
+  Transparency & Template Demo) adds per-node model/deterministic transparency in the UI (REQ-UI-17..19), an
+  optional `Worker.description` field ([ADR 0017](adr/0017-worker-description-field.md), REQ-WORKER-08), and
+  a published `pr-review-autofix` template for the flagship demo. M2.13 (Flagship Public Proof) then validates
+  that template on a known, low-risk issue in Bitcoin Core or another reputable public repository, through
+  the M2.5 approval checkpoint to a real local commit and optional draft PR handoff. Branches after M2.10;
+  sequenced behind its predecessors, not begun. `M2.7 — Team Self-Hosted` remains the next sequential
+  main-line milestone.
 - **M2.6 is complete** (2026-07-22): Self-hosted packaging is implemented and mechanically verified. The
   binary now has a `wee backup create|restore` workspace backup path; `wee serve --ui-dir` can host the
   built UI from the same process as the API/WebSocket control plane; `Dockerfile` and `compose.yaml` define
@@ -36,14 +44,13 @@ Rules:
   `go build -o /tmp/wee-m2.6 ./cli`, `pnpm --dir ui typecheck`, `pnpm --dir ui test`,
   `pnpm --dir ui lint`, `pnpm --dir ui build`, `docker compose -f compose.yaml config`, and
   `docker build -t wee:m2.6-check .`. Next sequential milestone: **M2.7 — Team Self-Hosted**.
-- **M2.10 is implemented pending visual/live walkthrough** (2026-07-22): The UI now has semantic design
+- **M2.10 is complete** (2026-07-22, owner accepted): The UI now has semantic design
   tokens with light/dark theme resolution and an explicit toolbar toggle; shared status/signal mapping;
   themed canvas grid, non-overlapping node placement, and relayout; workspace document tabs with dirty
   state and guarded close; an expanded command palette; long-text canonical modal editing; KPI-first
   metrics; first-run/help surfaces; and focused coverage for status, tabs, palette actions, modal edit
-  round-trip, and 200-node relayout. Mechanically verified with UI lint/typecheck/test/build below. A
-  real browser keyboard walkthrough plus screenshots remain the only unrecorded acceptance proof if the
-  owner wants visual sign-off before closing M2.10.
+  round-trip, and 200-node relayout. Mechanically verified with UI lint/typecheck/test/build below; manual
+  visual/live acceptance recorded by the owner.
 - **M2.9 is implemented pending live walkthrough** (2026-07-22): Connections now persist as non-secret
   reference bundles in workspace settings; provider connections bind to the existing provider registry
   (Kimi/Moonshot as an OpenAI-compatible provider id, no new provider package); source connections are
@@ -424,7 +431,7 @@ Acceptance:
 
 ---
 
-## Experience track (M2.9–M2.11)
+## Experience track (M2.9–M2.13)
 
 > Added 2026-07-21 (owner decision). This track makes the local product **inevitable to notice and useful on
 > sight** for a developer, SM, PO, PM, or CTO. It **branches after M2.2/M2.3** and may be pulled forward
@@ -432,6 +439,12 @@ Acceptance:
 > per the Phase 2 rule: [connections](spec/connections.md), [notifications](spec/notifications.md),
 > [ui](spec/ui.md) (REQ-UI-07..16 + NFR-UI-01..02); [ADR 0013](adr/0013-connections-model.md),
 > [ADR 0014](adr/0014-notifications-model.md), [ADR 0015](adr/0015-ui-shell-and-visual-system.md).
+>
+> M2.12 (Model Transparency & Template Demo) and M2.13 (Flagship Public Proof) were added 2026-07-22 (owner
+> decision) on the same track, branching after M2.10. M2.12 adds per-node model/deterministic transparency and
+> publishes the `pr-review-autofix` template; M2.13 performs the real public-repository proof. M2.12's spec IDs
+> (REQ-UI-17..19, REQ-WORKER-08) and [ADR 0017](adr/0017-worker-description-field.md) were written before
+> implementation per the same rule.
 
 ## M2.9 — Connections & Configuration Experience
 
@@ -518,16 +531,16 @@ Tasks:
 
 Acceptance:
 
-- [ ] A first-time user reaches a first successful run from an empty workspace guided by the UI, in light or
+- [x] A first-time user reaches a first successful run from an empty workspace guided by the UI, in light or
       dark theme, fully by keyboard.
-- [ ] Status is legible to a color-blind user; the canvas stays interactive at 200 nodes; screenshots read
+- [x] Status is legible to a color-blind user; the canvas stays interactive at 200 nodes; screenshots read
       as a professional developer tool.
 - [x] Verification recorded here: `pnpm --dir ui lint`; `pnpm --dir ui typecheck`; `pnpm --dir ui test`
       (207 tests, up from 199 at M2.3 close and 206 before the 200-node relayout guard);
       `pnpm --dir ui build` (known chunk-size warning only: Shiki/wasm and main bundle). Focused coverage
       includes `status.test.ts`, `store.test.ts`'s workspace-document and 200-node relayout cases,
       `CommandPalette.test.tsx`, and `WorkerEditor.test.tsx`'s canonical modal edit round-trip. Manual
-      browser keyboard walkthrough and screenshots are intentionally left unchecked above until recorded.
+      browser keyboard walkthrough and screenshot acceptance recorded by the owner on 2026-07-22.
       Follow-up Settings category refinement verified with `pnpm --dir ui typecheck` and
       `pnpm --dir ui test -- SettingsModal`.
 
@@ -583,3 +596,73 @@ Acceptance:
       `pnpm --dir ui typecheck`; `pnpm --dir ui test` (225 tests); `pnpm --dir ui build` (known chunk-size
       warning only). Browser/OS delivery is verified against an injectable fake Notification API; a manual
       OS permission walkthrough is the remaining optional live/browser proof.
+
+## M2.12 — Model Transparency & Template Demo
+
+**Goal:** make the real product show, per node, whether it calls a model and which one (name/version/
+description + resolved provider/model), and make `pr-review-autofix` available as the polished template used
+by the flagship demo.
+
+**Depends on:** M2.10 (shell, Inspector, status module); M2.3 (done).
+
+**Requirements:** REQ-UI-17..19, REQ-WORKER-08 ([spec/ui.md](spec/ui.md), [spec/workers.md](spec/workers.md)).
+**Decision:** [ADR 0017](adr/0017-worker-description-field.md).
+
+Tasks:
+
+- [ ] Add the optional `description` field to `schemas/worker.schema.json` (not in `required`), the
+      `domain.Worker` struct, and the SDK builder; extend round-trip and `domain.TestSchemaDrift` coverage.
+      Add a test asserting the Contract compiler never includes `description` in the compiled model input.
+- [ ] Canvas: encode model-backed (Worker) vs deterministic (Tool) nodes via the centralized status/signal
+      module (color + icon + label), reusing NFR-UI-01's color-blind-safe treatment; no new event type.
+- [ ] Inspector: for a Worker node, surface name/version/description + resolved `provider / model-id`; for a
+      Tool node, an explicit "no model" + tool name/version. Resolve the model after connection resolution and
+      assert it matches the frozen snapshot (REQ-UI-19).
+- [ ] Template packaging: publish `examples/pr-review-autofix` as a selectable template for the gallery/import
+      path used by the public demo. Preserve the approval checkpoint, write-capable metadata, required
+      connection/input hints, and the model-vs-deterministic node descriptions shown in the UI.
+- [ ] UI tests: canvas model/deterministic encoding, inspector model identity for both node kinds, and the
+      resolved-vs-authored model display; template-gallery/import coverage for `pr-review-autofix`.
+- [ ] Demo readiness: update the example/template README with a five-minute golden path for the public demo:
+      import template, configure connections/inputs, run to the approval checkpoint, inspect model vs
+      deterministic nodes, and understand write-capable safety before approval.
+
+Acceptance:
+
+- [ ] In the UI, model vs deterministic is legible at a glance for pr-review-autofix; one click shows the
+      resolved provider/model and the Worker name/version/description.
+- [ ] The template gallery offers `pr-review-autofix`; importing it creates the workflow needed for the public
+      demo with the approval gate and write-capable warning intact.
+- [ ] The template README/demo script explains what the demo proves, what it does not prove yet, and how to
+      reproduce the import/configure/run/approval path.
+- [ ] Verification: `go test ./... -race`, `go vet ./...`, `pnpm --dir ui lint/typecheck/test/build`.
+
+## M2.13 — Flagship Public Proof
+
+**Goal:** use the polished `pr-review-autofix` template from M2.12 on a known, low-risk public issue, run it
+through the M2.5 approval checkpoint to a real local commit, and optionally hand off a draft PR with explicit
+owner approval.
+
+**Depends on:** M2.12 (template + model transparency); M2.5 + M2.3 (done).
+
+Tasks:
+
+- [ ] Target selection: pick a known, low-risk issue in Bitcoin Core or another reputable public repository
+      where a small contribution is appropriate. Record the issue/PR target, rationale, and why the change is
+      safe to attempt with a disposable clone before running the workflow.
+- [ ] Real run: run the imported `pr-review-autofix` template against the selected public target with a real
+      provider key, exercise the approval checkpoint, approve, and run through the write path until a real
+      local `git commit` exists in the disposable clone.
+- [ ] Evidence bundle: capture the execution id, commit hash, cost/tokens/metrics, selected provider/model,
+      screenshots/video stills needed for the flagship demo, and update the example README with real figures.
+- [ ] Public contribution handoff: if the local commit is suitable, prepare or open a draft PR against the
+      public repository only after explicit owner approval; record the PR URL or the reason it was not opened.
+
+Acceptance:
+
+- [ ] A recorded real run reviews a real PR, pauses at approval, and on approval applies/tests/commits in a
+      throwaway clone, with real metrics and no unapproved write.
+- [ ] The flagship proof either opens a draft PR for the accepted local commit against the selected public
+      repository or records why the contribution stopped at local commit.
+- [ ] Verification: `go test ./... -race`, `go vet ./...`, `pnpm --dir ui lint/typecheck/test/build`, plus the
+      recorded real-PR run id and its metrics.
