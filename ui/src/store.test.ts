@@ -142,6 +142,7 @@ describe('workspace store', () => {
 
     useWorkspace.getState().relayout()
     expect(useWorkspace.getState().nodes[0].position).toEqual({ x: 80, y: 80 })
+    expect(useWorkspace.getState().nodes[1].position).toEqual({ x: 440, y: 80 })
   })
 
   it('keeps a 200-node canvas layout non-overlapping', () => {

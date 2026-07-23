@@ -65,6 +65,14 @@ describe('canvas round-trip', () => {
     const exported = serializeWorkflow(fromGraph(toGraph(wf), metaOf(wf)), 'yaml')
     expect(parseWorkflow(exported, 'yaml')).toEqual(wf)
   })
+
+  it('leaves a readable routing gutter between imported workflow layers', () => {
+    const graph = toGraph(parseWorkflow(sampleYAML, 'yaml'))
+    const x = Object.fromEntries(graph.nodes.map((node) => [node.id, node.position.x]))
+
+    expect(x.fix - x.review).toBe(360)
+    expect(x.test - x.fix).toBe(360)
+  })
 })
 
 // TestShippedExampleSurvivesRoundTrip runs the actual pr-review example the Go

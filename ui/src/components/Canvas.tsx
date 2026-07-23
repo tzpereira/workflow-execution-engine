@@ -7,6 +7,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
+import { READABLE_FIT_VIEW } from '../core/canvas'
 import { useLive } from '../liveStore'
 import { useWorkspace } from '../store'
 import { WorkflowNode } from './WorkflowNode'
@@ -62,10 +63,15 @@ export function Canvas() {
         onNodeClick={(_, n) => selectNode(n.id)}
         onPaneClick={() => selectNode(null)}
         fitView
+        fitViewOptions={READABLE_FIT_VIEW}
         proOptions={{ hideAttribution: true }}
       >
         <Background color="transparent" gap={18} />
-        <Controls className="wee-flow-controls" showInteractive={false} />
+        <Controls
+          className="wee-flow-controls"
+          showInteractive={false}
+          fitViewOptions={READABLE_FIT_VIEW}
+        />
         <MiniMap
           pannable
           zoomable

@@ -40,7 +40,10 @@ export interface WorkflowMeta {
   inputs?: Workflow['inputs']
 }
 
-const COL_GAP = 260
+// WorkflowNode is 256px wide (`w-64`). Keep a real routing gutter between
+// layers instead of the old 4px gap, which made dense workflows read as one
+// continuous strip and left no room for dependency edges.
+const COL_GAP = 360
 // Tall enough to clear a node card with its inline artifact preview (M1.14b)
 // — a 3-line snippet plus the status pill and kind badge can push a card past
 // 150px; 120 (the pre-M1.14b card's own height) let siblings in the same

@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { READABLE_FIT_VIEW } from '../core/canvas'
 import { useWorkspace } from '../store'
 import { Canvas } from './Canvas'
 
@@ -53,5 +54,12 @@ describe('Canvas', () => {
     expect(container.querySelector('.wee-flow')).toBeInTheDocument()
     expect(container.querySelector('.wee-flow-controls')).toBeInTheDocument()
     expect(container.querySelector('.wee-flow-minimap')).toBeInTheDocument()
+  })
+
+  it('keeps automatic fit above the dense-workflow readability floor', () => {
+    expect(READABLE_FIT_VIEW).toMatchObject({
+      minZoom: 0.8,
+      maxZoom: 1,
+    })
   })
 })

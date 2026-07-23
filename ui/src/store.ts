@@ -173,8 +173,8 @@ function layoutNodes(nodes: CanvasNode[]) {
   return nodes.map((node, index) => ({
     ...node,
     position: {
-      x: 80 + (index % 3) * 300,
-      y: 80 + Math.floor(index / 3) * 190,
+      x: 80 + (index % 3) * 360,
+      y: 80 + Math.floor(index / 3) * 220,
     },
   }))
 }

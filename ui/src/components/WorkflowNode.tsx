@@ -59,13 +59,21 @@ export function WorkflowNode({ id, data, selected }: NodeProps<CanvasNode>) {
         className="!bg-neutral-400"
       />
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-medium text-neutral-900">{node.id}</span>
+        <span
+          className="truncate font-medium text-neutral-900"
+          title={node.id}
+        >
+          {node.id}
+        </span>
         <span className={kindSignal.badgeClass}>
           <span aria-hidden="true">{kindSignal.icon}</span>
           {kindSignal.label}
         </span>
       </div>
-      <div className="mt-0.5 truncate font-mono text-xs text-neutral-500">
+      <div
+        className="mt-0.5 truncate font-mono text-xs text-neutral-500"
+        title={detail}
+      >
         {detail}
       </div>
       <div className="mt-1.5 flex min-h-5 items-center gap-1.5">
