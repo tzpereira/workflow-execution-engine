@@ -36,11 +36,12 @@ Rules:
   sequenced behind its predecessors, not begun. `M2.7 — Team Self-Hosted` remains the next sequential
   main-line milestone.
 - **M2.6 is complete** (2026-07-22): Self-hosted packaging is implemented and mechanically verified. The
-  binary now has a `wee backup create|restore` workspace backup path; `wee serve --ui-dir` can host the
-  built UI from the same process as the API/WebSocket control plane; `Dockerfile` and `compose.yaml` define
-  a persistent single-service deployment with separate data and workflow volumes; README, quickstart,
-  examples, CLI reference, and `docs/self-hosted.md` document install, run, stop/restart persistence,
-  backup/restore, and upgrades. Verified with `go test ./...`, `go test ./... -race`, `go vet ./...`,
+  binary now has a zero-config `wee cli` entrypoint with Lip Gloss terminal output, plus a
+  `wee backup create|restore` workspace backup path; `wee serve --ui-dir` can host the built UI from the
+  same process as the API/WebSocket control plane; `Dockerfile` and `compose.yaml` define a persistent
+  single-service deployment with separate data and workflow volumes; README, quickstart, examples, CLI
+  reference, and `docs/self-hosted.md` document install, run, stop/restart persistence, backup/restore, and
+  upgrades. Verified with `wee cli`, `go test ./...`, `go test ./... -race`, `go vet ./...`,
   `go build -o /tmp/wee-m2.6 ./cli`, `pnpm --dir ui typecheck`, `pnpm --dir ui test`,
   `pnpm --dir ui lint`, `pnpm --dir ui build`, `docker compose -f compose.yaml config`, and
   `docker build -t wee:m2.6-check .`. Next sequential milestone: **M2.7 — Team Self-Hosted**.
@@ -366,8 +367,10 @@ Acceptance:
 
 Tasks:
 
-- [x] Polish single-binary commands: `wee init`, `wee serve`, `wee run`, `wee inspect`, `wee replay`,
-      `wee cache`.
+- [x] Polish single-binary commands: `wee cli`, `wee init`, `wee serve`, `wee run`, `wee inspect`,
+      `wee replay`, `wee cache`, `wee backup`.
+- [x] Add zero-config `wee cli` entrypoint: one command, no provider key, Lip Gloss human output, temporary
+      workflow/workspace by default, `--keep` for inspection/replay.
 - [x] Add Docker image and Docker Compose path for self-hosted operation.
 - [x] Define config/data directories, migrations, backup/restore, and upgrade notes.
 - [x] Improve CLI progress, help text, stable `--json`, and actionable errors.
@@ -379,7 +382,7 @@ Acceptance:
       stop/restart, and keep history/cache intact.
 - [x] README plus one example explain local/self-hosted operation clearly.
 - [x] Verification recorded here:
-  `go test ./...`; `go test ./... -race`; `go vet ./...`; `go build -o /tmp/wee-m2.6 ./cli`;
+  `wee cli`; `go test ./...`; `go test ./... -race`; `go vet ./...`; `go build -o /tmp/wee-m2.6 ./cli`;
   `pnpm --dir ui typecheck`; `pnpm --dir ui test`; `pnpm --dir ui lint`; `pnpm --dir ui build`;
   `docker compose -f compose.yaml config`; `docker build -t wee:m2.6-check .`.
 
