@@ -11,7 +11,8 @@
 # (workflow.yaml) catches immediately — read-original lets this judge compare
 # content against the actual original, not just pattern-match diff syntax.
 id: verify-fix
-version: 1.0.0
+version: 1.0.1
+description: Independently verifies a proposed correction before any workspace mutation.
 objective: Judge whether fixer's proposed change should actually be applied — that a fix is genuinely warranted, that content is a real complete corrected file, and that it matches the original file plus only the intended edit.
 constraints:
   - approved is true only if shouldFix was true AND content is the complete file fixer claims to have corrected.

@@ -3,7 +3,8 @@
 # keeps public-PR review/fix proposal remote-first; a local checkout is only
 # needed later if the workflow actually applies/tests/commits a fix.
 id: locate-file
-version: 1.0.0
+version: 1.0.1
+description: Resolves the changed file and its immutable base-version source URL.
 objective: Read GitHub PR metadata plus a unified diff, then report the exact changed path and the raw URL for that file at the PR base commit.
 constraints:
   - path is the path from the diff's own "+++ b/" header, with the "b/" prefix stripped — never invented, never guessed.

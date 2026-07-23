@@ -2,7 +2,8 @@
 # the exact same tight-Contract shape as examples/pr-review/reviewer.worker.yaml
 # (anti-slop, PRIN-08) — only the objective/constraints differ per reviewer.
 id: reviewer-a
-version: 1.0.0
+version: 1.0.1
+description: Reviews the diff for style, correctness, and obvious logic defects.
 objective: Review a unified diff for style and correctness issues — naming, formatting, dead code, obvious logic errors.
 constraints:
   - Judge only what the diff shows; do not assume unshown context.

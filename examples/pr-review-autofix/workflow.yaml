@@ -61,7 +61,7 @@
 # budget) is expected — see M1.15's validation notes once run against real
 # repositories.
 id: pr-review-autofix
-version: 1.0.0
+version: 1.0.1
 inputs:
   - name: prUrl
     required: true
@@ -88,14 +88,14 @@ nodes:
           Authorization: "${env:GITHUB_AUTH_HEADER:-}"
 
   - id: reviewer-a
-    worker: reviewer-a@1.0.0
+    worker: reviewer-a@1.0.1
   - id: reviewer-b
-    worker: reviewer-b@1.0.0
+    worker: reviewer-b@1.0.1
   - id: security-reviewer
-    worker: security-reviewer@1.0.0
+    worker: security-reviewer@1.0.1
 
   - id: locate-file
-    worker: locate-file@1.0.0
+    worker: locate-file@1.0.1
 
   - id: read-original
     tool:
@@ -107,10 +107,10 @@ nodes:
           Accept: "text/plain"
 
   - id: fixer
-    worker: fixer@1.0.0
+    worker: fixer@1.0.1
 
   - id: verify-fix
-    worker: verify-fix@1.0.0
+    worker: verify-fix@1.0.1
 
   - id: apply-fix
     tool:

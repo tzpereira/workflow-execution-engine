@@ -182,14 +182,12 @@ func TestDependencyAuditIsReadOnlyLocalFileShape(t *testing.T) {
 	}
 }
 
-// TestPublishedTemplateCatalogIsReadOnly is the structural half of M2.3's
-// "published templates ... declare whether they can write before a user
-// starts them": every .tar in the published gallery must decode to
-// registry.DeriveTemplateFacts(wf).WriteCapable == false. This replaces a
-// hardcoded filename list — the read-only curation policy examples/README.md
-// documents is now a self-maintaining CI invariant instead of a name a new
-// template's author has to remember to add here.
-func TestPublishedTemplateCatalogIsReadOnly(t *testing.T) {
+// TestPublishedTemplateCatalogDeclaresMutationSafety keeps M2.3's structural
+// safety declaration while allowing M2.12's one deliberate write-capable
+// flagship after M2.5 delivered persistent approval checkpoints. Every other
+// gallery template remains read-only; the exception is explicit and tested as
+// write-capable so the UI cannot lose its warning.
+func TestPublishedTemplateCatalogDeclaresMutationSafety(t *testing.T) {
 	entries, err := os.ReadDir("templates")
 	if err != nil {
 		t.Fatal(err)
@@ -212,8 +210,27 @@ func TestPublishedTemplateCatalogIsReadOnly(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: expected exactly one workflow", entry.Name())
 		}
-		if facts := registry.DeriveTemplateFacts(wf); facts.WriteCapable {
-			t.Errorf("%s (%s) is write-capable (tools=%v); the published gallery must stay read-only until M2.5's approval gate lands", entry.Name(), wf.ID, facts.Tools)
+		facts := registry.DeriveTemplateFacts(wf)
+		if wf.ID == "pr-review-autofix" {
+			if !facts.WriteCapable {
+				t.Errorf("%s must remain classified write-capable so the gallery shows its approval warning", entry.Name())
+			}
+			if len(facts.Inputs) != 1 || facts.Inputs[0].Name != "prUrl" || !facts.Inputs[0].Required {
+				t.Errorf("%s required input hints = %+v, want required prUrl", entry.Name(), facts.Inputs)
+			}
+			workers := reg.Workers(wf)
+			if len(workers) != 6 {
+				t.Errorf("%s bundled Workers = %d, want 6", entry.Name(), len(workers))
+			}
+			for ref, worker := range workers {
+				if worker.Description == "" {
+					t.Errorf("%s bundled Worker %s lost its description", entry.Name(), ref)
+				}
+			}
+			continue
+		}
+		if facts.WriteCapable {
+			t.Errorf("%s (%s) is unexpectedly write-capable (tools=%v); only pr-review-autofix is approved for the guarded gallery path", entry.Name(), wf.ID, facts.Tools)
 		}
 	}
 	if found == 0 {
@@ -261,6 +278,25 @@ func TestFlagshipIsValid(t *testing.T) {
 		if _, err := validate.CompileSchema(w.Contract.OutputSchema); err != nil {
 			t.Errorf("%s output schema does not compile: %v", rel, err)
 		}
+		if w.Description == "" {
+			t.Errorf("%s has no human-facing description (REQ-WORKER-08)", rel)
+		}
+	}
+
+	var modelNodes, deterministicNodes int
+	for _, node := range wf.Nodes {
+		if node.Worker != "" {
+			modelNodes++
+		}
+		if node.Tool != nil {
+			deterministicNodes++
+		}
+	}
+	if modelNodes != 6 || deterministicNodes != 7 {
+		t.Errorf("model/deterministic split = %d/%d, want 6/7 (M2.12 published diagram)", modelNodes, deterministicNodes)
+	}
+	if facts := registry.DeriveTemplateFacts(wf); !facts.WriteCapable {
+		t.Error("pr-review-autofix must remain visibly write-capable; approval checkpoints guard its mutations")
 	}
 }
 

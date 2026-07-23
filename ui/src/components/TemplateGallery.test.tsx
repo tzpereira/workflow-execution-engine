@@ -52,12 +52,18 @@ describe('TemplateGallery', () => {
           workflowId: 'pr-review',
           version: '1.1.0',
           nodeCount: 2,
+          requiredConnections: ['openai'],
           tools: ['http'],
           writeCapable: false,
           expectedCostUsd: 0.03,
           expectedDurationMs: 90000,
           inputs: [
-            { name: 'prUrl', required: true, description: 'PR diff URL', default: '' },
+            {
+              name: 'prUrl',
+              required: true,
+              description: 'PR diff URL',
+              default: '',
+            },
           ],
         },
       ],
@@ -70,6 +76,7 @@ describe('TemplateGallery', () => {
     expect(screen.getByText('≤ $0.03')).toBeInTheDocument()
     expect(screen.getByText('≤ 90s')).toBeInTheDocument()
     expect(screen.getByText('http')).toBeInTheDocument()
+    expect(screen.getByText('connections: openai')).toBeInTheDocument()
     expect(screen.getByText('prUrl')).toBeInTheDocument()
     expect(screen.getByText('required')).toBeInTheDocument()
     expect(screen.getByText(/PR diff URL/)).toBeInTheDocument()
@@ -137,11 +144,19 @@ describe('TemplateGallery', () => {
           workflowId: 'pr-review-autofix',
           version: '1.0.0',
           nodeCount: 1,
-          tools: [],
-          writeCapable: false,
-          expectedCostUsd: 0,
-          expectedDurationMs: 0,
-          inputs: [],
+          requiredConnections: ['openai'],
+          tools: ['filesystem', 'git', 'http', 'terminal'],
+          writeCapable: true,
+          expectedCostUsd: 0.5,
+          expectedDurationMs: 180000,
+          inputs: [
+            {
+              name: 'prUrl',
+              required: true,
+              description: 'GitHub PR API URL',
+              default: '',
+            },
+          ],
         },
       ],
     })
@@ -163,6 +178,9 @@ describe('TemplateGallery', () => {
     const onOpenChange = vi.fn()
     render(<TemplateGallery open onOpenChange={onOpenChange} />)
 
+    expect(screen.getByText('write-capable')).toBeInTheDocument()
+    expect(screen.getByText('connections: openai')).toBeInTheDocument()
+    expect(screen.getByText('prUrl')).toBeInTheDocument()
     fireEvent.click(screen.getByText('pr-review-autofix'))
 
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))

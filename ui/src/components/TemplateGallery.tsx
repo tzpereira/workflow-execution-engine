@@ -118,6 +118,7 @@ export function TemplateGallery({
               // crash on .length if that guarantee ever drifts.
               const tools = t.tools ?? []
               const inputs = t.inputs ?? []
+              const connections = t.requiredConnections ?? []
               return (
                 <button
                   key={t.name}
@@ -149,6 +150,11 @@ export function TemplateGallery({
                     <span>≤ {formatDuration(t.expectedDurationMs)}</span>
                     <span>
                       {tools.length > 0 ? tools.join(', ') : 'no tools'}
+                    </span>
+                    <span>
+                      {connections.length > 0
+                        ? `connections: ${connections.join(', ')}`
+                        : 'no model connection'}
                     </span>
                   </div>
                   {inputs.length > 0 && (

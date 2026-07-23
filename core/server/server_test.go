@@ -593,6 +593,9 @@ func TestListTemplatesReadsBundlesFromTemplatesDir(t *testing.T) {
 	if len(got.Tools) != 0 {
 		t.Errorf("Tools = %v, want empty for a worker-only node", got.Tools)
 	}
+	if len(got.RequiredConnections) != 1 || got.RequiredConnections[0] != "openai" {
+		t.Errorf("RequiredConnections = %v, want [openai]", got.RequiredConnections)
+	}
 }
 
 func TestImportTemplateWritesRunnableFilesAndReturnsWorkflow(t *testing.T) {

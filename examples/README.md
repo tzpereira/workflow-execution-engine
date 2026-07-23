@@ -5,16 +5,15 @@ Demonstration workflow definitions with **tight contracts by default**
 validates every file against `schemas/`) so the examples cannot drift from the
 domain model.
 
-The published UI gallery deliberately contains only read-only workflows that
-are useful on first run: `pr-review`, `test-generator`, `change-risk`,
-`refactor-plan`, `release-notes`, and `dependency-audit`. Examples that write
-files or use Git mutations remain available as source references, now guarded
-by M2.5's persisted human-approval checkpoints, but they stay out of the
-beginner gallery until the product has a fuller guided mutation flow.
-Read-only-ness is a structural guarantee, not a naming convention:
-`core/registry.DeriveTemplateFacts` classifies every published
-`.tar`, and `examples_test.go`'s `TestPublishedTemplateCatalogIsReadOnly`
-fails CI if a write-capable workflow is ever added to `templates/`.
+The published UI gallery contains six read-only workflows useful on first run:
+`pr-review`, `test-generator`, `change-risk`, `refactor-plan`, `release-notes`,
+and `dependency-audit`. It also contains one deliberate advanced exception,
+`pr-review-autofix`, whose filesystem/terminal/Git mutations are guarded by
+M2.5's persistent human-approval checkpoints and visibly labeled
+**write-capable** before import. Safety is structural, not a naming convention:
+`core/registry.DeriveTemplateFacts` classifies every published `.tar`, and
+`examples_test.go` permits only that named, guarded exception while requiring
+every other gallery bundle to remain read-only.
 
 Between them, the gallery now demonstrates four distinct change-source
 shapes (M2.3, VISION's "GitHub is only one source adapter, not a product

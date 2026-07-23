@@ -443,10 +443,11 @@ func connectionRef(c settings.Connection) engine.ConnectionRef {
 // itself is only decoded (registry.Import), never registered against
 // anything persistent — listing is read-only.
 type Template struct {
-	Name       string `json:"name"`
-	WorkflowID string `json:"workflowId"`
-	Version    string `json:"version"`
-	NodeCount  int    `json:"nodeCount"`
+	Name                string   `json:"name"`
+	WorkflowID          string   `json:"workflowId"`
+	Version             string   `json:"version"`
+	NodeCount           int      `json:"nodeCount"`
+	RequiredConnections []string `json:"requiredConnections"`
 	registry.TemplateFacts
 }
 
@@ -478,14 +479,32 @@ func (s *Server) handleListTemplates(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 		out = append(out, Template{
-			Name:          strings.TrimSuffix(e.Name(), ".tar"),
-			WorkflowID:    wf.ID,
-			Version:       wf.Version,
-			NodeCount:     len(wf.Nodes),
-			TemplateFacts: registry.DeriveTemplateFacts(wf),
+			Name:                strings.TrimSuffix(e.Name(), ".tar"),
+			WorkflowID:          wf.ID,
+			Version:             wf.Version,
+			NodeCount:           len(wf.Nodes),
+			RequiredConnections: requiredModelConnections(reg.Workers(wf)),
+			TemplateFacts:       registry.DeriveTemplateFacts(wf),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func requiredModelConnections(workers map[string]domain.Worker) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, worker := range workers {
+		provider := worker.Model.Provider
+		if provider == "" {
+			provider = "openai"
+		}
+		if !seen[provider] {
+			seen[provider] = true
+			out = append(out, provider)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 type importTemplateResponse struct {

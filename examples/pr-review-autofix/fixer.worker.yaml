@@ -16,7 +16,8 @@
 # examples/bug-investigation, where the producer and the judge are two
 # different Workers.
 id: fixer
-version: 1.0.0
+version: 1.0.1
+description: Proposes a bounded full-file correction from the diff, reviews, and original file.
 objective: Read a diff, three independent review verdicts, and the real original file, and decide whether a fix is warranted — if so, produce the complete corrected file.
 constraints:
   - Only propose a fix for a critical or major issue at least one reviewer raised — never rewrite for style alone.

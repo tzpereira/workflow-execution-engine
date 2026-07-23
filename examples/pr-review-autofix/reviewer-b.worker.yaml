@@ -5,7 +5,8 @@
 # sibling's, so this adversarial framing can't bias or be biased by the
 # others (REQ-CTXPOL-01).
 id: reviewer-b
-version: 1.0.0
+version: 1.0.1
+description: Challenges the diff as an adversarial second correctness opinion.
 objective: Review a unified diff assuming it is wrong until the diff itself proves otherwise — the adversarial second opinion.
 constraints:
   - Judge only what the diff shows; do not assume unshown context.

@@ -35,6 +35,41 @@ closes); a Fixer
 whose own output is judged by a separate `verify-fix` Worker before anything touches a file; real
 tool-backed apply/test/stage/commit steps; node-cache reuse across re-runs.
 
+## Five-minute public demo path (M2.12)
+
+This is the repeatable product walkthrough for the packaged template. Use a
+**disposable clone** as `WEE_WORKSPACE_ROOT`; the workflow can write, test,
+stage, and commit after explicit approvals.
+
+1. Start `wee serve` with the built UI and `--templates examples/templates`,
+   with `WEE_WORKSPACE_ROOT` pointing at the disposable target checkout.
+2. Open **Templates** and choose `pr-review-autofix`. Before import, confirm the
+   card says **write-capable**, requires the `openai` model connection, declares
+   the required `prUrl` input, and lists filesystem/Git/HTTP/terminal tools.
+3. In **Settings → Model providers**, add or update the `openai` connection and
+   set its key. In the Run dialog, supply a public GitHub PR API URL such as
+   `https://api.github.com/repos/OWNER/REPO/pulls/N`.
+4. On the imported canvas, point out the published split: **6 model** nodes and
+   **7 deterministic** nodes. Select one of each. The Inspector shows the
+   Worker's name/version/description and resolved `provider / model-id`, or an
+   explicit **no model** plus the recorded Tool name/version.
+5. Run. Review/fix proposal generation may proceed without workspace mutation.
+   If `verify-fix` approves a proposed correction, execution pauses before
+   `apply-fix`; inspect the formatted change, affected path, command/API
+   preview, and remaining budget. Nothing mutating has run at this point.
+6. Reject to demonstrate the safe stop, or approve only in the disposable
+   clone. Later mutating steps (`test`, `stage`, `commit`) remain independently
+   checkpointed; approval of one operation never approves another.
+
+What this demo proves now: the real gallery bundle imports through the canonical
+workflow path; model/deterministic identity is visible and tied to the frozen
+execution snapshot; and write-capable work pauses at persistent, explicit
+approval checkpoints. It does **not** prove that a model-generated correction
+is correct, that every PR is single-file/supported, or that the post-
+`read-original` workflow has completed the new public-repository proof. That
+real, recorded run is M2.13; the historical M1.15 runs below predate the
+`read-original` correction and are disclosed as such.
+
 ## Inspiration
 
 The implement → adversarial-review → fix → verify → commit shape here is a deliberate nod to the
