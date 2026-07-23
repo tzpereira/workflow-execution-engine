@@ -29,6 +29,8 @@ decision. Reference `docs/VISION.md`/`docs/ROADMAP.md` sections for background r
 | [0013](0013-connections-model.md) | Connections as non-secret reference bundles (provider + source); forges never become Core concepts; Kimi via OpenAI-compatible base URL | Accepted | 2026-07-21 |
 | [0014](0014-notifications-model.md) | Notifications event-derived and local (in-app + browser/OS), configurable rules; delivery to external channels stays workflow-defined | Accepted | 2026-07-21 |
 | [0015](0015-ui-shell-and-visual-system.md) | UI product shell & visual system — expressive-but-disciplined visual law, design tokens + light/dark, multi-document tabs, a11y guardrails | Accepted | 2026-07-21 |
+| [0016](0016-safe-mutation-approval-checkpoints.md) | Persistent human-approval checkpoints before the first mutation — ApprovalRequested/Granted/Rejected events, decision recorded in the hash-chained log, surviving UI disconnect and `wee serve` restart | Accepted | 2026-07-22 |
+| [0017](0017-worker-description-field.md) | Optional human-facing `Worker.description` field, distinct from `objective`; hashed as part of the definition, never compiled into model context (narrow M1.6 domain-freeze exception) | Accepted | 2026-07-22 |
 
 IDs are stable: never renumbered, never reused. A superseded ADR keeps its number and gets `Status:
 Superseded by ADR-NNNN` — see [spec/README.md](../spec/README.md) for the project-wide ID scheme (`ADR-NNNN`

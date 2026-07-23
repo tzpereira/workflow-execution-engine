@@ -35,6 +35,15 @@ closes); a Fixer
 whose own output is judged by a separate `verify-fix` Worker before anything touches a file; real
 tool-backed apply/test/stage/commit steps; node-cache reuse across re-runs.
 
+## Inspiration
+
+The implement → adversarial-review → fix → verify → commit shape here is a deliberate nod to the
+[Zig-to-Rust port of Bun](https://bun.com/blog/bun-in-rust) (Jarred Sumner + Claude, July 2026), which ran a
+similar Write → Attack → Fix → Commit loop across many parallel Claude Code workflows. There the
+orchestration lived in a conversation and was thrown away once the port landed. WEE's bet is that the loop is
+the durable part: the same graph, kept as a versioned, budgeted, cached, replayable definition instead of
+reconstructed by hand each time.
+
 ## Running it
 
 Requires:

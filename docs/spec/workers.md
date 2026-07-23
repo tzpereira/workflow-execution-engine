@@ -74,3 +74,17 @@ any tool-backed node, unconditionally, regardless of whether its `Input` contain
   read ambient state (e.g. a live working tree); REQ-CACHE-01's key-completeness guarantee cannot be
   honestly made for tool calls without a new, undelivered per-tool purity signal (ADR 0008).
 - **Delivered by:** M1.6a. **Verified by:** `engine.TestDispatchExecutorCacheKeyOnlyForWorkerNodes`.
+
+### REQ-WORKER-08 — Optional human-facing Worker description
+A Worker may declare an optional `description`: human-facing text naming what the Worker is for, distinct
+from `objective` (the behavioral instruction). `description` is part of the canonical Worker definition — it
+participates in the content hash and versioning (REQ-VERSION-01..03), so changing it is a definition change
+that requires a version bump — but the Contract compiler shall **not** include it in the compiled model
+context, so it never reaches the model and never alters output or cache behavior. Being optional, it does not
+change `worker.schema.json`'s `required` list.
+- **Rationale:** the owner's ask that the product make each node's identity legible (name/version/description)
+  alongside whether it is model-backed (REQ-UI-17..19); separates human-facing metadata from the behavioral
+  `objective`. Recorded as a narrow, disclosed exception to the M1.6 domain freeze in
+  [ADR 0017](../adr/0017-worker-description-field.md) (precedent
+  [ADR 0008](../adr/0008-tool-backed-graph-nodes.md)).
+- **Delivered by:** M2.12. **Verified by:** _pending_.

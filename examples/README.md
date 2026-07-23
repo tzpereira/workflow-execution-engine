@@ -60,7 +60,8 @@ reviewer that can return "a paragraph of thoughts" will; one that must return
 **Running this for real** only needs `OPENAI_API_KEY`; the sibling `wee.yaml`
 already permits the normalized `api.github.com` request. Use
 `pr-review-autofix` separately when a human deliberately wants fix generation
-and local tool actions.
+and local tool actions; its README notes the Bun Zig-to-Rust port whose
+Write → Attack → Fix → Commit loop inspired that graph.
 
 ## `test-generator/`
 

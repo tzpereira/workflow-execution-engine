@@ -227,6 +227,31 @@ scannable before anything is added.
   providers, Change sources, and Notifications accordions and no global connection preset select;
   `pnpm --dir ui test -- SettingsModal`.
 
+### REQ-UI-17 — Per-node model/deterministic transparency on the canvas
+The UI shall show, for every node on the canvas, whether it is model-backed (a Worker) or deterministic (a
+Tool node), using the centralized status/signal module (color **and** icon **and** label, color-blind-safe
+per NFR-UI-01), so the model/deterministic boundary is legible without opening a node.
+- **Rationale:** the owner's ask that it be evident whether a node uses a model; derived structurally from
+  `Node.Worker` vs `Node.Tool` (REQ-WORKER-01/04), no new event type.
+- **Delivered by:** M2.12. **Verified by:** _pending_.
+
+### REQ-UI-18 — Model identity in the Inspector
+When a model-backed node is selected, the Inspector shall show the Worker's name (`id`), `version`, and
+`description` (REQ-WORKER-08), plus the resolved model as provider and model id (REQ-MODEL-01); when a
+deterministic tool node is selected, it shall show an explicit "no model" indication plus the tool name and
+version.
+- **Rationale:** the owner's ask for "which model, name/version/description" per node; reads the existing
+  `Worker.model` and the new `Worker.description`.
+- **Delivered by:** M2.12. **Verified by:** _pending_.
+
+### REQ-UI-19 — Displayed model identity reflects the resolved run
+The model identity shown per node shall be the model resolved for the execution after connection/base-URL
+resolution (REQ-CONN-01..06), consistent with the frozen snapshot (REQ-EVENT-04), so what the UI displays
+matches what actually executed rather than only an authored default.
+- **Rationale:** PRIN-02 (observable) — a displayed provider/model that differs from the resolved connection
+  would be a misleading surface; ties the transparency to the audit record.
+- **Delivered by:** M2.12. **Verified by:** _pending_.
+
 ### NFR-UI-01 — Accessibility (WCAG 2.1 AA)
 The UI shall meet WCAG 2.1 AA: full keyboard operation, visible focus, contrast in both themes, appropriate
 ARIA roles/names, and honoring `prefers-reduced-motion`.
