@@ -27,3 +27,7 @@ ui/dist-ssr/
 # env
 .env
 compose.override.yaml
+
+# Confidential, local-only docs (LinkedIn drafts, job-search material). The Core
+# is open source — this content must never ship in a public commit.
+docs/private/
