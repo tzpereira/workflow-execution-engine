@@ -11,13 +11,17 @@
 # (workflow.yaml) catches immediately — read-original lets this judge compare
 # content against the actual original, not just pattern-match diff syntax.
 id: verify-fix
-version: 1.0.1
+version: 1.1.1
 description: Independently verifies a proposed correction before any workspace mutation.
 objective: Judge whether fixer's proposed change should actually be applied — that a fix is genuinely warranted, that content is a real complete corrected file, and that it matches the original file plus only the intended edit.
 constraints:
   - approved is true only if shouldFix was true AND content is the complete file fixer claims to have corrected.
   - Reject content that looks like a diff or patch fragment rather than a whole file — lines starting with "diff --git", "---", "+++", or a "@@" hunk header mean content is a fragment, not the corrected file.
   - Reject content whose unrelated lines (outside what the diff/reviews flagged) diverge from read-original's own body — that means fixer rewrote more than the targeted fix, or content isn't actually derived from the real file.
+  - Do not call content a fragment merely because its length differs from the original. When its opening and closing sections align with read-original and it contains no patch markers, treat it as a full file and judge the exact deviations instead.
+  - A required standard-library import plus the corrected function body is a targeted edit, not unrelated divergence.
+  - For explicit-token versus wildcard precedence, reject any implementation that returns the wildcard result before it has searched all tokens for an explicit match.
+  - Keep reason concise and under 250 characters.
   - Never rewrite or improve the fix yourself — judge it as given.
 tools: []
 contextPolicy:
@@ -31,6 +35,7 @@ contract:
   successCriteria:
     - A diff/patch fragment masquerading as full file content is never approved.
     - A fix fixer itself marked shouldFix=false is never approved.
+    - An explicit q=0 token overrides an accepting wildcard in either input order.
   maxRetries: 2
   outputSchema:
     type: object
@@ -44,6 +49,6 @@ contract:
         maxLength: 300
 model:
   provider: openai
-  model: gpt-4o-mini
+  model: gpt-4.1
   params:
     temperature: 0

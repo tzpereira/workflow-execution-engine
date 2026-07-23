@@ -27,14 +27,15 @@ Rules:
 
 ## Status
 
-- **M2.12 is complete; M2.13 is not started** (2026-07-22). Every canvas node now carries a centralized,
-  color-blind-safe model/deterministic signal; the Inspector shows frozen Worker name/version/description
-  plus resolved provider/model/connection provenance, or explicit no-model + recorded Tool name/version.
-  Optional `Worker.description` is canonical across schema/domain/SDK but excluded from compiled model input.
-  `pr-review-autofix` is now a guarded, write-capable gallery bundle with required connection/input hints,
-  six described model nodes, seven deterministic nodes, its sidecar sandbox config, and a five-minute demo
-  path. M2.13 (Flagship Public Proof) remains the next experience-track milestone and will perform the real
-  public-repository run; `M2.7 — Team Self-Hosted` remains the next sequential main-line milestone.
+- **M2.13 is complete** (2026-07-23). `pr-review-autofix@1.1.1` reviewed
+  [go-chi/chi PR #1142](https://github.com/go-chi/chi/pull/1142) with a real OpenAI key and cache disabled,
+  paused separately before write/test/stage/commit, passed `go test ./...`, and created local commit
+  `40756ed43a6335142ef15bfa428b3cb1416e93ea` in a clean disposable clone. Execution
+  `pr-review-autofix-20260723T172016-1d0337` recorded 35,142 tokens and `$0.06903295`; no upstream write was
+  authorized, so the proof stopped at the local commit and its persisted UI was left ready for the
+  owner-requested video capture. Real-run hardening also closed ordered-fallback review, raw-JSON/full-file
+  generation, verifier precision, and the missing `fixer -> apply-fix` data edge. Full Go/UI verification
+  is recorded under M2.13 below. `M2.7 — Team Self-Hosted` remains the next sequential main-line milestone.
 - **M2.6 is complete** (2026-07-22): Self-hosted packaging is implemented and mechanically verified. The
   binary now has a zero-config `wee cli` entrypoint with Lip Gloss terminal output, plus a
   `wee backup create|restore` workspace backup path; `wee serve --ui-dir` can host the built UI from the
@@ -656,22 +657,26 @@ owner approval.
 
 Tasks:
 
-- [ ] Target selection: pick a known, low-risk issue in Bitcoin Core or another reputable public repository
+- [x] Target selection: pick a known, low-risk issue in Bitcoin Core or another reputable public repository
       where a small contribution is appropriate. Record the issue/PR target, rationale, and why the change is
       safe to attempt with a disposable clone before running the workflow.
-- [ ] Real run: run the imported `pr-review-autofix` template against the selected public target with a real
+- [x] Real run: run the imported `pr-review-autofix` template against the selected public target with a real
       provider key, exercise the approval checkpoint, approve, and run through the write path until a real
       local `git commit` exists in the disposable clone.
-- [ ] Evidence bundle: capture the execution id, commit hash, cost/tokens/metrics, selected provider/model,
+- [x] Evidence bundle: capture the execution id, commit hash, cost/tokens/metrics, selected provider/model,
       screenshots/video stills needed for the flagship demo, and update the example README with real figures.
-- [ ] Public contribution handoff: if the local commit is suitable, prepare or open a draft PR against the
+- [x] Public contribution handoff: if the local commit is suitable, prepare or open a draft PR against the
       public repository only after explicit owner approval; record the PR URL or the reason it was not opened.
 
 Acceptance:
 
-- [ ] A recorded real run reviews a real PR, pauses at approval, and on approval applies/tests/commits in a
+- [x] A recorded real run reviews a real PR, pauses at approval, and on approval applies/tests/commits in a
       throwaway clone, with real metrics and no unapproved write.
-- [ ] The flagship proof either opens a draft PR for the accepted local commit against the selected public
+- [x] The flagship proof either opens a draft PR for the accepted local commit against the selected public
       repository or records why the contribution stopped at local commit.
-- [ ] Verification: `go test ./... -race`, `go vet ./...`, `pnpm --dir ui lint/typecheck/test/build`, plus the
-      recorded real-PR run id and its metrics.
+- [x] Verification: `go test ./... -race`; `go vet ./...`; `pnpm --dir ui lint`;
+      `pnpm --dir ui typecheck`; `pnpm --dir ui test` (33 files / 233 tests);
+      `pnpm --dir ui build` (known chunk-size warning only). Real run:
+      `pr-review-autofix-20260723T172016-1d0337`, 35,142 tokens, `$0.06903295`, OpenAI
+      (`gpt-4o-mini` reviewers/locator; `gpt-4.1` Fixer/verifier), local commit
+      `40756ed43a6335142ef15bfa428b3cb1416e93ea`.

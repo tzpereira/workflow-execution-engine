@@ -270,6 +270,23 @@ func TestFlagshipIsValid(t *testing.T) {
 		}
 	}
 
+	// M2.13's real run proved that artifact placeholders resolve only from a
+	// direct parent: each mutating node that reads fixer fields must retain its
+	// own data edge, independently of the ordering/gating edges.
+	fixerDataEdges := map[string]bool{"apply-fix": false, "stage": false, "commit": false}
+	for _, e := range wf.Edges {
+		if e.From == "fixer" {
+			if _, ok := fixerDataEdges[e.To]; ok {
+				fixerDataEdges[e.To] = true
+			}
+		}
+	}
+	for id, fedByFixer := range fixerDataEdges {
+		if !fedByFixer {
+			t.Errorf("%s references a fixer artifact and must remain a direct child of fixer", id)
+		}
+	}
+
 	for _, rel := range []string{"reviewer-a.worker.yaml", "reviewer-b.worker.yaml", "security-reviewer.worker.yaml", "locate-file.worker.yaml", "fixer.worker.yaml", "verify-fix.worker.yaml"} {
 		w := readWorker(t, "pr-review-autofix/"+rel)
 		if err := v.Validate(validate.KindWorker, w, nil); err != nil {

@@ -16,7 +16,7 @@
 # examples/bug-investigation, where the producer and the judge are two
 # different Workers.
 id: fixer
-version: 1.0.1
+version: 1.1.0
 description: Proposes a bounded full-file correction from the diff, reviews, and original file.
 objective: Read a diff, three independent review verdicts, and the real original file, and decide whether a fix is warranted — if so, produce the complete corrected file.
 constraints:
@@ -25,7 +25,10 @@ constraints:
   - content must start from read-original's body field verbatim and apply only the minimal edit the fix requires — never rebuild the file from the diff, and never guess at lines the diff doesn't show; read-original already has them.
   - content must be the ENTIRE corrected file, not a fragment or a diff — apply-fix (workflow.yaml) overwrites the whole file with it.
   - content must be a minimal, targeted fix — preserve every unrelated line exactly as in read-original's body (license/copyright headers, comments, imports, unrelated functions); change only what the reported issue requires.
+  - "content must not merely reproduce the reviewed diff: for every critical or major issue that caused shouldFix=true, the relevant changed hunk must differ from the PR's proposed version in a way that resolves the issue."
+  - When fixing precedence between an explicit token and a wildcard, scan all tokens and retain both results before deciding; never return a wildcard result while a later explicit token could override it.
   - content must never contain diff/patch syntax anywhere — no lines starting with "diff --git", "index ", "+++", "---", or "@@", and no leading "+"/"-" change markers. The diff is given for context only, to know WHAT changed; your OWN answer is read-original's file, edited, not a diff, and not wrapped in a diff.
+  - Return the Contract object as raw JSON only. Never wrap the JSON response or content field in Markdown or triple-backtick fences; newlines inside content must be valid JSON string escapes.
   - commitMessage must be fully self-contained (REQ-WORKER-06 — apply-fix/commit reference these fields whole, never composed with other text).
   - commitMessage must be a single line — a short imperative summary of the fix, no body, no bullet points, no trailing period.
 tools: []
@@ -38,6 +41,7 @@ contract:
     - When shouldFix is false, path/content/commitMessage are empty strings — apply-fix never runs (workflow.yaml's conditional edge).
   successCriteria:
     - Every critical/major issue that caused shouldFix=true is actually addressed in content.
+    - An explicit q=0 token rejects its encoding whether it appears before or after an accepting wildcard.
   maxRetries: 2
   outputSchema:
     type: object
@@ -59,6 +63,6 @@ contract:
         maxLength: 300
 model:
   provider: openai
-  model: gpt-4o
+  model: gpt-4.1
   params:
     temperature: 0

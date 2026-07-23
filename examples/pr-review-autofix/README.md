@@ -100,12 +100,94 @@ not a one-size-fits-all config. See "Real-repo validation" below for what tuning
 ## Expected cost
 
 Six LLM Workers per run: three `gpt-4o-mini` reviewers (parallel, cheap), one `gpt-4o-mini` `locate-file`
-(cheap — path + raw URL extraction), one `gpt-4o` fixer (the expensive call), and one `gpt-4o-mini` verifier.
-A typical run costs roughly half a cent to a couple of cents — see the real figures below — comfortably
-inside the workflow's own `maxCostUsd: 0.50` ceiling; a run where `verify-fix` rejects the fix skips
+(cheap — path + raw URL extraction), one `gpt-4.1` fixer (the expensive call), and one `gpt-4.1` verifier.
+A typical run costs a few cents and can approach fifteen cents for a larger corrected file — see the real
+figures below — inside the workflow's own `maxCostUsd: 0.50` ceiling; a run where `verify-fix` rejects the fix skips
 `apply-fix` onward and costs less still. The actual figure for any specific run is real accounting, not an
 estimate — see it via `wee inspect <id>` or the UI's Metrics panel
 ([concepts/budget.md](../../docs/concepts/budget.md)).
+
+## Flagship public proof (M2.13)
+
+### Initial target and safe abort
+
+The first selected target was [spf13/cobra PR #2447](https://github.com/spf13/cobra/pull/2447), which addresses
+[issue #1911](https://github.com/spf13/cobra/issues/1911) by adding `RemoveGroup` to a widely used Go CLI
+library. The PR is a suitable low-risk proof target because it changes only `command.go` (17 added lines),
+the repository has a fast `go test ./...` validation path, and the run takes place from the PR's recorded
+base commit (`adbc8813901bba65827259daa8e22ff94ec1f30e`) in a disposable clone.
+
+The defect under review is public and concrete: an
+[inline review comment](https://github.com/spf13/cobra/pull/2447#discussion_r3634944060) notes that removing
+a group can leave a child command's `GroupID` pointing at the removed group, after which Cobra's group
+validation fails on the next execution. The workflow is expected to review that risk and may propose the
+smallest correction to `command.go`; correctness is still decided by the verifier, the real test suite, and
+the human approval checkpoints.
+
+Execution `pr-review-autofix-20260723T153207-2a60d1` stopped safely before `verify-fix` or any approval
+checkpoint: `command.go` was too large for the full-file Fixer response to arrive within the provider
+client's 60-second timeout, and all three bounded attempts ended as transient provider failures. The
+disposable clone remained clean and no mutation event was emitted. This target was therefore rejected for
+the flagship recording instead of weakening the timeout or bypassing the safety path.
+
+### Second target and verifier rejection
+
+The next target was [go-chi/chi PR #1142](https://github.com/go-chi/chi/pull/1142), against base
+commit `8b258c7bb28f97a5f2a856ff7ef962578fec9215`. It addresses the public
+[Accept-Encoding issue #1069](https://github.com/go-chi/chi/issues/1069) in the compact
+`middleware/compress.go` file. The proposed matcher adds wildcard support but returns on the first wildcard
+or exact match it encounters; that makes the answer header-order-dependent and can let `*;q=1` override a
+later explicit `gzip;q=0`, even though the explicit exclusion must take precedence. This is a concrete,
+bounded HTTP-negotiation defect with a fast `go test ./...` validation path.
+
+Execution `pr-review-autofix-20260723T154012-3b8c09` completed its review and Fixer stages, but
+`verify-fix` rejected the proposed file before any approval checkpoint: although the content was file-shaped,
+it omitted the original copyright header and therefore diverged outside the targeted edit. The clone again
+remained clean. This is the intended fail-closed result and is retained as safety evidence, not used as the
+successful flagship run.
+
+### Third candidate and no-op correction
+
+[google/uuid PR #171](https://github.com/google/uuid/pull/171), against base commit
+`0e97ed3b537927cb4afea366bc4cc36f6eb37e75`, was also evaluated because an
+[inline maintainer review](https://github.com/google/uuid/pull/171#discussion_r1842602724) identifies a
+specific regression in one compact file. Runs `pr-review-autofix-20260723T154707-172df6`,
+`pr-review-autofix-20260723T155057-6ff608`, and `pr-review-autofix-20260723T155437-e58dee` all stopped
+without mutation: the hardened reviewer eventually found the 36+2 bracketed-UUID regression, but the safe
+correction was exactly the base file and therefore could not produce the real corrective commit M2.13
+requires. The target was rejected rather than manufacturing an unrelated change.
+
+### Final target and successful proof
+
+The final target returned to [go-chi/chi PR #1142](https://github.com/go-chi/chi/pull/1142), whose
+explicit-token-versus-wildcard defect yields a material correction from base. Before the final run, the
+failed-safe attempts above drove narrowly scoped template hardening: the adversarial review now checks
+ordered fallback precedence, the Fixer must return raw JSON and implement rather than repeat a reviewed
+hunk, `gpt-4.1` handles the two full-file reasoning steps, and `fixer -> apply-fix` directly wires the
+artifact that the filesystem input references.
+
+Execution `pr-review-autofix-20260723T172016-1d0337` ran workflow `pr-review-autofix@1.1.1` with cache off,
+a real OpenAI key, and a `$0.20` run budget. Every model and deterministic node succeeded. The run paused
+four times and received a distinct approval before:
+
+1. writing only `middleware/compress.go`;
+2. running `go test ./...` (`26.667s` for `middleware`, exit `0`);
+3. staging only `middleware/compress.go`; and
+4. creating the local commit.
+
+| Nodes | Provider / model | Tokens | Cost |
+| --- | --- | ---: | ---: |
+| reviewers + `locate-file` | OpenAI / `gpt-4o-mini` | 14,233 | $0.00242295 |
+| `fixer` | OpenAI / `gpt-4.1` | 10,881 | $0.04632600 |
+| `verify-fix` | OpenAI / `gpt-4.1` | 10,028 | $0.02028400 |
+| **Total** |  | **35,142** | **$0.06903295** |
+
+The disposable clone started at `8b258c7bb28f97a5f2a856ff7ef962578fec9215` and finished clean at local
+commit `40756ed43a6335142ef15bfa428b3cb1416e93ea`
+(`fix Accept-Encoding precedence to honor explicit q=0 over wildcard`). No upstream write was authorized:
+the requested handoff was to leave the completed execution in the UI for the owner to record, not to push a
+branch or open a competing PR against the existing public contribution. The persisted execution provides
+the video/still source; a public draft requires a separate owner decision.
 
 ## Real-repo validation (M1.15)
 
@@ -151,9 +233,9 @@ also meant the auto-fix step frequently never reached an applied fix. Fixed by a
 cheap Worker that extracts the modified path from the diff and builds the raw GitHub URL for the PR base
 file) and `read-original` (an `http` read of that real file) upstream of `fixer`, so `fixer` now edits the
 actual file content instead of reconstructing it from a partial diff — and `verify-fix` now also sees
-`read-original`, so it can reject a `content` whose
-unrelated lines diverge from the real file, not just pattern-match diff syntax. **Not yet re-validated
-against a real repo** (the original three validation runs predate this fix) — the review portion (three
-reviewers + the verdict) remains independently reliable regardless. This is exactly what
-REQ-CONTRACT-05's verifier-node pattern is *for*: a producer's unreliability degrades to "nothing happens,"
-never to "something wrong got applied."
+`read-original`, so it can reject a `content` whose unrelated lines diverge from the real file, not just
+pattern-match diff syntax. **Re-validated against a real repo in M2.13:** execution
+`pr-review-autofix-20260723T172016-1d0337` completed the guarded write/test/stage/commit path against
+go-chi/chi after the separate verifier approved the full corrected file. The preceding rejected runs remain
+evidence of REQ-CONTRACT-05's intended failure mode: a producer's unreliability degrades to "nothing
+happens," never to "something wrong got applied."
