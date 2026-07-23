@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { Connection, Settings } from '../core/audit'
 import type { NotificationEventKey } from '../core/audit'
@@ -101,6 +101,7 @@ export function SettingsModal({
   const [settings, setSettings] = useState<Settings>({})
   const [settingsBusy, setSettingsBusy] = useState(false)
   const [settingsFeedback, setSettingsFeedback] = useState<string | null>(null)
+  const secretsStatusLoadSeq = useRef(0)
 
   useEffect(() => {
     if (!open) return
@@ -114,9 +115,11 @@ export function SettingsModal({
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    const loadSeq = secretsStatusLoadSeq.current + 1
+    secretsStatusLoadSeq.current = loadSeq
     void Promise.resolve()
       .then(() => {
-        if (!cancelled) {
+        if (!cancelled && secretsStatusLoadSeq.current === loadSeq) {
           setLoading(true)
           setError(null)
         }
@@ -128,13 +131,19 @@ export function SettingsModal({
         ),
       )
       .then((nextStatus) => {
-        if (!cancelled) setStatus(nextStatus)
+        if (!cancelled && secretsStatusLoadSeq.current === loadSeq) {
+          setStatus(nextStatus)
+        }
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+        if (!cancelled && secretsStatusLoadSeq.current === loadSeq) {
+          setError(e instanceof Error ? e.message : String(e))
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled && secretsStatusLoadSeq.current === loadSeq) {
+          setLoading(false)
+        }
       })
     return () => {
       cancelled = true
@@ -214,6 +223,8 @@ export function SettingsModal({
   async function save(name: string) {
     const value = normalizeSecretValue(name, drafts[name] ?? '')
     if (!value) return
+    secretsStatusLoadSeq.current += 1
+    setLoading(false)
     setBusy(name)
     setFieldFeedback((f) => ({ ...f, [name]: 'Saving…' }))
     setError(null)
@@ -237,6 +248,8 @@ export function SettingsModal({
       setFieldFeedback((f) => ({ ...f, [name]: 'Draft cleared.' }))
       return
     }
+    secretsStatusLoadSeq.current += 1
+    setLoading(false)
     setBusy(name)
     setFieldFeedback((f) => ({ ...f, [name]: 'Clearing…' }))
     setError(null)
